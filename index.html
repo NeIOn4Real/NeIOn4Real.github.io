@@ -2557,10 +2557,11 @@ const FACILITY_FX={
     fx.hit();
   },
   futures_market(fx){
-    // 使用預先決定的百分比
+    // 使用預先決定的百分比（若無則即時抽選）
     if(!G.futuresPct) G.futuresPct={};
     const key=`${fx.r},${fx.c}`;
-    const pct=G.futuresPct[key]||0;
+    if(G.futuresPct[key]===undefined) G.futuresPct[key]=Math.floor(Math.random()*21)-10;
+    const pct=G.futuresPct[key];
     const change=Math.round(fx.el.value*pct/100);
     const nv=Math.max(1, fx.el.value+change);
     addLog(`  🏛 期貨交易所: ${pct>=0?'+':''}${pct}% → ${fx.el.value}→${nv}`,(pct>=0?'g':'b'));
