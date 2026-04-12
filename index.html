@@ -1518,7 +1518,7 @@ const EVENTS=[
       G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
       addLog(`🔀 莫菲定律：所有設施被打亂！獲得2張複合設施`,'b');
       // 全屏特效：震動 + 立繪 + 台詞
-      document.body.classList.add('murphy-shaking');
+      document.getElementById('main').classList.add('murphy-shaking');
       const overlay=document.createElement('div');
       overlay.id='murphy-overlay';
       overlay.innerHTML=`
@@ -1529,7 +1529,7 @@ const EVENTS=[
       `;
       overlay.onclick=()=>{
         overlay.remove();
-        document.body.classList.remove('murphy-shaking');
+        document.getElementById('main').classList.remove('murphy-shaking');
         showEv(ev.title,`所有設施位置被隨機打亂！獲得2張複合設施作為補償。`,`<button class="eopt pri" onclick="evDone()">確認</button>`);
         render();
       };
