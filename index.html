@@ -1448,9 +1448,15 @@ const EVENTS=[
         }
       }
       // 給予2張複合設施
-      const _murphyPool=Object.keys(BLDG).filter(id=>id!=='ruin'&&id!=='dept_store_part'&&id!=='envy_factory');
-      addHandMaybeCompound(_murphyPool[Math.floor(Math.random()*_murphyPool.length)]);
-      addHandMaybeCompound(_murphyPool[Math.floor(Math.random()*_murphyPool.length)]);
+      // 給予 2 張保證複合設施
+      const _mPool=Object.keys(BLDG).filter(bid=>!COMPOUND_EXCLUDE.has(bid));
+      for(let _mi=0;_mi<2;_mi++){
+        const a=_mPool[Math.floor(Math.random()*_mPool.length)];
+        const b2=_mPool.filter(bid=>bid!==a)[Math.floor(Math.random()*(_mPool.length-1))];
+        const dir=COMPOUND_DIRS[Math.floor(Math.random()*COMPOUND_DIRS.length)];
+        G.hand.push({id:`compound_${++_compoundSeq}`,compound:true,parts:[a,b2],dr:dir.dr,dc:dir.dc,dirLabel:dir.label,count:1});
+        addLog(`🔗 複合設施！${BLDG[a].emoji}${BLDG[a].name} ${dir.label} ${BLDG[b2].emoji}${BLDG[b2].name}`,'w');
+      }
       // 莫菲定律後，下次事件限定為特定池
       G._murphyNextPool=true;
       // 觸發後重置權重追蹤，避免連續觸發
