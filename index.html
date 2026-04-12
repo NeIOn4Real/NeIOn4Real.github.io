@@ -701,12 +701,12 @@ const PARTNERS = {
     neg:'獲得收益時，bonus重置為1',
     desc:'貧窮神',
     state: { bonus:1 },
-    onFinish(G, profit){
+    onSettle(G, profit, el){
       const st = G.partnerState.poverty_god || { bonus:1 };
       if(profit === 0){
         G.profit += st.bonus;
         addLog(`🪙 貧窮神：收益為零，獲得 +${st.bonus}`, 'g');
-      setTimeout(()=>profitFlyFromPartner('poverty_god',st.bonus),100);
+        setTimeout(()=>profitFlyFromPartner(this.id,st.bonus),100);
         st.bonus++;
       } else {
         if(st.bonus > 1) addLog(`🪙 貧窮神：bonus重置回1`);
@@ -772,7 +772,8 @@ const PARTNERS = {
     neg:'超過5回合未遇減少效果，收益減33%',
     desc:'激情惡魔',
     state:{ noDebuffTurns:0 },
-    onTurnEnd(G, hadDebuff){
+    onSettle(G, profit, el){
+      const hadDebuff=Object.values(G.cellMods||{}).some(v=>v<0);
       const st = G.partnerState.wrath || { noDebuffTurns:0 };
       if(hadDebuff){ st.noDebuffTurns=0; }
       else { st.noDebuffTurns++; }
@@ -799,12 +800,12 @@ const PARTNERS = {
       G.goal = Math.ceil(G.goal * 1.5);
       addLog(`💰 貪婪惡魔：本輪目標+50% → ${G.goal}`,'b');
     },
-    onTurnEnd(G, turnProfit){
-      const bonus = Math.floor(turnProfit * 0.5);
+    onSettle(G, profit, el){
+      const bonus = Math.floor(profit * 0.5);
       if(bonus > 0){
         G.profit += bonus;
         addLog(`💰 貪婪惡魔：回合收益+50% → +${bonus}`,'g');
-        setTimeout(()=>profitFlyFromPartner('greed',bonus),200);
+        setTimeout(()=>profitFlyFromPartner(this.id,bonus),200);
       }
     }
   },
@@ -813,6 +814,15 @@ const PARTNERS = {
     pos:'所有惡魔負面效果不生效，每個惡魔輸出+10%',
     neg:'無',
     desc:'傲慢惡魔',
+    onSettle(G, profit, el){
+      const demonCount=G.partners.filter(pid=>PARTNERS[pid]&&PARTNERS[pid].isDemon).length;
+      if(demonCount>0){
+        const bonus=Math.ceil(profit*demonCount*0.1);
+        G.profit+=bonus;
+        addLog(`👑 傲慢惡魔：${demonCount}個惡魔，收益+${demonCount*10}% → +${bonus}`,'g');
+        setTimeout(()=>profitFlyFromPartner(this.id,bonus),150);
+      }
+    },
   },
   ore_merchant: {
     id:'ore_merchant', name:'基礎原料商', emoji:'⛏️',
@@ -846,7 +856,15 @@ const PARTNERS = {
   union_chief: {
     id:'union_chief', name:'工會主席', emoji:'✊',
     pos:'持有3+人材時設施輸出+50%', neg:'少於3人材時輸出-20%', desc:'工會主席',
-    // 效果在 finish() 中實作
+    onSettle(G, profit, el){
+      if((G.talentCards||0)>=3){
+        const bonus=Math.ceil(profit*0.5);
+        G.profit+=bonus; addLog(`✊ 工會主席：3+人材，+50% → +${bonus}`,'g');
+      } else if(profit>0){
+        const cut=Math.floor(profit*0.2);
+        G.profit-=cut; addLog(`✊ 工會主席：人材不足，-20% -${cut}`,'b');
+      }
+    },
   },
   labor_minister: {
     id:'labor_minister', name:'勞動部長', emoji:'🎩',
@@ -863,7 +881,14 @@ const PARTNERS = {
   transport_tycoon: {
     id:'transport_tycoon', name:'運輸大亨', emoji:'🚢',
     pos:'每次資源通過物流中心+3數值', neg:'未通過物流中心時收益-50%', desc:'運輸大亨',
-    // 正面在 stepWithMover 物流區實作；負面在 finish() 實作
+    // 正面在 stepWithMover 物流區實作
+    onSettle(G, profit, el){
+      if((G._logisticsHitThisTurn||0)===0&&profit>0){
+        const cut=Math.floor(profit*0.5);
+        G.profit-=cut;
+        addLog(`🚢 運輸大亨：未通過物流中心，收益-50% -${cut}`,'b');
+      }
+    },
   },
   storage_queen: {
     id:'storage_queen', name:'倉儲女王', emoji:'👑',
@@ -877,18 +902,53 @@ const PARTNERS = {
       if(!hasPartner('route_planner')) return;
       G._freeMoveLogistics=true;
       addLog('🗺️ 路線規劃師：本回合可免費移動一個物流中心','g');
-    }
+    },
+    onSettle(G, profit, el){
+      if(profit<=0) return;
+      let cnt=0;
+      for(let _r=0;_r<GN();_r++) for(let _c=0;_c<GN();_c++){
+        const bid=G.grid[_r][_c]; if(bid&&BLDG[bid]&&BLDG[bid].special==='redirect') cnt++;
+      }
+      if(cnt<2){
+        const cut=Math.floor(profit*0.3);
+        G.profit-=cut;
+        addLog(`🗺️ 路線規劃師：物流中心僅${cnt}個（<2），-30% -${cut}`,'b');
+      }
+    },
   },
   express_master: {
     id:'express_master', name:'快遞達人', emoji:'🚀',
     pos:'通過4+格時數值額外+10%', neg:'少於4格時收益減半', desc:'快遞達人',
+    onSettle(G, profit, el){
+      if((G.turnFacilitiesHit||0)>=4){
+        const bonus=Math.ceil(profit*0.1);
+        G.profit+=bonus;
+        addLog(`🚀 快遞達人：${G.turnFacilitiesHit}格，+10% → +${bonus}`,'g');
+      } else if(profit>0){
+        const cut=Math.floor(profit*0.5);
+        G.profit-=cut;
+        addLog(`🚀 快遞達人：不足4格（${G.turnFacilitiesHit}），收益減半-${cut}`,'b');
+      }
+    },
   },
 
   // ── 貿易流合夥人 ──
   forex_trader: {
     id:'forex_trader', name:'外匯交易員', emoji:'💹',
     pos:'金錢↔商品轉換時，差值10%作為收益', neg:'資源為原料時輸出-50%', desc:'外匯交易員',
-    // 效果在 finish() 中實作：追蹤 G._forexConversions
+    onSettle(G, profit, el){
+      if(profit<=0) return;
+      if(G._forexMoneyToGoods||G._forexGoodsToMoney){
+        const bonus=Math.ceil(profit*0.1);
+        G.profit+=bonus;
+        addLog(`💹 外匯交易員：金錢↔商品轉換，+10% +${bonus}`,'g');
+      }
+      if(el.type==='material'){
+        const cut=Math.floor(profit*0.5);
+        G.profit-=cut;
+        addLog(`💹 外匯交易員：原料輸出，-50% -${cut}`,'b');
+      }
+    },
   },
   black_market: {
     id:'black_market', name:'黑市商人', emoji:'🕶️', isDemon:true,
@@ -903,12 +963,34 @@ const PARTNERS = {
   arbitrageur: {
     id:'arbitrageur', name:'套利者', emoji:'⚖️',
     pos:'同回合金錢→商品→金錢時最終+20%', neg:'單向轉換時-20%', desc:'套利者',
-    // 效果在 finish() 中實作：追蹤 G._arbConversions
+    onSettle(G, profit, el){
+      if(profit<=0) return;
+      const hadBoth=G._arbMoneyToGoods&&G._arbGoodsToMoney;
+      if(hadBoth){
+        const bonus=Math.ceil(profit*0.2);
+        G.profit+=bonus;
+        addLog(`⚖️ 套利者：雙向轉換，+20% +${bonus}`,'g');
+      } else if(G._arbMoneyToGoods||G._arbGoodsToMoney){
+        const cut=Math.floor(profit*0.2);
+        G.profit-=cut;
+        addLog(`⚖️ 套利者：單向轉換，-20% -${cut}`,'b');
+      }
+    },
   },
   monopolist: {
     id:'monopolist', name:'壟斷者', emoji:'🎩',
     pos:'每3個商店，商品→金錢時+5%', neg:'少於3商店時每少一個-10%收益', desc:'壟斷者',
-    // 效果在 finish() 中實作
+    onSettle(G, profit, el){
+      if(profit<=0) return;
+      let shopCount=0;
+      for(let _r=0;_r<GN();_r++) for(let _c=0;_c<GN();_c++) if(isShopType(G.grid[_r][_c])) shopCount++;
+      if(shopCount<3){
+        const missing=3-shopCount;
+        const cut=Math.floor(profit*missing*0.1);
+        G.profit-=cut;
+        addLog(`🎩 壟斷者：僅${shopCount}商店（差${missing}），-${missing*10}% -${cut}`,'b');
+      }
+    },
   },
 
   // ── 拆遷流合夥人 ──
@@ -954,7 +1036,16 @@ const PARTNERS = {
   ruin_scavenger: {
     id:'ruin_scavenger', name:'廢墟掠奪者', emoji:'💀',
     pos:'設施消滅後原位置留下廢墟，資源通過廢墟+5', neg:'廢墟超過3格時每格-2輸出', desc:'廢墟掠奪者',
-    // 正面在 stepWithMover + destroyFacility；負面在 finish() 實作
+    // 正面在 stepWithMover + destroyFacility
+    onSettle(G, profit, el){
+      if(profit<=0) return;
+      const ruinCount=G.ruinCells?G.ruinCells.size:0;
+      if(ruinCount>3){
+        const cut=ruinCount*2;
+        G.profit-=cut;
+        addLog(`💀 廢墟掠奪者：${ruinCount}廢墟（>3），-${cut}收益`,'b');
+      }
+    },
   },
 
   tanya: {
@@ -980,12 +1071,28 @@ const PARTNERS = {
     pos:'每筆資源經過中央格子時，最終收益+5%（可累積）',
     neg:'無',
     desc:'市長',
+    onSettle(G, profit, el){
+      if((G._centerHits||0)>0&&profit>0){
+        const pct=G._centerHits*5;
+        const bonus=Math.ceil(profit*pct/100);
+        G.profit+=bonus;
+        addLog(`🎖 市長：經過中央${G._centerHits}次，+${pct}% → +${bonus}`,'g');
+        setTimeout(()=>profitFlyFromPartner(this.id,bonus),150);
+      }
+    },
   },
   highway_star: {
     id:'highway_star', name:'公路之星', emoji:'🌟',
     pos:'每回合中央2格隨機+2效果（每10回合額外+2）；未經中央則收益減半',
     neg:'本回合無資源經過中央則收益減半',
     desc:'公路之星',
+    onSettle(G, profit, el){
+      if(!G._highwayPassedCenter&&profit>0){
+        const cut=Math.floor(profit*0.5);
+        G.profit-=cut;
+        addLog(`🌟 公路之星：未經中央，收益減半 -${cut}`,'b');
+      }
+    },
   },
   facility_destroyer: {
     id:'facility_destroyer', name:'設施破壞者', emoji:'💣',
@@ -998,6 +1105,15 @@ const PARTNERS = {
     pos:'每回合隨機指定投入方向，從該方向投入獲得×2倍率',
     neg:'只能從指定方向投入',
     desc:'場風大師',
+    onSettle(G, profit, el){
+      if(G._windCorrect){
+        const bonus=profit;
+        G.profit+=bonus;
+        addLog(`🌀 場風大師：正確方向，收益×2 +${bonus}`,'g');
+        setTimeout(()=>profitFlyFromPartner(this.id,bonus),100);
+        G._windCorrect=false;
+      }
+    },
   },
   landlord: {
     id:'landlord', name:'大地主', emoji:'🏗',
@@ -2833,139 +2949,11 @@ function finish(el,startVal){
     addLog(`📈 匯率波動板：結算隨機 ${pct>0?'+':''}${pct}% → ${adj>0?'+':''}${adj} 收益（共${G.profit}）`, adj>=0?'g':'b');
     G._exchangeBoardActive = false;
   }
-  // 工會主席：人材加成/懲罰
-  if(hasPartner('union_chief')){
-    if((G.talentCards||0)>=3){
-      const bonus=Math.ceil(profit*0.5);
-      G.profit+=bonus; addLog(`✊ 工會主席：3+人材，+50% → +${bonus}`,'g');
-    } else if(profit>0){
-      const cut=Math.floor(profit*0.2);
-      G.profit-=cut; addLog(`✊ 工會主席：人材不足，-20% -${cut}`,'b');
-    }
-  }
-  // 場風大師：正確方向投入 ×2
-  if(hasPartner('wind_master') && G._windCorrect){
-    const bonus=profit; // double
-    G.profit+=bonus;
-    addLog(`🌀 場風大師：正確方向，收益×2 +${bonus}`,'g');
-    setTimeout(()=>profitFlyFromPartner('wind_master',bonus),100);
-    G._windCorrect=false;
-  }
-  // Partner: pride - 10% per demon (including pride itself), ceil
-  if(hasPartner('pride')){
-    const demonCount=G.partners.filter(pid=>PARTNERS[pid]&&PARTNERS[pid].isDemon).length;
-    if(demonCount>0){
-      const bonus=Math.ceil(profit*demonCount*0.1);
-      G.profit+=bonus;
-      addLog(`👑 傲慢惡魔：${demonCount}個惡魔，收益+${demonCount*10}% → +${bonus}`,'g');
-      setTimeout(()=>profitFlyFromPartner('pride',bonus),150);
-    }
-  }
-  // Partner: poverty_god
-  if(hasPartner('poverty_god')) PARTNERS.poverty_god.onFinish(G, profit);
-  // Partner: greed - 50% bonus at turn end
-  if(hasPartner('greed')){
-    PARTNERS.greed.onTurnEnd(G, profit);
-  }
-  // Partner: wrath - track debuff turns (simplified: no debuff this turn = no cellMod)
-  if(hasPartner('wrath')){
-    const hadDebuff=Object.values(G.cellMods||{}).some(v=>v<0);
-    PARTNERS.wrath.onTurnEnd(G, hadDebuff);
-  }
-  // 運輸大亨負面：未通過物流中心收益-50%
-  if(hasPartner('transport_tycoon')&&(G._logisticsHitThisTurn||0)===0&&profit>0){
-    const cut=Math.floor(profit*0.5);
-    G.profit-=cut;
-    addLog(`🚢 運輸大亨：未通過物流中心，收益-50% -${cut}`,'b');
-  }
-  // 外匯交易員：金錢↔商品轉換差值10%收益；原料輸出-50%
-  if(hasPartner('forex_trader')&&profit>0){
-    const hadMoneyToGoods=G._forexMoneyToGoods||false;
-    const hadGoodsToMoney=G._forexGoodsToMoney||false;
-    if(hadMoneyToGoods||hadGoodsToMoney){
-      const bonus=Math.ceil(profit*0.1);
-      G.profit+=bonus;
-      addLog(`💹 外匯交易員：金錢↔商品轉換，+10% +${bonus}`,'g');
-    }
-    if(el.type==='material'){
-      const cut=Math.floor(profit*0.5);
-      G.profit-=cut;
-      addLog(`💹 外匯交易員：原料輸出，-50% -${cut}`,'b');
-    }
-  }
-  // 黑市商人：商品→金錢時額外倍率
-  // (效果在 stepWithMover 中套用)
-  // 套利者：同回合金→商→金+20%，否則-20%
-  if(hasPartner('arbitrageur')&&profit>0){
-    const hadBoth=G._arbMoneyToGoods&&G._arbGoodsToMoney;
-    if(hadBoth){
-      const bonus=Math.ceil(profit*0.2);
-      G.profit+=bonus;
-      addLog(`⚖️ 套利者：雙向轉換，+20% +${bonus}`,'g');
-    } else if(G._arbMoneyToGoods||G._arbGoodsToMoney){
-      const cut=Math.floor(profit*0.2);
-      G.profit-=cut;
-      addLog(`⚖️ 套利者：單向轉換，-20% -${cut}`,'b');
-    }
-  }
-  // 壟斷者負面：少於3商店時每少一個-10%
-  if(hasPartner('monopolist')&&profit>0){
-    let shopCount=0;
-    for(let _r=0;_r<GN();_r++) for(let _c=0;_c<GN();_c++) if(isShopType(G.grid[_r][_c])) shopCount++;
-    if(shopCount<3){
-      const missing=3-shopCount;
-      const cut=Math.floor(profit*missing*0.1);
-      G.profit-=cut;
-      addLog(`🎩 壟斷者：僅${shopCount}商店（差${missing}），-${missing*10}% -${cut}`,'b');
-    }
-  }
-  // 廢墟掠奪者負面：廢墟>3格時每格-2收益
-  if(hasPartner('ruin_scavenger')&&profit>0){
-    const ruinCount=G.ruinCells?G.ruinCells.size:0;
-    if(ruinCount>3){
-      const cut=ruinCount*2;
-      G.profit-=cut;
-      addLog(`💀 廢墟掠奪者：${ruinCount}廢墟（>3），-${cut}收益`,'b');
-    }
-  }
-  // 快遞達人
-  if(hasPartner('express_master')){
-    if((G.turnFacilitiesHit||0)>=4){
-      const bonus=Math.ceil(profit*0.1);
-      G.profit+=bonus;
-      addLog(`🚀 快遞達人：${G.turnFacilitiesHit}格，+10% → +${bonus}`,'g');
-    } else if(profit>0){
-      const cut=Math.floor(profit*0.5);
-      G.profit-=cut;
-      addLog(`🚀 快遞達人：不足4格（${G.turnFacilitiesHit}），收益減半-${cut}`,'b');
-    }
-  }
-  // 路線規劃師負面：物流中心少於2個時輸出-30%
-  if(hasPartner('route_planner')&&profit>0){
-    let logisticsCount=0;
-    for(let _r=0;_r<GN();_r++) for(let _c=0;_c<GN();_c++){
-      const bid=G.grid[_r][_c]; if(bid&&BLDG[bid]&&BLDG[bid].special==='redirect') logisticsCount++;
-    }
-    if(logisticsCount<2){
-      const cut=Math.floor(profit*0.3);
-      G.profit-=cut;
-      addLog(`🗺️ 路線規劃師：物流中心僅${logisticsCount}個（<2），-30% -${cut}`,'b');
-    }
-  }
-  // 公路之星：未經中央則收益減半
-  if(hasPartner('highway_star')&&!G._highwayPassedCenter&&profit>0){
-    const cut=Math.floor(profit*0.5);
-    G.profit-=cut;
-    addLog(`🌟 公路之星：未經中央，收益減半 -${cut}`,'b');
-  }
-  // 市長：+5%每次經過中央
-  if(hasPartner('mayor')&&(G._centerHits||0)>0&&profit>0){
-    const pct=G._centerHits*5;
-    const bonus=Math.ceil(profit*pct/100);
-    G.profit+=bonus;
-    addLog(`🎖 市長：經過中央${G._centerHits}次，+${pct}% → +${bonus}`,'g');
-    setTimeout(()=>profitFlyFromPartner('mayor',bonus),150);
-  }
+  // ── 合夥人結算效果（onSettle hook） ──
+  G.partners.forEach(pid=>{
+    const p=PARTNERS[pid];
+    if(p&&p.onSettle) p.onSettle(G, profit, el);
+  });
   // 稅務局：-10%最終收益
   if(profit>0){
     let hasTax=false;
