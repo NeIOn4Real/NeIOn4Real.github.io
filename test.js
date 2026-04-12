@@ -63,6 +63,9 @@ const funcs=[
   extractBlock(/^function precomputeEventData/),
   extractBlock(/^function addHand/),
   extractBlock(/^function addHandMaybeCompound/),
+  extractBlock(/^function rebuildDeptStore/),
+  extractBlock(/^function countAdjacentFacilities/),
+  extractBlock(/^function hasAdjacentShop/),
 ];
 
 try{ eval(blocks.concat(funcs).join('\n')); }
@@ -209,6 +212,44 @@ G.inv={facHit:0,logSet:new Set(),envyPen:false,cenHits:0,logHits:0,speedAct:fals
 ['facHit','logSet','envyPen','cenHits','logHits','speedAct','ampAct','fxM2G','fxG2M',
  'arbM2G','arbG2M','windOK','hwCenter','exchBoard','clearanceBonus','clearanceCells']
  .forEach(k=>assert(k in G.inv,`inv.${k}`));
+
+section('14. New partners: uncrowned_king + yongqing_house');
+assert(PARTNERS.uncrowned_king,'uncrowned_king exists');
+assert(typeof PARTNERS.uncrowned_king.onSettle==='function','uncrowned_king.onSettle');
+assert(PARTNERS.yongqing_house,'yongqing_house exists');
+
+// Uncrowned king: 4 ruins, profit=100 → basePct=floor(16/2)=8 → bonus=ceil(100*8/100)=8
+G=newGame();G.partners=['uncrowned_king'];G.profit=0;
+G.ruinCells=new Set(['0,0','0,1','0,2','0,3']); // 4 ruins
+G.talentCards=0;
+PARTNERS.uncrowned_king.onSettle.call(PARTNERS.uncrowned_king,G,100,{type:'money',value:100});
+assert(G.profit===8,`uncrowned 4ruins +8%, got ${G.profit}`);
+
+// 0 ruins → no effect
+G.profit=0;G.ruinCells=new Set();
+PARTNERS.uncrowned_king.onSettle.call(PARTNERS.uncrowned_king,G,100,{type:'money',value:100});
+assert(G.profit===0,`uncrowned 0ruins → 0, got ${G.profit}`);
+
+// Tanya onTurnStart: empty hand → gets 1 facility
+G=newGame();G.partners=['tanya'];G.hand=[];
+PARTNERS.tanya.onTurnStart(G);
+assert(G.hand.length===1,'tanya gives 1 facility when hand empty');
+assert(G.hand[0].count===1,'tanya facility count=1');
+
+// Tanya: hand has items → no extra
+G=newGame();G.partners=['tanya'];G.hand=[{id:'factory',count:1}];
+PARTNERS.tanya.onTurnStart(G);
+assert(G.hand.length===1,'tanya does not add when hand has items');
+
+section('15. countAdjacentFacilities dept_store dedup');
+G=newGame();
+G.grid[0][0]='dept_store';G.grid[0][1]='dept_store_part';
+G.grid[1][0]='dept_store_part';G.grid[1][1]='dept_store_part';
+G.deptStoreAnchors={'0,0':true};
+G.deptStoreParts={'0,1':'0,0','1,0':'0,0','1,1':'0,0'};
+// env_sensor at (0,2): adjacent to dept_store_part(0,1) and possibly (1,2)=null
+const cnt=countAdjacentFacilities(0,2);
+assert(cnt===1,`dept_store counts as 1 adjacent, got ${cnt}`);
 
 // Results
 console.log(`\n${'═'.repeat(40)}`);
