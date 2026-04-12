@@ -3395,10 +3395,10 @@ function confirmRearrange(){
   G.freeRearrange=false; G.moveSrc=null;
   addLog('✅ 設施排列已確定','g');
   render();
-  // 教學 hook：確認排列後進入 step9
+  // 教學 hook：確認排列後回到等待狀態，讓玩家可繼續投入或結束回合
   if(TUT.active && TUT.waitingFor === 'confirm_rearrange'){
-    TUT.waitingFor = null;
-    setTimeout(()=>TUT.next(), 500);
+    TUT.waitingFor = 'use_demolition';
+    document.getElementById('btn-next').disabled=false;
   }
 }
 
