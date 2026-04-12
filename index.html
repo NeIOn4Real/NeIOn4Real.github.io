@@ -3267,7 +3267,7 @@ function pickNextEvent(){
 function checkMurphyHijack(){
   if(G.round<2||TUT.active) return false;
   const mt=G._murphyTrack||{repeatCount:0,noMove:0};
-  const murphyWeight=1+Math.max(0,mt.repeatCount-2)*3+Math.max(0,mt.noMove-2)*2;
+  const murphyWeight=1+Math.max(0,mt.repeatCount-3)*3+Math.max(0,mt.noMove-5)*2;
   if(murphyWeight<=1) return false;
   // 機率上限 60%，防止高權重時必發
   const prob=Math.min(0.6, murphyWeight/(murphyWeight+5));
