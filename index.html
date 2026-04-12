@@ -714,7 +714,7 @@ const BLDG = {
   // ── 貿易流設施 ──
   trade_port:     { name:'外貿港口',     emoji:'⚓', desc:'商品>10時+10%，>20時+20%（每10一階）', req:'goods', out:'goods', fn:v=>v, special:'trade_port' },
   exchange_board: { name:'匯率波動板',   emoji:'📈', desc:'不參與投入路徑；每次投入結算時，隨機對最終收益加成或衰減±3~15%', req:'any', out:null, fn:v=>v, special:'exchange_board' },
-  futures_market: { name:'期貨交易所',   emoji:'🏛', desc:'放置時鎖定當前倍率，永久使用', req:'goods', out:'money', fn:v=>v, special:'futures_market' },
+  futures_market: { name:'期貨交易所',   emoji:'🏛', desc:'資源通過時隨機±10%，下回合移動到隨機空格', req:'any', out:null, fn:v=>v, special:'futures_market' },
   trade_zone:     { name:'貿易特區',     emoji:'🌏', desc:'周圍4格有商店時輸出×1.5', req:'any', out:null, fn:v=>v, special:'trade_zone' },
   clearance:      { name:'清倉拍賣場',   emoji:'🏷️', desc:'商品通過時獲得數值×4收益，商品變成1', req:'goods', out:'goods', fn:v=>v, special:'clearance' },
   import_tax:     { name:'進出口稅站',   emoji:'🧾', desc:'扣除1金錢（從收益），本格效果×2', req:'any', out:null, fn:v=>v, special:'import_tax' },
@@ -2280,6 +2280,13 @@ function onCellDrop(e,r,c){
   } else {
     addLog(`放置 ${BLDG[bldgDragging].emoji}${BLDG[bldgDragging].name} (${r+1},${c+1})`);
   }
+  // 轉運中心：放置後選擇方向
+  if(bldgDragging==='transfer_hub'){
+    bldgDragging=null;
+    pulse(r,c); render();
+    showTransferHubDirPicker(r,c);
+    return;
+  }
   bldgDragging=null;
   pulse(r,c);
   render();
@@ -2533,17 +2540,15 @@ const FACILITY_FX={
     fx.hit();
   },
   futures_market(fx){
-    if(fx.el.type!=='goods') return;
-    const key=`${fx.r},${fx.c}`;
-    if(!G.futuresLock) G.futuresLock={};
-    if(!G.futuresLock[key]){
-      G.futuresLock[key]=Math.floor(Math.random()*3)+1;
-      addLog(`  🏛 期貨交易所：鎖定倍率×${G.futuresLock[key]}（永久）`,'g');
-    }
-    const mult=G.futuresLock[key];
-    const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value*mult,'期貨交易所');
-    addLog(`  🏛 期貨交易所: 📦${fx.el.value}→💰${nv2}（鎖定×${mult}）`,'g');
-    fx.el={value:nv2,type:'money'};
+    // 隨機 ±10% 資源數值
+    const pct=Math.floor(Math.random()*21)-10; // -10 ~ +10
+    const change=Math.round(fx.el.value*pct/100);
+    const nv=Math.max(1, fx.el.value+change);
+    addLog(`  🏛 期貨交易所: ${pct>=0?'+':''}${pct}% → ${fx.el.value}→${nv}`,(pct>=0?'g':'b'));
+    fx.el={...fx.el, value:nv};
+    // 標記下回合需要移動
+    G._futuresMoveNext=G._futuresMoveNext||[];
+    G._futuresMoveNext.push({r:fx.r,c:fx.c});
     fx.hit();
   },
   demolish_bureau(fx){
@@ -3737,6 +3742,30 @@ function startTurn(){
     addLog(`🌟 公路之星：中央2格+${bonus}${tier>0?`（${tier}階加成）`:''}（${centerList.join(' ')}）`,'g');
     G.inv.hwCenter=false;
   }
+  // 期貨交易所：上回合被觸發的交易所移動到隨機空格
+  if(G._futuresMoveNext&&G._futuresMoveNext.length>0){
+    G._futuresMoveNext.forEach(({r,c})=>{
+      if(G.grid[r][c]!=='futures_market') return;
+      const gn=GN();
+      const empties=[];
+      for(let er=0;er<gn;er++) for(let ec=0;ec<gn;ec++) if(!G.grid[er][ec]) empties.push([er,ec]);
+      if(empties.length>0){
+        const [nr,nc]=empties[Math.floor(Math.random()*empties.length)];
+        G.grid[r][c]=null; G.grid[nr][nc]='futures_market';
+        // 轉移附帶資料
+        const ok=`${r},${c}`, nk=`${nr},${nc}`;
+        ['bldgUpgrades','leyaPctMods','cellMods'].forEach(dk=>{
+          if(G[dk]&&G[dk][ok]!==undefined){ G[dk][nk]=G[dk][ok]; delete G[dk][ok]; }
+        });
+        addLog(`🏛 期貨交易所 (${r+1},${c+1})→(${nr+1},${nc+1}) 移動到新位置`,'w');
+      } else {
+        // 沒有空格，消滅自己
+        destroyFacility(r,c);
+        addLog(`🏛 期貨交易所 (${r+1},${c+1}) 無空格可移動，自我消滅！`,'b');
+      }
+    });
+    G._futuresMoveNext=[];
+  }
   // 場風大師：每回合重新抽方向（颱風時不覆蓋）
   if(hasPartner('wind_master')){
     const dirs=['left','right','top','bottom'];
@@ -4001,6 +4030,37 @@ document.addEventListener('DOMContentLoaded',()=>{
     pf.addEventListener('mouseleave',()=>{pf.style.display='none';});
   }
 });
+
+// 轉運中心方向選擇器
+function showTransferHubDirPicker(r,c){
+  const dirs=[
+    {dir:'top',emoji:'⬆️',label:'上'},
+    {dir:'bottom',emoji:'⬇️',label:'下'},
+    {dir:'left',emoji:'⬅️',label:'左'},
+    {dir:'right',emoji:'➡️',label:'右'},
+  ];
+  const cellEl=document.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+  const rect=cellEl?cellEl.getBoundingClientRect():{left:200,top:200};
+  const panel=document.createElement('div');
+  panel.style.cssText=`position:fixed;z-index:600;background:var(--sur);border:2px solid var(--acc);border-radius:10px;padding:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);display:flex;gap:6px;left:${rect.left}px;top:${rect.bottom+4}px;`;
+  dirs.forEach(d=>{
+    const btn=document.createElement('button');
+    btn.className='abtn';
+    btn.style.cssText='width:44px;height:44px;font-size:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;';
+    btn.textContent=d.emoji;
+    btn.title=d.label;
+    btn.onclick=()=>{
+      // 替換為對應方向的物流設施
+      const dirMap={top:'logistics_up',bottom:'logistics_down',left:'logistics_left',right:'logistics_right'};
+      G.grid[r][c]=dirMap[d.dir];
+      addLog(`🔀 轉運中心 (${r+1},${c+1}) → ${d.emoji} ${d.label}`,'g');
+      panel.remove();
+      render();
+    };
+    panel.appendChild(btn);
+  });
+  document.body.appendChild(panel);
+}
 
 function renderGrid(){
   const area=document.getElementById('grid-area');
