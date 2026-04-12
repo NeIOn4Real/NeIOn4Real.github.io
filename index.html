@@ -1479,8 +1479,6 @@ function newGame(){
     tempShedMoves:{},   // 臨時工棚移動次數
     partners:[],         // 當前持有的合夥人 [{id, state}]
     partnerState:{},     // 合夥人專屬狀態 {id: any}
-    turnFacilitiesHit:0, // 本次投入經過的設施數
-    turnBuildingTypes:[], // 本次投入經過的設施類型
     nextBonus:null,      // 下次輸出特定單位加成 {type, amount}
     cellMods:{},         // 格子固定修正值 {"r,c": +1/-1}，每輪清除
     cellPctMods:{},      // 格子百分比修正值 {"r,c": +10/-10}，每輪清除
@@ -2139,7 +2137,7 @@ function sendEl(dir,idx){
     if(startCard.type==='material') startCard={...startCard,type:'goods'};
     else if(startCard.type==='goods') startCard={...startCard,type:'material'};
   }
-  G.inv={facHit:0, logSet:new Set(), envyPen:false, cenHits:0, logHits:0, facMoved:0,
+  G.inv={facHit:0, logSet:new Set(), envyPen:false, cenHits:0, logHits:0,
     speedAct:false, ampAct:false, fxM2G:false, fxG2M:false, arbM2G:false, arbG2M:false,
     windOK:hasPartner('wind_master')&&!!G.windDir, hwCenter:false, exchBoard:false};
   const startVal=startCard.value;
@@ -2462,7 +2460,7 @@ const FACILITY_FX={
     fx.hit();
   },
   dynamic_amp(fx){
-    const mult=(G.inv.facMoved||0)>0?2:1;
+    const mult=(G.turnFacMoved||0)>0?2:1;
     let da_val=applyUpgradeBonus(fx.r,fx.c,fx.el.value*mult,'動態加強器');
     fx.el={...fx.el,value:da_val};
     const da_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
@@ -3376,6 +3374,7 @@ function startTurn(){
   G._talentUsedOnElement = false;
   G._demoExpertMode = false;
   G._hrUsedThisTurn = false; // 人力資源總監每回合重置
+  G.turnFacMoved = 0; // 動態加強器用：本回合設施移動計數
   // 合夥人每回合開始效果
   G.partners.forEach(pid=>{
     const p=PARTNERS[pid];
@@ -4548,7 +4547,7 @@ function swapCellData(r1,c1,r2,c2){
 
 // ── 交換後附帶效果（臨時工棚/拆遷補償局/地皮炒家） ──
 function onFacilityMoved(r,c,sr,sc){
-  G.inv.facMoved=(G.inv.facMoved||0)+1;
+  G.turnFacMoved=(G.turnFacMoved||0)+1;
   for(let ri=0;ri<GN();ri++) for(let ci=0;ci<GN();ci++){
     if(G.grid[ri][ci]==='temp_shed'){
       const tk=`${ri},${ci}`;
