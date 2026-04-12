@@ -883,7 +883,7 @@ const PARTNERS = {
     pos:'每次資源通過物流中心+3數值', neg:'未通過物流中心時收益-50%', desc:'運輸大亨',
     // 正面在 stepWithMover 物流區實作
     onSettle(G, profit, el){
-      if((G._logisticsHitThisTurn||0)===0&&profit>0){
+      if((G.inv.logHits||0)===0&&profit>0){
         const cut=Math.floor(profit*0.5);
         G.profit-=cut;
         addLog(`🚢 運輸大亨：未通過物流中心，收益-50% -${cut}`,'b');
@@ -920,14 +920,14 @@ const PARTNERS = {
     id:'express_master', name:'快遞達人', emoji:'🚀',
     pos:'通過4+格時數值額外+10%', neg:'少於4格時收益減半', desc:'快遞達人',
     onSettle(G, profit, el){
-      if((G.turnFacilitiesHit||0)>=4){
+      if((G.inv.facHit||0)>=4){
         const bonus=Math.ceil(profit*0.1);
         G.profit+=bonus;
-        addLog(`🚀 快遞達人：${G.turnFacilitiesHit}格，+10% → +${bonus}`,'g');
+        addLog(`🚀 快遞達人：${G.inv.facHit}格，+10% → +${bonus}`,'g');
       } else if(profit>0){
         const cut=Math.floor(profit*0.5);
         G.profit-=cut;
-        addLog(`🚀 快遞達人：不足4格（${G.turnFacilitiesHit}），收益減半-${cut}`,'b');
+        addLog(`🚀 快遞達人：不足4格（${G.inv.facHit}），收益減半-${cut}`,'b');
       }
     },
   },
@@ -938,7 +938,7 @@ const PARTNERS = {
     pos:'金錢↔商品轉換時，差值10%作為收益', neg:'資源為原料時輸出-50%', desc:'外匯交易員',
     onSettle(G, profit, el){
       if(profit<=0) return;
-      if(G._forexMoneyToGoods||G._forexGoodsToMoney){
+      if(G.inv.fxM2G||G.inv.fxG2M){
         const bonus=Math.ceil(profit*0.1);
         G.profit+=bonus;
         addLog(`💹 外匯交易員：金錢↔商品轉換，+10% +${bonus}`,'g');
@@ -965,12 +965,12 @@ const PARTNERS = {
     pos:'同回合金錢→商品→金錢時最終+20%', neg:'單向轉換時-20%', desc:'套利者',
     onSettle(G, profit, el){
       if(profit<=0) return;
-      const hadBoth=G._arbMoneyToGoods&&G._arbGoodsToMoney;
+      const hadBoth=G.inv.arbM2G&&G.inv.arbG2M;
       if(hadBoth){
         const bonus=Math.ceil(profit*0.2);
         G.profit+=bonus;
         addLog(`⚖️ 套利者：雙向轉換，+20% +${bonus}`,'g');
-      } else if(G._arbMoneyToGoods||G._arbGoodsToMoney){
+      } else if(G.inv.arbM2G||G.inv.arbG2M){
         const cut=Math.floor(profit*0.2);
         G.profit-=cut;
         addLog(`⚖️ 套利者：單向轉換，-20% -${cut}`,'b');
@@ -1072,11 +1072,11 @@ const PARTNERS = {
     neg:'無',
     desc:'市長',
     onSettle(G, profit, el){
-      if((G._centerHits||0)>0&&profit>0){
-        const pct=G._centerHits*5;
+      if((G.inv.cenHits||0)>0&&profit>0){
+        const pct=G.inv.cenHits*5;
         const bonus=Math.ceil(profit*pct/100);
         G.profit+=bonus;
-        addLog(`🎖 市長：經過中央${G._centerHits}次，+${pct}% → +${bonus}`,'g');
+        addLog(`🎖 市長：經過中央${G.inv.cenHits}次，+${pct}% → +${bonus}`,'g');
         setTimeout(()=>profitFlyFromPartner(this.id,bonus),150);
       }
     },
@@ -1087,7 +1087,7 @@ const PARTNERS = {
     neg:'本回合無資源經過中央則收益減半',
     desc:'公路之星',
     onSettle(G, profit, el){
-      if(!G._highwayPassedCenter&&profit>0){
+      if(!G.inv.hwCenter&&profit>0){
         const cut=Math.floor(profit*0.5);
         G.profit-=cut;
         addLog(`🌟 公路之星：未經中央，收益減半 -${cut}`,'b');
@@ -1106,12 +1106,12 @@ const PARTNERS = {
     neg:'只能從指定方向投入',
     desc:'場風大師',
     onSettle(G, profit, el){
-      if(G._windCorrect){
+      if(G.inv.windOK){
         const bonus=profit;
         G.profit+=bonus;
         addLog(`🌀 場風大師：正確方向，收益×2 +${bonus}`,'g');
         setTimeout(()=>profitFlyFromPartner(this.id,bonus),100);
-        G._windCorrect=false;
+        G.inv.windOK=false;
       }
     },
   },
@@ -1477,7 +1477,7 @@ function newGame(){
     deptStoreParts:{},   // 百貨公司部分→錨點映射
     futuresLock:{},     // 期貨交易所鎖定倍率
     bombTimers:{},      // 爆破裝置倒數計時
-    _exchangeBoardActive:false, // 匯率波動板本次投入觸發標記
+    inv:{}, // 每次投入重置的臨時 flags（sendEl 初始化）
     logisticsVault:{},  // 物流倉儲存值
     talentBankStored:0, // 人力銀行儲存值
     tempShedMoves:{},   // 臨時工棚移動次數
@@ -2143,17 +2143,9 @@ function sendEl(dir,idx){
     if(startCard.type==='material') startCard={...startCard,type:'goods'};
     else if(startCard.type==='goods') startCard={...startCard,type:'material'};
   }
-  G.turnFacilitiesHit=0;
-  G._triggeredLogistics=new Set();
-  G._envyPenalty=false;
-  G._centerHits=0;
-  G._logisticsHitThisTurn=0;
-  G._facilitiesMovedThisTurn=0;
-  G._speedStationActive=false;
-  G._logisticsAmpActive=false;
-  G._forexMoneyToGoods=false; G._forexGoodsToMoney=false;
-  G._arbMoneyToGoods=false; G._arbGoodsToMoney=false;
-  G._windCorrect=hasPartner('wind_master')&&!!G.windDir; // set true; will be validated at send
+  G.inv={facHit:0, logSet:new Set(), envyPen:false, cenHits:0, logHits:0, facMoved:0,
+    speedAct:false, ampAct:false, fxM2G:false, fxG2M:false, arbM2G:false, arbG2M:false,
+    windOK:hasPartner('wind_master')&&!!G.windDir, hwCenter:false, exchBoard:false};
   const startVal=startCard.value;
   const startType=startCard.type;
   let el={value:startVal,type:startType};
@@ -2240,7 +2232,7 @@ const FACILITY_FX={
   },
   tax_office(fx){
     addLog(`  🏛 稅務局：通過（最終收益-10%）`);
-    G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1; fx.next(300);
+    G.inv.facHit=(G.inv.facHit||0)+1; fx.next(300);
   },
   temp_shed(fx){
     if(!G.tempShedMoves) G.tempShedMoves={};
@@ -2252,7 +2244,7 @@ const FACILITY_FX={
     fx.hit();
   },
   logistics_amp(fx){
-    G._logisticsAmpActive=true;
+    G.inv.ampAct=true;
     addLog(`  📡 物流放大器：下一設施效果×2`,'g');
     fx.hit(300);
   },
@@ -2337,7 +2329,7 @@ const FACILITY_FX={
   },
   speed_station(fx){
     addLog(`  ⚡ 速遞站：下一格將觸發兩次`);
-    G._speedStationActive=true;
+    G.inv.speedAct=true;
     fx.hit(300);
   },
   ruin_monument(fx){
@@ -2361,30 +2353,30 @@ const FACILITY_FX={
     fx.hit();
   },
   demolish_bureau(fx){
-    G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
+    G.inv.facHit=(G.inv.facHit||0)+1;
     const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value,'拆遷補償局');
     fx.el={...fx.el,value:nv2};
     addLog(`  🏢 拆遷補償局: 通過（移動/消滅設施時+1收益）`);
     fx.pulse(); fx.updateCard(); fx.next();
   },
   terminal(fx){
-    const bonus=(G.turnFacilitiesHit||0)*2;
-    G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
+    const bonus=(G.inv.facHit||0)*2;
+    G.inv.facHit=(G.inv.facHit||0)+1;
     let termVal=fx.el.value+bonus;
     termVal=applyUpgradeBonus(fx.r,fx.c,termVal,'終點站');
     const t_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
-    const t_parts=[`通過${G.turnFacilitiesHit-1}設施×2=+${bonus}`]; if(t_upg>0) t_parts.push(`升級+${t_upg}`);
+    const t_parts=[`通過${G.inv.facHit-1}設施×2=+${bonus}`]; if(t_upg>0) t_parts.push(`升級+${t_upg}`);
     addLog(`  🏁 終點站: ${TLABEL[fx.el.type]}${fx.el.value}→${termVal}（${t_parts.join('，')}）`,'g');
     fx.el={...fx.el,value:termVal};
     fx.pulse(); fx.updateCard(); fx.next();
   },
   spiral_hub(fx){
-    const bonus=(G.turnFacilitiesHit||0)*2;
-    G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
+    const bonus=(G.inv.facHit||0)*2;
+    G.inv.facHit=(G.inv.facHit||0)+1;
     let spiralVal=fx.el.value+bonus;
     spiralVal=applyUpgradeBonus(fx.r,fx.c,spiralVal,'螺旋物流站');
     const sp_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
-    const sp_parts=[`通過${G.turnFacilitiesHit-1}設施×2=+${bonus}`]; if(sp_upg>0) sp_parts.push(`升級+${sp_upg}`);
+    const sp_parts=[`通過${G.inv.facHit-1}設施×2=+${bonus}`]; if(sp_upg>0) sp_parts.push(`升級+${sp_upg}`);
     addLog(`  🔄 螺旋物流站: +${bonus+sp_upg}（${sp_parts.join('，')}）`);
     fx.el={...fx.el,value:spiralVal};
     fx.pulse(); fx.updateCard(); fx.next();
@@ -2438,7 +2430,7 @@ const FACILITY_FX={
   },
   exchange_board(fx){
     addLog(`  📈 匯率波動板: 資源通過，結算時將隨機調整收益`,'w');
-    G._exchangeBoardActive = true;
+    G.inv.exchBoard = true;
     fx.hit();
   },
   trade_zone(fx){
@@ -2474,7 +2466,7 @@ const FACILITY_FX={
     fx.hit();
   },
   dynamic_amp(fx){
-    const mult=(G._facilitiesMovedThisTurn||0)>0?2:1;
+    const mult=(G.inv.facMoved||0)>0?2:1;
     let da_val=applyUpgradeBonus(fx.r,fx.c,fx.el.value*mult,'動態加強器');
     fx.el={...fx.el,value:da_val};
     const da_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
@@ -2543,11 +2535,11 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
 
   const bId=G.grid[r][c];
   // 速遞站：經過空格或廢墟時消耗 flag（效果浪費）
-  if((!bId||bId==='ruin')&&G._speedStationActive) G._speedStationActive=false;
+  if((!bId||bId==='ruin')&&G.inv.speedAct) G.inv.speedAct=false;
   // ── 共用尾碼 helper ──
   // 速遞站：上一格觸發速遞站後，本格設施額外觸發一次
-  const _speedReplay=G._speedStationActive&&bId&&isFacility(bId)&&BLDG[bId]?.special!=='speed_station';
-  if(_speedReplay) G._speedStationActive=false;
+  const _speedReplay=G.inv.speedAct&&bId&&isFacility(bId)&&BLDG[bId]?.special!=='speed_station';
+  if(_speedReplay) G.inv.speedAct=false;
   const _next=(delay=350)=>{
     if(_speedReplay){
       addLog(`  ⚡ 速遞站：再觸發一次！`,'g');
@@ -2556,8 +2548,8 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       setTimeout(()=>stepWithMover(path,el,i+1,startVal,mover,updateMover),delay);
     }
   };
-  const _hit=(delay=350)=>{G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;pulse(r,c);updateCard(el);_next(delay);};
-  const _hitM=(delay=350)=>{G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;pulse(r,c);updateCard(el);updateMover(el);_next(delay);};
+  const _hit=(delay=350)=>{G.inv.facHit=(G.inv.facHit||0)+1;pulse(r,c);updateCard(el);_next(delay);};
+  const _hitM=(delay=350)=>{G.inv.facHit=(G.inv.facHit||0)+1;pulse(r,c);updateCard(el);updateMover(el);_next(delay);};
   // ── 廢墟：資源直接通過，不產生任何交互 ──
   if(bId==='ruin'){
     // 廢墟掠奪者：廢墟格+5
@@ -2622,17 +2614,17 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       }
       // 每次投入每格只能觸發一次
       const cellKey=`${r},${c}`;
-      if(G._triggeredLogistics&&G._triggeredLogistics.has(cellKey)){
+      if(G.inv.logSet&&G.inv.logSet.has(cellKey)){
         addLog(`  ${b.emoji}${b.name}: 已觸發過，略過`);
         _next(300); return;
       }
-      if(!G._triggeredLogistics) G._triggeredLogistics=new Set();
-      G._triggeredLogistics.add(cellKey);
+      if(!G.inv.logSet) G.inv.logSet=new Set();
+      G.inv.logSet.add(cellKey);
       // 運輸大亨：每次通過物流+3
       if(hasPartner('transport_tycoon')){
         el={...el,value:el.value+3};
         addLog(`  🚢 運輸大亨：通過物流+3→${el.value}`,'g');
-        G._logisticsHitThisTurn=(G._logisticsHitThisTurn||0)+1;
+        G.inv.logHits=(G.inv.logHits||0)+1;
       }
       pulse(r,c);
       cellEl?.classList.add('transform-flash');
@@ -2708,22 +2700,22 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       }
       // 嫉妒惡魔：進入非嫉妒工廠前若已有設施命中則中斷
       if(hasPartner('envy')&&bId!=='envy_factory'&&b.special!=='envy'){
-        if((G.turnFacilitiesHit||0)===0){}
+        if((G.inv.facHit||0)===0){}
       }
-      if(hasPartner('envy')&&bId==='envy_factory'&&(G.turnFacilitiesHit||0)>0){
+      if(hasPartner('envy')&&bId==='envy_factory'&&(G.inv.facHit||0)>0){
         addLog('  💚 嫉妒惡魔：已經過其他設施，嫉妒工廠中斷','b');
         setTimeout(()=>{ mover.style.display='none'; document.querySelectorAll('.cell').forEach(c=>c.classList.remove('active-path')); finish(el,startVal); },400);
         return;
       }
       // 嫉妒工廠負面：投入時非鑽石則最終收益-50%
       if(bId==='envy_factory' && el.type!=='diamond'){
-        G._envyPenalty=true;
+        G.inv.envyPen=true;
         addLog('  💚 嫉妒工廠：非鑽石投入，最終收益將-50%','b');
       }
       // 暴食惡魔：若匹配是因為互換，則視為互換類型進入
       if(hasPartner('gluttony')&&b.req===effType&&b.req!==el.type) el={...el,type:effType};
-      G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
-      if(isCenterCell(r,c)){ G._centerHits=(G._centerHits||0)+1; G._highwayPassedCenter=true; }
+      G.inv.facHit=(G.inv.facHit||0)+1;
+      if(isCenterCell(r,c)){ G.inv.cenHits=(G.inv.cenHits||0)+1; G.inv.hwCenter=true; }
       const prev={...el};
       const modKey=`${r},${c}`;
       const upgradeBonus=(!b.special||b.special==='cafeteria')&&G.bldgUpgrades?.[modKey]||0;
@@ -2733,7 +2725,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       let nt=b.out||el.type;
 
       // 物流放大器：本設施效果×2
-      if(G._logisticsAmpActive){ nv=nv*2; G._logisticsAmpActive=false; addLog(`  📡 物流放大器：×2 → ${nv}`,'g'); }
+      if(G.inv.ampAct){ nv=nv*2; G.inv.ampAct=false; addLog(`  📡 物流放大器：×2 → ${nv}`,'g'); }
 
       // 暴食惡魔：輸出類型互換
       if(hasPartner('gluttony')){
@@ -2824,8 +2816,8 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
         if(_tiers>0){ const _bonus=Math.ceil(nv*_tiers*0.05); nv+=_bonus; addLog(`  🎩 壟斷者：${_sc}商店（${_tiers}×3），+${_tiers*5}% +${_bonus}`,'g'); }
       }
       // 追蹤轉換方向（外匯交易員/套利者用）
-      if(prev.type==='money'&&nt==='goods'){ G._forexMoneyToGoods=true; G._arbMoneyToGoods=true; }
-      if(prev.type==='goods'&&nt==='money'){ G._forexGoodsToMoney=true; G._arbGoodsToMoney=true; }
+      if(prev.type==='money'&&nt==='goods'){ G.inv.fxM2G=true; G.inv.arbM2G=true; }
+      if(prev.type==='goods'&&nt==='money'){ G.inv.fxG2M=true; G.inv.arbG2M=true; }
 
       el={value:nv,type:nt};
 
@@ -2934,20 +2926,20 @@ function finish(el,startVal){
   if(el.type==='diamond') el={value:el.value,type:'money'};
   // Lust demon
   if(hasPartner('lust')){
-    el=PARTNERS.lust.modifyFinish(G,el,G.turnFacilitiesHit||0);
+    el=PARTNERS.lust.modifyFinish(G,el,G.inv.facHit||0);
   }
   const finalMoney=el.type==='money'?el.value:Math.floor(el.value*0.6);
   const profit=Math.max(0,finalMoney-startVal);
   const profitAtStart=G.profit;
   G.profit+=profit;
   // 匯率波動板：本次投入有通過匯率波動板，隨機調整收益
-  if(G._exchangeBoardActive && profit > 0){
+  if(G.inv.exchBoard && profit > 0){
     const pcts = [-15,-12,-10,-8,-5,-3,3,5,8,10,12,15];
     const pct = pcts[Math.floor(Math.random()*pcts.length)];
     const adj = Math.round(profit * pct / 100);
     G.profit += adj;
     addLog(`📈 匯率波動板：結算隨機 ${pct>0?'+':''}${pct}% → ${adj>0?'+':''}${adj} 收益（共${G.profit}）`, adj>=0?'g':'b');
-    G._exchangeBoardActive = false;
+    G.inv.exchBoard = false;
   }
   // ── 合夥人結算效果（onSettle hook） ──
   G.partners.forEach(pid=>{
@@ -2964,11 +2956,11 @@ function finish(el,startVal){
       addLog(`  🏛 稅務局：-10% (-${cut})`,'b');
     }
   }
-  if(G._envyPenalty && profit>0){
+  if(G.inv.envyPen && profit>0){
     const cut=Math.floor(profit*0.5);
     G.profit-=cut;
     addLog(`💚 嫉妒工廠負面：收益-50% (-${cut})`,'b');
-    G._envyPenalty=false;
+    G.inv.envyPen=false;
   }
   // 勞工保險：最終收益扣除 人材數×2%
   if(G.buff&&G.buff.laborInsurance&&profit>0){
@@ -3512,7 +3504,7 @@ function startTurn(){
       G.cellMods[key]=(G.cellMods[key]||0)+bonus;
     });
     addLog(`🌟 公路之星：中央2格+${bonus}${tier>0?`（${tier}階加成）`:''}（${centerList.join(' ')}）`,'g');
-    G._highwayPassedCenter=false;
+    G.inv.hwCenter=false;
   }
   // 場風大師：每回合重新抽方向
   if(hasPartner('wind_master')){
@@ -4562,7 +4554,7 @@ function swapCellData(r1,c1,r2,c2){
 
 // ── 交換後附帶效果（臨時工棚/拆遷補償局/地皮炒家） ──
 function onFacilityMoved(r,c,sr,sc){
-  G._facilitiesMovedThisTurn=(G._facilitiesMovedThisTurn||0)+1;
+  G.inv.facMoved=(G.inv.facMoved||0)+1;
   for(let ri=0;ri<GN();ri++) for(let ci=0;ci<GN();ci++){
     if(G.grid[ri][ci]==='temp_shed'){
       const tk=`${ri},${ci}`;
