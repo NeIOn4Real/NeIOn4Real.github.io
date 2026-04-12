@@ -1589,13 +1589,13 @@ function startRound(){
     const p=PARTNERS[pid];
     if(p&&p.onTurnStart) p.onTurnStart(G);
   });
-  // 場風大師：第一回合也需要設定方向
+  // 場風大師：第一回合也需要設定方向（颱風時不覆蓋）
   if(hasPartner('wind_master')){
     const dirs=['left','right','top','bottom'];
     const labels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
     G.windDir=dirs[Math.floor(Math.random()*dirs.length)];
     addLog(`🌀 場風大師：本回合只能從 ${labels[G.windDir]} 投入，獲得×2倍率`,'w');
-  } else {
+  } else if(!(G.buff&&G.buff.typhoonActive)){
     G.windDir=null;
   }
   G.phase='place';
@@ -3615,13 +3615,13 @@ function startTurn(){
     addLog(`🌟 公路之星：中央2格+${bonus}${tier>0?`（${tier}階加成）`:''}（${centerList.join(' ')}）`,'g');
     G.inv.hwCenter=false;
   }
-  // 場風大師：每回合重新抽方向
+  // 場風大師：每回合重新抽方向（颱風時不覆蓋）
   if(hasPartner('wind_master')){
     const dirs=['left','right','top','bottom'];
     const labels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
     G.windDir=dirs[Math.floor(Math.random()*dirs.length)];
     addLog(`🌀 場風大師：本回合只能從 ${labels[G.windDir]} 投入，獲得×2倍率`,'w');
-  } else {
+  } else if(!(G.buff&&G.buff.typhoonActive)){
     G.windDir=null;
   }
   addLog(`── 回合 ${G.turn}/${G.maxTurns} ──`);
