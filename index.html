@@ -783,6 +783,7 @@ const PARTNERS = {
     neg:'回合開始時，資源為商品或原料時減少10%',
     desc:'暴食惡魔',
     onRoundStart(G){
+      if(isDemonNegDisabled('gluttony')) return;
       if(G.card.type==='material'||G.card.type==='goods'){
         G.card.value = Math.floor(G.card.value * 0.9);
         addLog(`👹 暴食惡魔：回合開始資源-10%，現在 ${G.card.value}`,'b');
@@ -805,7 +806,7 @@ const PARTNERS = {
       if(roll < 2/3){
         G.card.value += 10;
         addLog(`😴 怠惰惡魔：放棄選擇，資源+10！現在 ${G.card.value}`,'g');
-      } else {
+      } else if(!isDemonNegDisabled('sloth')){
         G.card.value = 1;
         addLog(`😴 怠惰惡魔：放棄選擇，資源變成1！`,'b');
       }
@@ -821,7 +822,7 @@ const PARTNERS = {
       if(hitCount === 2){
         el = {...el, value: el.value * 2};
         addLog(`💘 慾望惡魔：僅2設施，輸出×2！→ ${el.value}`,'g');
-      } else if(hitCount > 2){
+      } else if(hitCount > 2 && !isDemonNegDisabled('lust')){
         el = {...el, value: Math.max(1, Math.floor(el.value / hitCount))};
         addLog(`💘 慾望惡魔：${hitCount}設施，資源÷${hitCount} → ${el.value}`,'b');
       }
@@ -839,7 +840,7 @@ const PARTNERS = {
       const st = G.partnerState.wrath || { noDebuffTurns:0 };
       if(hadDebuff){ st.noDebuffTurns=0; }
       else { st.noDebuffTurns++; }
-      if(st.noDebuffTurns > 5){
+      if(st.noDebuffTurns > 5 && !isDemonNegDisabled('wrath')){
         const cut = Math.floor(G.profit * 0.33);
         G.profit = Math.max(0, G.profit - cut);
         addLog(`🔥 激情惡魔：超過5回合無減益，收益-33%`,'b');
@@ -860,6 +861,7 @@ const PARTNERS = {
     neg:'每輪開始目標+50%',
     desc:'貪婪惡魔',
     onRoundStart(G){
+      if(isDemonNegDisabled('greed')) return;
       G.goal = Math.ceil(G.goal * 1.5);
       addLog(`💰 貪婪惡魔：本輪目標+50% → ${G.goal}`,'b');
     },
@@ -3196,7 +3198,7 @@ function finish(el,startVal){
       setTimeout(()=>profitFlyFromCell(taxCells[0][0],taxCells[0][1],-cut),150);
     }
   }
-  if(G.inv.envyPen && profit>0){
+  if(G.inv.envyPen && profit>0 && !isDemonNegDisabled('envy')){
     const cut=Math.floor(profit*0.5);
     G.profit-=cut;
     addLog(`💚 嫉妒工廠負面：收益-50% (-${cut})`,'b');
