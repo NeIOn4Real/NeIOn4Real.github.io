@@ -2429,9 +2429,30 @@ const FACILITY_FX={
   dept_store(fx){
     if(fx.el.type!=='goods') return;
     const prev=fx.el.value, step1=prev*2;
-    const step2=Math.max(1,Math.floor(step1*1.02));
-    fx.el={value:step2,type:'money'};
-    addLog(`  🏬 百貨公司: 📦${prev}→💰${step1}(×2)→📦(+2%)→💰${step2}`);
+    let nv=Math.max(1,Math.floor(step1*1.02));
+    // 聚合 2×2 四格的加成（cellMods/cellPctMods/bldgUpgrades/leyaPctMods）
+    const ar=fx.r, ac=fx.c;
+    let totalMod=0, totalPct=0, totalUpg=0, totalLeya=0;
+    for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
+      const k=`${ar+dr},${ac+dc}`;
+      totalMod+=(G.cellMods&&G.cellMods[k]||0);
+      totalPct+=(G.cellPctMods&&G.cellPctMods[k]||0);
+      totalUpg+=(G.bldgUpgrades&&G.bldgUpgrades[k]||0);
+      totalLeya+=(G.leyaPctMods&&G.leyaPctMods[k]||0);
+    }
+    // 激情惡魔：逆轉減益
+    if(totalMod<0&&hasPartner('wrath')){ totalMod=-totalMod; }
+    if(totalMod+totalUpg!==0) nv=Math.max(1,nv+totalMod+totalUpg);
+    if(totalPct!==0){ nv=Math.max(1,nv+Math.ceil(Math.abs(nv*totalPct/100))*Math.sign(totalPct)); }
+    if(totalLeya>0){ nv=nv+Math.ceil(nv*totalLeya/100); }
+    const parts=[];
+    if(totalUpg) parts.push(`升級+${totalUpg}`);
+    if(totalMod) parts.push(`格子${totalMod>0?'+':''}${totalMod}`);
+    if(totalPct) parts.push(`事件${totalPct>0?'+':''}${totalPct}%`);
+    if(totalLeya) parts.push(`蕾雅+${totalLeya}%`);
+    const extra=parts.length?`（${parts.join('，')}）`:'';
+    fx.el={value:nv,type:'money'};
+    addLog(`  🏬 百貨公司: 📦${prev}→💰${step1}(×2)→+2%→${nv}${extra}`);
     fx.hit();
   },
   dept_store_part(fx){
