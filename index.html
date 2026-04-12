@@ -1581,7 +1581,13 @@ function newGame(){
 function startRound(){
   G.cellMods={};
   G.cellPctMods={};
-  pickNextEvent();
+  // 保留上一輪未觸發的預告事件，只更新觸發回合
+  if(G.nextEvent){
+    G.nextEventTurn=EVENT_INTERVAL;
+    G.nextEventData=precomputeEventData(G.nextEvent);
+  } else {
+    pickNextEvent();
+  }
   pickActionOptions();
   // partner round start effects
   G.partners.forEach(pid=>{
