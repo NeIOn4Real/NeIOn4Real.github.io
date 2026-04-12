@@ -4747,6 +4747,14 @@ function swapCellData(r1,c1,r2,c2){
     if(!G.cellOverlay[k1]) delete G.cellOverlay[k1];
     if(!G.cellOverlay[k2]) delete G.cellOverlay[k2];
   }
+  // tempShedMoves / futuresLock / logisticsVault
+  ['tempShedMoves','futuresLock','logisticsVault'].forEach(dk=>{
+    if(!G[dk]) return;
+    const v1=G[dk][k1], v2=G[dk][k2];
+    if(v1!==undefined||v2!==undefined){ G[dk][k1]=v2; G[dk][k2]=v1; }
+    if(G[dk][k1]===undefined) delete G[dk][k1];
+    if(G[dk][k2]===undefined) delete G[dk][k2];
+  });
 }
 
 // ── 交換後附帶效果（臨時工棚/拆遷補償局/地皮炒家） ──
