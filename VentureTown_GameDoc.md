@@ -569,3 +569,7 @@ E:\VT\
 - 移除重複 CSS `.dbtn.drag-over`
 - 統一 `_hit` / `_hitM` 為單一函數，移除 `fx.hitM()`
 - 新增 `.move-src` CSS class
+
+#### 事件系統修復
+- **颱風 windDir 被覆蓋**：`startTurn()` 和 `startRound()` 中無場風大師時 `G.windDir=null` 會覆蓋颱風設定的方向限制，改為檢查 `typhoonActive` buff 後才重置
+- **Buff 生命週期驗證**：確認所有 7 種 buff 事件（颱風/原料大降/出口熱/商品熱銷/運輸異常/食安/勞工保險）與 startTurn 無其他衝突；cellPctMods 清除時機正確
