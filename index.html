@@ -649,7 +649,7 @@ const BLDG = {
   overtime:       { name:'加班辦公室',   emoji:'💼', desc:'資源通過時+人材數量一半%', req:'any', out:null, fn:v=>v, special:'overtime' },
   talent_bank:    { name:'人力銀行',     emoji:'🏧', desc:'金錢通過時儲存10%為加成，下次投入釋放', req:'money', out:'money', fn:v=>v, special:'talent_bank' },
   dispatch_hq:    { name:'派遣總部',     emoji:'🏢', desc:'商品通過時獲得2人材', req:'goods', out:'goods', fn:v=>v, special:'dispatch_hq' },
-  strike_board:   { name:'集體罷工台',   emoji:'📢', desc:'消耗所有人材，每個+10數值（主動觸發）', req:'any', out:null, fn:v=>v, special:'strike_board' },
+  strike_board:   { name:'集體罷工台',   emoji:'📢', desc:'資源通過時消耗所有人材，每個+10數值', req:'any', out:null, fn:v=>v, special:'strike_board' },
 
   // ── 物流中心流設施 ──
   spiral_hub:     { name:'螺旋物流站',   emoji:'🔄', desc:'每通過1個設施+2', req:'any', out:null, fn:v=>v, special:'spiral_hub' },
@@ -3224,6 +3224,7 @@ function doAction(id){
     G._gridSnapshot=G.grid.map(r=>[...r]);
     G._upgradesSnapshot=JSON.parse(JSON.stringify(G.bldgUpgrades||{}));
     G._leyaSnapshot=JSON.parse(JSON.stringify(G.leyaPctMods||{}));
+    G._cellModsSnapshot=JSON.parse(JSON.stringify(G.cellMods||{}));
     G.freeRearrange=true; G.moveMode=false; G.moveSrc=null;
     addLog('🔧 自由排列模式：拖曳設施到想要的位置，完成後點「確認排列」');
     G.phase='place'; render(); return;
@@ -3372,9 +3373,11 @@ function cancelRearrange(){
     G.grid=G._gridSnapshot;
     G.bldgUpgrades=G._upgradesSnapshot||{};
     G.leyaPctMods=G._leyaSnapshot||{};
+    G.cellMods=G._cellModsSnapshot||{};
     delete G._gridSnapshot;
     delete G._upgradesSnapshot;
     delete G._leyaSnapshot;
+    delete G._cellModsSnapshot;
   }
   G.freeRearrange=false; G.moveSrc=null;
   G._demolitionRearrange=false;
@@ -3391,6 +3394,7 @@ function confirmRearrange(){
   delete G._gridSnapshot;
   delete G._upgradesSnapshot;
   delete G._leyaSnapshot;
+  delete G._cellModsSnapshot;
   G.freeRearrange=false; G.moveSrc=null;
   addLog('✅ 設施排列已確定','g');
   render();
@@ -4573,7 +4577,7 @@ function destroyFacility(r, c){
   render();
 }
 
-// ── 格子資料交換（grid + bldgUpgrades + leyaPctMods） ──
+// ── 格子資料交換（grid + bldgUpgrades + leyaPctMods + cellMods） ──
 function swapCellData(r1,c1,r2,c2){
   const k1=`${r1},${c1}`, k2=`${r2},${c2}`;
   // grid
@@ -4590,6 +4594,11 @@ function swapCellData(r1,c1,r2,c2){
   if(l1||l2){ G.leyaPctMods[k1]=l2; G.leyaPctMods[k2]=l1; }
   if(!G.leyaPctMods[k1]) delete G.leyaPctMods[k1];
   if(!G.leyaPctMods[k2]) delete G.leyaPctMods[k2];
+  // cellMods（人材加成、地皮炒家等跟隨設施移動）
+  const m1=G.cellMods[k1], m2=G.cellMods[k2];
+  if(m1||m2){ G.cellMods[k1]=m2; G.cellMods[k2]=m1; }
+  if(!G.cellMods[k1]) delete G.cellMods[k1];
+  if(!G.cellMods[k2]) delete G.cellMods[k2];
 }
 
 // ── 交換後附帶效果（臨時工棚/拆遷補償局/地皮炒家） ──
