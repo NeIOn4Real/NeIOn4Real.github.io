@@ -1599,11 +1599,14 @@ function newGame(){
 function startRound(){
   G.cellMods={};
   G.cellPctMods={};
-  // 保留上一輪未觸發的預告事件，只更新觸發回合
+  // 保留上一輪未觸發的預告事件，每次延遲提前觸發回合
   if(G.nextEvent){
-    G.nextEventTurn=EVENT_INTERVAL;
+    G._eventDeferred=(G._eventDeferred||0)+1;
+    // 每延遲一次，觸發回合提前 1（最早第 1 回合立即觸發）
+    G.nextEventTurn=Math.max(1, EVENT_INTERVAL - G._eventDeferred);
     G.nextEventData=precomputeEventData(G.nextEvent);
   } else {
+    G._eventDeferred=0;
     pickNextEvent();
   }
   pickActionOptions();
@@ -3727,9 +3730,10 @@ function doNext(){
 
   G.turn++;
 
-  // 每 EVENT_INTERVAL 回合觸發固定隨機事件
-  if(G.turn%EVENT_INTERVAL===0 && G.nextEvent){
+  // 達到預定回合時觸發事件（延遲事件可能提前至 turn 2 或 1）
+  if(G.nextEvent && G.turn>=G.nextEventTurn){
     let ev=G.nextEvent;
+    G._eventDeferred=0;
     // 莫菲定律劫持：第2輪起根據權重替換預告事件
     if(checkMurphyHijack()){
       ev=EVENTS.find(e=>e.id==='murphy');
