@@ -3528,6 +3528,13 @@ function recruitPartner(pid){
   if(!G.partnerState[pid]&&PARTNERS[pid].state) G.partnerState[pid]={...PARTNERS[pid].state};
   addLog(`🤝 招募了 ${PARTNERS[pid].emoji}${PARTNERS[pid].name}！`,'g');
   if(pid==='envy') addHand('envy_factory');
+  // 場風大師：招募後立即設定本回合方向
+  if(pid==='wind_master'&&!G.windDir){
+    const dirs=['left','right','top','bottom'];
+    const labels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
+    G.windDir=dirs[Math.floor(Math.random()*dirs.length)];
+    addLog(`🌀 場風大師：本回合只能從 ${labels[G.windDir]} 投入，獲得×2倍率`,'w');
+  }
   G.actionOptions=[];
   closeActionOverlay();
   renderPartners();
@@ -4055,10 +4062,17 @@ function showPartnerFloat(e){
   const pf=document.getElementById('partner-float');
   const pfRow=document.getElementById('pf-row');
   if(!pf||!pfRow) return;
-  // 複製合夥人卡片內容到浮動面板
+  // 複製合夥人卡片內容到浮動面板（保留 onclick 等互動）
   pfRow.innerHTML=document.getElementById('partner-row').innerHTML;
-  // 浮動面板內卡片取消負 margin，正常間距
-  pfRow.querySelectorAll('.joker-card').forEach(c=>{c.style.marginRight='0';});
+  // 浮動面板內卡片取消負 margin，正常間距；可點擊的加入互動提示
+  pfRow.querySelectorAll('.joker-card').forEach(c=>{
+    c.style.marginRight='0';
+    // 點擊合夥人效果後關閉浮動面板
+    const origClick=c.getAttribute('onclick');
+    if(origClick){
+      c.setAttribute('onclick',origClick+";document.getElementById('partner-float').style.display='none';");
+    }
+  });
   // 定位：出現在左側面板右邊
   const section=document.getElementById('partner-section');
   if(section){
