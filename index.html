@@ -208,8 +208,8 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   90%{transform:translate(-2px,4px)}
 }
 @keyframes murphyFadeIn{
-  0%{opacity:0;transform:translateY(30px);}
-  100%{opacity:1;transform:translateY(0);}
+  0%{opacity:0;}
+  100%{opacity:1;}
 }
 #murphy-overlay{
   position:fixed;inset:0;z-index:9999;
@@ -225,7 +225,6 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 }
 #murphy-overlay .murphy-chars{
   display:flex;gap:0;align-items:flex-end;
-  animation:murphyFadeIn .8s ease-out;
 }
 #murphy-overlay .murphy-chars img{
   width:240px;height:auto;image-rendering:auto;
