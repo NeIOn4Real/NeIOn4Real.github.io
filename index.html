@@ -3839,7 +3839,7 @@ function renderGrid(){
         h+=`<div class="cemoji">${b.emoji}</div>`;
         h+=`<div class="cname">${b.name}</div>`;
       }
-      h+=`<div style="font-size:9px;font-weight:700;color:var(--money);line-height:1;">+${baseBonus}${leyaPct>0?`<span style="color:var(--green)">+${leyaPct}%</span>`:''}${totalMod!==0?`<span style="color:${totalMod>0?'var(--green)':'var(--red)'}">${totalMod>0?'+':''}${totalMod}</span>`:''}${pctVal!==0?`<span style="color:${pctVal>0?'var(--green)':'var(--red)'}">${pctVal>0?'+':''}${pctVal}%</span>`:''}`;
+      h+=`<div style="font-size:9px;font-weight:700;color:var(--money);line-height:1;">+${baseBonus}${leyaPct>0?`<span style="color:var(--green)">+${leyaPct}%</span>`:''}`;
       h+=`</div>`;
       if(totalMod!==0) h+=`<div class="${totalMod>0?'cell-mod-pos':'cell-mod-neg'}">${totalMod>0?'+':''}${totalMod}</div>`;
       if(pctVal!==0) h+=`<div class="${pctVal>0?'cell-mod-pos':'cell-mod-neg'}" style="bottom:${totalMod!==0?'12px':'2px'}">${pctVal>0?'+':''}${pctVal}%</div>`;
