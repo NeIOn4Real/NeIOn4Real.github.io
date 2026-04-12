@@ -4198,10 +4198,17 @@ function renderFanHand() {
     // Front face HTML
     let frontHTML = '';
     if (card.type === 'element') {
-      frontHTML = `<div class="fc-emoji">${card.emoji}</div>
+      const extraUses = G.elementExtraUses||0;
+      const talentBadge = extraUses > 0
+        ? `<div style="position:absolute;top:4px;left:4px;background:var(--green);color:#fff;font-size:9px;font-weight:900;border-radius:6px;padding:1px 5px;line-height:1.4;box-shadow:0 1px 4px rgba(0,0,0,.2);">🧑‍💼×${extraUses}</div>`
+        : '';
+      const buffDesc = extraUses > 0
+        ? `<div style="color:var(--green);font-size:9px;font-weight:700;margin-top:2px;">額外投入 ${extraUses} 次</div>`
+        : `<div class="fc-desc" style="color:var(--mu);font-size:9px;">拖曳投入</div>`;
+      frontHTML = `${talentBadge}<div class="fc-emoji">${card.emoji}</div>
         <div class="fc-val">${card.val}</div>
         <div class="fc-type">${card.name}</div>
-        <div class="fc-desc" style="color:var(--mu);font-size:7px;">拖曳投入</div>`;
+        ${buffDesc}`;
     } else if (card.type === 'talent') {
       frontHTML = `<div class="fc-emoji">${card.emoji}</div>
         <div class="fc-name">${card.name}</div>
