@@ -1450,6 +1450,9 @@ const EVENTS=[
         if(f.leya) G.leyaPctMods[nk]=f.leya;
         if(f.mods) G.cellMods[nk]=f.mods;
       });
+      // 清除疊加設施和爆破計時（打亂後位置不對應）
+      G.cellOverlay={};
+      G.bombTimers={};
       // 重建百貨公司追蹤
       G.deptStoreAnchors={}; G.deptStoreParts={};
       for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
@@ -1461,7 +1464,6 @@ const EVENTS=[
           });
         }
       }
-      // 給予2張複合設施
       // 給予 2 張保證複合設施
       const _mPool=Object.keys(BLDG).filter(bid=>!COMPOUND_EXCLUDE.has(bid));
       for(let _mi=0;_mi<2;_mi++){
@@ -2257,7 +2259,8 @@ function sendEl(dir,idx){
   }
   G.inv={facHit:0, logSet:new Set(), envyPen:false, cenHits:0, logHits:0,
     speedAct:false, ampAct:false, fxM2G:false, fxG2M:false, arbM2G:false, arbG2M:false,
-    windOK:hasPartner('wind_master')&&!!G.windDir, hwCenter:false, exchBoard:false};
+    windOK:hasPartner('wind_master')&&!!G.windDir, hwCenter:false, exchBoard:false,
+    clearanceBonus:0, clearanceCells:[]};
   const startVal=startCard.value;
   const startType=startCard.type;
   let el={value:startVal,type:startType};
@@ -2424,7 +2427,7 @@ const FACILITY_FX={
     G.profit=Math.max(0,G.profit-1);
     const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value*2,'進出口稅站');
     addLog(`  🧾 進出口稅站: ×2→${nv2}（扣1收益）`);
-    profitFlyFromCell(fx.r,fx.c,-1);
+    setTimeout(()=>profitFlyFromCell(fx.r,fx.c,-1),100);
     fx.el={...fx.el,value:nv2};
     fx.hit();
   },
@@ -3066,7 +3069,7 @@ function finish(el,startVal){
   // ── 合夥人結算效果（onSettle hook） ──
   G.partners.forEach(pid=>{
     const p=PARTNERS[pid];
-    if(p&&p.onSettle) p.onSettle(G, profit, el);
+    if(p&&p.onSettle) p.onSettle.call(p, G, profit, el);
   });
   // 稅務局：-10%最終收益
   if(profit>0){
@@ -3258,7 +3261,7 @@ function pickNextEvent(){
 }
 // 莫菲定律：事件觸發時檢查是否劫持（第2輪起）
 function checkMurphyHijack(){
-  if(G.round<2) return false;
+  if(G.round<2||TUT.active) return false;
   const mt=G._murphyTrack||{repeatCount:0,noMove:0};
   const murphyWeight=1+Math.max(0,mt.repeatCount-2)*3+Math.max(0,mt.noMove-2)*2;
   const normalWeight=1;
@@ -4730,6 +4733,20 @@ function swapCellData(r1,c1,r2,c2){
   if(m1||m2){ G.cellMods[k1]=m2; G.cellMods[k2]=m1; }
   if(!G.cellMods[k1]) delete G.cellMods[k1];
   if(!G.cellMods[k2]) delete G.cellMods[k2];
+  // bombTimers
+  if(G.bombTimers){
+    const bt1=G.bombTimers[k1], bt2=G.bombTimers[k2];
+    if(bt1!==undefined||bt2!==undefined){ G.bombTimers[k1]=bt2; G.bombTimers[k2]=bt1; }
+    if(G.bombTimers[k1]===undefined) delete G.bombTimers[k1];
+    if(G.bombTimers[k2]===undefined) delete G.bombTimers[k2];
+  }
+  // cellOverlay（物流之王/倉儲女王疊加設施）
+  if(G.cellOverlay){
+    const ov1=G.cellOverlay[k1], ov2=G.cellOverlay[k2];
+    if(ov1||ov2){ G.cellOverlay[k1]=ov2; G.cellOverlay[k2]=ov1; }
+    if(!G.cellOverlay[k1]) delete G.cellOverlay[k1];
+    if(!G.cellOverlay[k2]) delete G.cellOverlay[k2];
+  }
 }
 
 // ── 交換後附帶效果（臨時工棚/拆遷補償局/地皮炒家） ──
