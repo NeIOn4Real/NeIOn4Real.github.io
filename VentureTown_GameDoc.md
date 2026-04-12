@@ -572,4 +572,7 @@ E:\VT\
 
 #### 事件系統修復
 - **颱風 windDir 被覆蓋**：`startTurn()` 和 `startRound()` 中無場風大師時 `G.windDir=null` 會覆蓋颱風設定的方向限制，改為檢查 `typhoonActive` buff 後才重置
-- **Buff 生命週期驗證**：確認所有 7 種 buff 事件（颱風/原料大降/出口熱/商品熱銷/運輸異常/食安/勞工保險）與 startTurn 無其他衝突；cellPctMods 清除時機正確
+- **Buff 生命週期驗證**：確認所有 7 種 buff 事件與 startTurn 無其他衝突；cellPctMods 清除時機正確
+- **莫菲定律改為觸發時劫持**：不進入預告池，在事件觸發時由 `checkMurphyHijack()` 根據權重替換預告事件（第 2 輪起）
+- **莫菲定律保證複合設施**：改為直接建立 2 張複合設施（原本 `addHandMaybeCompound` 只有 1/3 機率）
+- **跨輪事件保留**：`startRound()` 不再無條件重抽事件，保留上一輪未觸發的預告事件並更新觸發回合
