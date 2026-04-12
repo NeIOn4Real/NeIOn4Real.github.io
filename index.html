@@ -563,6 +563,10 @@ body { padding-bottom: 150px; }
     <div id="talent-panel" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;min-height:20px;">
       <div style="font-size:9px;color:var(--hi);padding:4px 0;">尚無人材</div>
     </div>
+    <div id="partner-section" style="margin-top:8px;">
+      <div id="partner-section-title">合夥人</div>
+      <div id="partner-row"></div>
+    </div>
     <div class="pt" style="margin-top:8px;">提示</div>
     <div style="font-size:10px;color:var(--mu);line-height:1.6;">
       收益 = 元素離開金錢值 − 進入值(1)<br>
@@ -573,14 +577,10 @@ body { padding-bottom: 150px; }
   <div id="grid-area"></div>
 
   <div class="panel">
-    <div id="partner-section" style="margin-bottom:8px;">
-      <div id="partner-section-title">合夥人</div>
-      <div id="partner-row"></div>
-    </div>
     <div class="pt">本次收益</div>
     <div id="el-profit" style="font-size:15px;font-weight:700;color:var(--money);">—</div>
     <div class="pt" style="margin-top:8px;">回合記錄</div>
-    <div id="side-log" style="max-height:200px;overflow-y:auto;"></div>
+    <div id="side-log" style="max-height:260px;overflow-y:auto;"></div>
     <div style="margin-top:8px;"></div>
     <button class="abtn" id="btn-next" onclick="doNext()" disabled>⏩ 結束回合</button>
   </div>
