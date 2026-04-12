@@ -1152,9 +1152,18 @@ const PARTNERS = {
 
   tanya: {
     id:'tanya', name:'譚雅', emoji:'👩‍💼',
-    pos:'每回合可以用手牌中一個設施，與隨機出現的3個設施之一交換，交換所得設施額外+1',
+    pos:'每回合可以用手牌中一個設施，與隨機出現的3個設施之一交換，交換所得設施額外+1。手牌無設施時隨機獲得1張',
     neg:'無',
     desc:'譚雅',
+    onTurnStart(G){
+      const handCount=G.hand.filter(h=>h.count>0).length;
+      if(handCount<1){
+        const pool=Object.keys(BLDG).filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part');
+        const pick=pool[Math.floor(Math.random()*pool.length)];
+        addHand(pick);
+        addLog(`👩‍💼 譚雅：手牌空空的呢～給你一張 ${BLDG[pick].emoji}${BLDG[pick].name}！`,'g');
+      }
+    },
   },
   leya: {
     id:'leya', name:'蕾雅', emoji:'👩‍🔧',
