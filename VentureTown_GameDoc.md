@@ -635,5 +635,22 @@ E:\VT\
 - 廢棄 `futuresLock` 全部移除
 - 轉運中心：onCell + onCellDrop 雙路徑均觸發方向選擇器
 
+#### 百貨公司整體化
+- **2×2 統一渲染**：錨點格用 `position:absolute` overlay 覆蓋 4 格，顯示大 emoji + 效果說明 + 加成
+- **加成聚合**：資源通過時合計 4 格的 cellMods/cellPctMods/bldgUpgrades/leyaPctMods
+- **相鄰判定整體化**：新增 `countAdjacentFacilities(r,c)` 和 `hasAdjacentShop(r,c)`，百貨公司用錨點去重
+- **映射重建**：新增 `rebuildDeptStore()`，每次 `swapCellData` 後自動呼叫
+
+#### 格子懸停詳細資訊
+- 懸停 1 秒後顯示所有加成來源：升級、蕾雅%、格子加成、事件%、期貨%、爆破倒數、疊加設施、事件預告
+
+#### 傲慢惡魔負面豁免修復
+- 補齊 5 個缺漏的 `isDemonNegDisabled` 檢查：慾望、怠惰、激情、嫉妒、貪婪、暴食（onRoundStart）
+
+#### 其他修復
+- 合夥人浮動面板：修復遞迴 hover + 點擊互動
+- 莫菲打亂：清除 `futuresPct`
+- 移除死碼 `gluttony.modifyCard()`
+
 #### 企劃書更新
 - `VentureTown_企劃書.xlsx`：市場事件 17→19 種、事件規則更新、新增莫菲定律權重系統與收益飛行動畫至特殊機制
