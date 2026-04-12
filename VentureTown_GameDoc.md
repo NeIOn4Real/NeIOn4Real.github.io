@@ -683,6 +683,10 @@ E:\VT\
 - 滑鼠懸停設施格顯示紅色外框提示
 - 賣出/取消後動畫停止
 
+#### 譚雅修正
+- **手牌為空自動補牌**：`onTurnStart` — 手牌無設施時隨機獲得 1 張
+- **交換技能重複觸發修復**：`doAction` 結束後呼叫 `startTurn()` 導致 `tanyaOfferSwap` 被第二次觸發。改為 `G.phase='place'; render();`，僅在 evDone/evPick/doNext 保留 `startTurn()`
+
 #### QA 測試套件更新
 - 新增 section 14：無冕之王 + 擁慶記房屋 + 譚雅補牌
 - 新增 section 15：countAdjacentFacilities 百貨公司去重
