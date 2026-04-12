@@ -338,7 +338,8 @@ E:\VT\
 | 事件系統 | 1523~1597 | triggerEvent/showEv/evDone/evPick/applyBuff |
 | onCell() | 1613~1776 | 格子點擊（放置、蕾雅升級、路線規劃師、百貨公司） |
 | 拖曳系統 | 1778~1983 | 元素卡牌 + 設施 + 複合設施拖曳 |
-| sendEl() / stepWithMover() | 1996~2803 | 資源投入與行進（~740 行，37 個 special 分支） |
+| FACILITY_FX | 2064~2406 | 35 個設施特效 handler（dispatch 調度表） |
+| sendEl() / stepWithMover() | 2408~2767 | 資源投入與行進（~360 行，已重構） |
 | finish() | 2804~3120 | 結算收益 + 16 個合夥人效果 + 勞工保險 |
 | 動態難度 | 3122~3160 | adjustDifficulty() |
 | 行動選項 | 3162~3330 | doAction/openActionOverlay |
@@ -480,3 +481,11 @@ E:\VT\
 - **確認所有 17 種事件**均已定義 + 觸發邏輯完畢
 - **確認所有 8 種行動選項**均已定義 + 費用遞增公式實作完畢
 - **教學系統**：9 步驟結構完整，不需要重構
+
+#### 程式碼重構：FACILITY_FX 調度表
+- **`const FACILITY_FX`**：35 個設施特效 handler 從 `stepWithMover` 提取為獨立調度表
+  - 每個 handler 接收 `fx` context：`{el, r, c, cellEl, hit(), hitM(), next(), pulse(), updateCard(), updateMover()}`
+  - `stepWithMover` 從 ~740 行縮減至 ~360 行
+  - 新增設施只需在 `BLDG` 定義 + `FACILITY_FX` 新增 handler，不需修改核心函數
+  - 保留 inline：鑽石×12、物流中心轉向（redirect）、通用轉換邏輯
+- **評估後暫緩**：`finish()` partner hooks、臨時 flag 統一管理、格子遍歷工具函數（風險大於收益）
