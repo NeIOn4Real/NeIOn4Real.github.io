@@ -662,7 +662,7 @@ const BLDG = {
   exchange_board: { name:'匯率波動板',   emoji:'📈', desc:'不參與投入路徑；每次投入結算時，隨機對最終收益加成或衰減±3~15%', req:'any', out:null, fn:v=>v, special:'exchange_board' },
   futures_market: { name:'期貨交易所',   emoji:'🏛', desc:'放置時鎖定當前倍率，永久使用', req:'goods', out:'money', fn:v=>v, special:'futures_market' },
   trade_zone:     { name:'貿易特區',     emoji:'🌏', desc:'周圍4格有商店時輸出×1.5', req:'any', out:null, fn:v=>v, special:'trade_zone' },
-  clearance:      { name:'清倉拍賣場',   emoji:'🏷️', desc:'商品數值清零，獲得等值×4金錢', req:'goods', out:'money', fn:v=>v*4, special:'clearance' },
+  clearance:      { name:'清倉拍賣場',   emoji:'🏷️', desc:'商品通過時獲得數值×4收益，商品變成1', req:'goods', out:'goods', fn:v=>v, special:'clearance' },
   import_tax:     { name:'進出口稅站',   emoji:'🧾', desc:'扣除1金錢（從收益），本格效果×2', req:'any', out:null, fn:v=>v, special:'import_tax' },
   free_market:    { name:'自由市場',     emoji:'🗽', desc:'任意資源進入，輸出金錢（當前數值）', req:'any', out:'money', fn:v=>v },
 
@@ -2550,9 +2550,11 @@ const FACILITY_FX={
   },
   clearance(fx){
     if(fx.el.type!=='goods') return;
-    let cl_val=applyUpgradeBonus(fx.r,fx.c,fx.el.value*4,'清倉拍賣場');
-    addLog(`  🏷️ 清倉拍賣場: 📦${fx.el.value}→💰${cl_val}（×4）`,'g');
-    fx.el={value:cl_val,type:'money'};
+    const prev=fx.el.value;
+    const bonus=prev*4;
+    G.profit+=bonus;
+    addLog(`  🏷️ 清倉拍賣場: 📦${prev}×4 → +${bonus}收益，商品變為1`,'g');
+    fx.el={value:1,type:'goods'};
     fx.hit();
   },
   demolish_fab(fx){
