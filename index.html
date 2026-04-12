@@ -3557,6 +3557,14 @@ function scaledCost(base){
   return Math.ceil(base*Math.max(1,(1+(G.round-1)*0.5)));
 }
 function doNext(){
+  // Tutorial hook: step8 玩家可在 place 階段直接結束回合跳過拆遷隊
+  if(TUT.active && (TUT.waitingFor==='use_demolition'||TUT.waitingFor==='confirm_rearrange')){
+    TUT.waitingFor=null;
+    document.querySelectorAll('.joker-card').forEach(c=>{c.style.outline='';c.style.animation='';});
+    TUT.step=8;
+    TUT.next();
+    return;
+  }
   if(G.phase!=='done')return;
   // Tutorial hook
   if(TUT.active && TUT.waitingFor==='end_turn'){ TUT.onAction('end_turn'); return; }
@@ -3566,14 +3574,6 @@ function doNext(){
     render();
     TUT.waitingFor = null;
     TUT.step = 6;
-    TUT.next();
-    return;
-  }
-  // Tutorial hook: step8 玩家跳過拆遷隊，直接結束回合
-  if(TUT.active && (TUT.waitingFor==='use_demolition'||TUT.waitingFor==='confirm_rearrange')){
-    TUT.waitingFor=null;
-    document.querySelectorAll('.joker-card').forEach(c=>{c.style.outline='';c.style.animation='';});
-    TUT.step=8;
     TUT.next();
     return;
   }
@@ -5299,9 +5299,8 @@ const TUT = {
     ], ()=>{
       TUT.waitingFor = 'use_demolition';
       TUT.highlightPartner('demolition');
-      // 允許結束回合跳過拆遷隊：設 phase='done' 讓按鈕可按
-      G.phase='done';
-      render();
+      // 保持 phase='place' 讓拆遷隊可用，手動啟用結束回合按鈕
+      document.getElementById('btn-next').disabled=false;
     });
   },
 
