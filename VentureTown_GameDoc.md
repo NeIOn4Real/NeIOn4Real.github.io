@@ -289,6 +289,8 @@
 | `gridSize` | 地圖大小（預設 4，大地主 5） |
 | `windDir` | 場風大師指定方向 |
 | `buff` | 本回合臨時增益（matCrash/logisticsDisabled/noMatToGoods/cafeteriaDisabled/moneyToGoodsPenalty/laborInsurance 等） |
+| `inv` | 每次投入重置的臨時 flag 物件（`sendEl()` 初始化），含：`facHit`、`logSet`、`envyPen`、`cenHits`、`logHits`、`speedAct`、`ampAct`、`fxM2G`/`fxG2M`、`arbM2G`/`arbG2M`、`windOK`、`hwCenter`、`exchBoard` |
+| `turnFacMoved` | 本回合設施移動計數（`startTurn()` 重置），動態加強器用 |
 | `cellMods` | 格子固定修正值 `{'r,c': +N/-N}` |
 | `cellPctMods` | 格子百分比修正值 `{'r,c': +10/-10}`，向上取整，資源最小 1 |
 | `eventTriggerCounts` | 事件累計觸發次數 `{eventId: count}` |
@@ -299,12 +301,18 @@
 | `deptStoreAnchors` | 百貨公司錨點（左上格）`{'r,c': true}` |
 | `deptStoreParts` | 百貨公司部分格→錨點映射 `{'r,c': 'anchorR,anchorC'}` |
 | `demolitionCharges` | 拆遷隊可用免費重排次數（可累積） |
+| `bombTimers` | 爆破裝置倒數 `{'r,c': 3/2/1}` |
+| `tempShedMoves` | 臨時工棚移動計數 `{'r,c': count}` |
+| `futuresLock` | 期貨交易所鎖定倍率 `{'r,c': mult}` |
+| `logisticsVault` | 物流倉儲存值 `{'r,c': value}` |
+| `cellOverlay` | 物流之王/倉儲女王疊加設施 `{'r,c': bldgId}` |
+| `partnerState` | 合夥人專屬狀態 `{partnerId: any}` |
 
 ---
 
 ## 技術細節
 
-- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~5629 行）
+- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~5599 行）
 - **無框架**：純 vanilla JS，直接操作 DOM
 - **字體**：Noto Sans TC（中文）、DM Mono（數值）
 - **配色**：暖色系牛皮紙風格，CSS 變數控制主題色
@@ -328,31 +336,32 @@ E:\VT\
 |------|-----------|------|
 | CSS | 8~530 | inline style + CSS 變數 + event-preview 高亮 |
 | HTML DOM | 532~625 | header/grid/panels/modal/overlay |
-| BLDG | 627~691 | 50 種設施定義 |
-| PARTNERS | 694~1007 | 30 位合夥人（含 hook） |
-| 工具函數 | 1017~1032 | hasPartner/isFacility/isShopType/GN 等 |
-| EVENTS | 1037~1266 | 17 種隨機事件（含預計算支援） |
-| 格子修正 helper | 1270~1318 | applyRowColMod/PctMod、flash 函數 |
-| newGame() | 1327~1383 | G 物件初始化 |
-| startRound() | 1385~1420 | 每輪開始（合夥人 hook、場風初始化） |
-| 事件系統 | 1523~1597 | triggerEvent/showEv/evDone/evPick/applyBuff |
-| onCell() | 1613~1776 | 格子點擊（放置、蕾雅升級、路線規劃師、百貨公司） |
-| 拖曳系統 | 1778~1983 | 元素卡牌 + 設施 + 複合設施拖曳 |
-| FACILITY_FX | 2064~2406 | 35 個設施特效 handler（dispatch 調度表） |
-| sendEl() / stepWithMover() | 2408~2767 | 資源投入與行進（~360 行，已重構） |
-| finish() | 2804~3120 | 結算收益 + 16 個合夥人效果 + 勞工保險 |
-| 動態難度 | 3122~3160 | adjustDifficulty() |
-| 行動選項 | 3162~3330 | doAction/openActionOverlay |
-| 自由排列拖曳 | 3334~3415 | onRearrangeDrag 系列 |
-| startTurn() | 3435~3580 | 回合控制（稅務局、磁力板、爆破裝置、人力訓練中心） |
-| render / renderGrid() | 3583~3780 | 主渲染（event-preview 高亮 + cellPctMods） |
-| renderFanHand() | 4142~4280 | 扇形手牌 |
-| 工具函數群 | 4355~4650 | expandGrid/destroyFacility/swapCellData/onFacilityMoved/leyaUpgrade 等 |
-| renderTalentPanel | 4650~4690 | 人材面板 |
-| DIALOGUES / DM | 4736~4985 | 114 條台詞 + 表情系統 |
-| 譚雅交換系統 | 4995~5062 | tanyaOfferSwap/showTanyaHandPick |
-| TUT | 5064~5460 | 新手教學（9 步驟） |
-| DEV | 5482~5612 | 開發者面板 |
+| BLDG | 629~693 | 50 種設施定義 |
+| PARTNERS | 697~1140 | 30 位合夥人（含 onSettle/onTurnStart/onRoundStart hook） |
+| 工具函數 | 1141~1148 | hasPartner/isFacility/isShopType/GN/eachCell/findCells |
+| EVENTS | 1149~1400 | 17 種隨機事件（含預計算 + 地震滑動機制） |
+| 格子修正 helper | 1402~1470 | applyRowColMod/PctMod、flash 函數 |
+| newGame() | 1472~1526 | G 物件初始化（含 `inv:{}`） |
+| startRound() | 1528~1560 | 每輪開始（合夥人 hook、場風初始化） |
+| 事件系統 | 1666~1740 | triggerEvent/showEv/evDone/evPick/applyBuff |
+| onCell() | 1756~1920 | 格子點擊（放置、蕾雅升級、路線規劃師、百貨公司） |
+| 拖曳系統 | 1920~2130 | 元素卡牌 + 設施 + 複合設施拖曳 |
+| sendEl() | 2140~2198 | 資源投入（G.inv 重置 + 路徑構建） |
+| FACILITY_FX | 2199~2540 | 35 個設施特效 handler（dispatch 調度表） |
+| stepWithMover() | 2543~2900 | 資源行進（鑽石×12 + FACILITY_FX 調度 + redirect + 通用轉換） |
+| finish() | 2903~3093 | 結算收益（onSettle 合夥人 hook + 設施/buff 效果） |
+| 動態難度 | 3095~3195 | adjustDifficulty() |
+| 行動選項 | 3197~3400 | doAction/openActionOverlay |
+| 自由排列拖曳 | 3400~3470 | onRearrangeDrag 系列 |
+| startTurn() | 3405~3560 | 回合控制（稅務局、磁力板、爆破裝置、turnFacMoved 重置） |
+| render / renderGrid() | 3752~3950 | 主渲染（event-preview 高亮 + cellPctMods） |
+| renderFanHand() | 4112~4250 | 扇形手牌 |
+| 工具函數群 | 4420~4620 | expandGrid/destroyFacility/swapCellData/onFacilityMoved/leyaUpgrade 等 |
+| renderTalentPanel | 4620~4660 | 人材面板 |
+| DIALOGUES / DM | 4706~4955 | 114 條台詞 + 表情系統 |
+| 譚雅交換系統 | 4965~5035 | tanyaOfferSwap/showTanyaHandPick |
+| TUT | 5039~5420 | 新手教學（9 步驟） |
+| DEV | 5456~5582 | 開發者面板 |
 
 ---
 
