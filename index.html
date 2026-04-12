@@ -1448,10 +1448,13 @@ const EVENTS=[
         }
       }
       // 給予2張複合設施
-      addHandMaybeCompound(Object.keys(BLDG).filter(id=>id!=='ruin'&&id!=='dept_store_part'&&id!=='envy_factory')[Math.floor(Math.random()*40)]);
-      addHandMaybeCompound(Object.keys(BLDG).filter(id=>id!=='ruin'&&id!=='dept_store_part'&&id!=='envy_factory')[Math.floor(Math.random()*40)]);
+      const _murphyPool=Object.keys(BLDG).filter(id=>id!=='ruin'&&id!=='dept_store_part'&&id!=='envy_factory');
+      addHandMaybeCompound(_murphyPool[Math.floor(Math.random()*_murphyPool.length)]);
+      addHandMaybeCompound(_murphyPool[Math.floor(Math.random()*_murphyPool.length)]);
       // 莫菲定律後，下次事件限定為特定池
       G._murphyNextPool=true;
+      // 觸發後重置權重追蹤，避免連續觸發
+      G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
       addLog(`🔀 莫菲定律：所有設施被打亂！獲得2張複合設施`,'b');
       showEv(ev.title,`所有設施位置被隨機打亂！獲得2張複合設施作為補償。`,`<button class="eopt pri" onclick="evDone()">確認</button>`);
       render();
@@ -3483,11 +3486,11 @@ function startTurn(){
   G._talentUsedOnElement = false;
   G._demoExpertMode = false;
   G._hrUsedThisTurn = false; // 人力資源總監每回合重置
-  G.turnFacMoved = 0; // 動態加強器用：本回合設施移動計數
-  // 莫菲定律：追蹤未移動回合數
+  // 莫菲定律：用上回合的 turnFacMoved（重置前）判斷是否有移動
   if(!G._murphyTrack) G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
   if(G.turnFacMoved===0&&G.turn>1) G._murphyTrack.noMove++;
   else G._murphyTrack.noMove=0;
+  G.turnFacMoved = 0; // 動態加強器用：本回合設施移動計數（重置放在檢查之後）
   // 合夥人每回合開始效果
   G.partners.forEach(pid=>{
     const p=PARTNERS[pid];
