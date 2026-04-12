@@ -3807,7 +3807,7 @@ function renderGrid(){
     const routeSrcHi=G._freeMoveLogisticsSrc&&G._freeMoveLogisticsSrc[0]===r&&G._freeMoveLogisticsSrc[1]===c?' move-src':'';
     const routeTargetHi=G._freeMoveLogistics&&!G._freeMoveLogisticsSrc&&b&&b.special==='redirect'?' upgrade-glow':'';
     const centerHi=isCenterCell(r,c)?' center-cell':'';
-    const evPreview=(G.nextEventData&&G.nextEventData.cells&&G.nextEventTurn&&G.nextEventTurn-G.turn===1&&G.nextEventData.cells.includes(`${r},${c}`))?' event-preview':'';
+    const evPreview=(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(`${r},${c}`))?' event-preview':'';
     const isCenter=isCenterCell(r,c);
     h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${centerHi}${evPreview}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
       ${b?`onmouseenter="tipBldg(event,'${G.grid[r][c]}')"`:``}
@@ -5323,18 +5323,18 @@ const TUT = {
     // 隱藏事件橫幅
     const evBanner = document.getElementById('ev-banner');
     if(evBanner) evBanner.classList.remove('show');
-    // 清空教學狀態，進入正式遊戲
-    G.tutorialMode = false;
-    G.phase = 'place';
-    G.turn = 1;
-    G.round = 1;
-    G.profit = 0;
-    G.cellMods = {};
-    G.cellPctMods = {};
-    G.buff = {};
+    // 保留教學中放置的設施和合夥人
+    const savedGrid = G.grid.map(row=>[...row]);
+    const savedPartners = [...G.partners];
+    const savedGridSize = G.gridSize;
+    // 從 newGame() 取得乾淨狀態
+    G = newGame();
+    // 還原保留項目
+    G.grid = savedGrid;
+    G.partners = savedPartners;
+    G.gridSize = savedGridSize;
     G.hand = [{id:'mat_factory',count:1},{id:'factory',count:1},{id:'shop',count:1}];
     G.card = {value:1, type:'money'};
-    // 保留已放置的設施和合夥人
     render();
     renderFanHand();
     renderPartners();
