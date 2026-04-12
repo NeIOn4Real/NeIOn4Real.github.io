@@ -1114,6 +1114,42 @@ const PARTNERS = {
     },
   },
 
+  uncrowned_king: {
+    id:'uncrowned_king', name:'無冕之王', emoji:'👑',
+    pos:'每有x個廢墟，收益+(x²/2)%，每有人材45%機率重複觸發',
+    neg:'無',
+    desc:'無冕之王',
+    onSettle(G, profit, el){
+      const x=G.ruinCells?G.ruinCells.size:0;
+      if(x<=0||profit<=0) return;
+      const basePct=Math.floor(x*x/2);
+      let totalBonus=0;
+      let triggers=1;
+      // 第一次觸發
+      let bonus=Math.ceil(profit*basePct/100);
+      totalBonus+=bonus;
+      // 人材觸發額外次數（每個人材 45% 機率，上限 y 次）
+      const y=G.talentCards||0;
+      for(let t=0;t<y;t++){
+        if(Math.random()>=0.45) break;
+        triggers++;
+        totalBonus+=Math.ceil(profit*basePct/100);
+      }
+      G.profit+=totalBonus;
+      addLog(`👑 無冕之王：${x}廢墟→+${basePct}%×${triggers}次 = +${totalBonus}`,'g');
+      setTimeout(()=>profitFlyFromPartner(this.id,totalBonus),150);
+    },
+  },
+  yongqing_house: {
+    id:'yongqing_house', name:'擁慶記房屋', emoji:'🏠',
+    pos:'每回合可賣出一個設施獲得收益，不產生廢墟',
+    neg:'每次賣出使收益倍率遞增',
+    desc:'擁慶記房屋',
+    // x = 賣出次數累積（存在 partnerState）
+    // 收益 = 0.1 * x% * 已過回合數 * 當前收益
+    // 被賣出的設施不產生廢墟
+  },
+
   tanya: {
     id:'tanya', name:'譚雅', emoji:'👩‍💼',
     pos:'每回合可以用手牌中一個設施，與隨機出現的3個設施之一交換，交換所得設施額外+1',
@@ -1924,6 +1960,12 @@ function selBldg(id){
 }
 function onCell(r,c){
   if(G.phase!=='place')return;
+
+  // 擁慶記房屋賣出模式
+  if(G._yongqingSellMode){
+    yongqingSellCell(r,c);
+    return;
+  }
 
   // 爆破工程師摧毀模式
   if(G._demoExpertMode){
@@ -3668,6 +3710,8 @@ function startTurn(){
   G.phase='place';
   G._talentUsedOnElement = false;
   G._demoExpertMode = false;
+  G._yongqingSellMode = false;
+  G._yongqingSellUsed = false;
   G._hrUsedThisTurn = false; // 人力資源總監每回合重置
   // 莫菲定律：用上回合的 turnFacMoved（重置前）判斷是否有移動
   if(!G._murphyTrack) G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
@@ -4054,7 +4098,9 @@ function renderPartners(){
     const charges=isDemo?(G.demolitionCharges||0):0;
     const isDemoExpert=pid==='demolition_expert';
     const expertClickable=isDemoExpert&&G.phase==='place'&&G.profit>=2;
-    const clickable=(isDemo&&charges>0)||expertClickable;
+    const isYongqing=pid==='yongqing_house';
+    const yqClickable=isYongqing&&G.phase==='place'&&!G._yongqingSellMode;
+    const clickable=(isDemo&&charges>0)||expertClickable||yqClickable;
     const avatarSrc = PARTNER_AVATARS && PARTNER_AVATARS[pid];
     const emojiHtml = avatarSrc
       ? `<img src="${avatarSrc}" class="jc-avatar" alt="${p.name}">`
@@ -4063,11 +4109,12 @@ function renderPartners(){
       data-tip="${tip}"
       onmouseenter="tipFromAttr(event,this); DM.onPartnerHover('${p.name}'); showPartnerFloat(event)"
       onmouseleave="hideTooltip(); hidePartnerFloat(event)"
-      ${isDemo&&charges>0?`onclick="useDemolition()"`:''} ${expertClickable?`onclick="useDemoExpert()"`:''}>
+      ${isDemo&&charges>0?`onclick="useDemolition()"`:''} ${expertClickable?`onclick="useDemoExpert()"`:''} ${yqClickable?`onclick="useYongqingSell()"`:''}>
       ${emojiHtml}
       <div class="jc-name">${p.name}</div>
       ${isDemo&&charges>0?`<div style="font-size:9px;font-weight:700;background:var(--acc);color:#fff;border-radius:99px;padding:1px 6px;margin-top:2px;">×${charges}</div>`:''}
       ${expertClickable?`<div style="font-size:8px;font-weight:700;color:var(--red);margin-top:1px;">-2💰摧毀</div>`:''}
+      ${yqClickable?`<div style="font-size:8px;font-weight:700;color:var(--money);margin-top:1px;">賣出設施</div>`:''}
     </div>`;
   }).join('');
 }
@@ -4841,6 +4888,57 @@ function useDemoExpert(){
   render();
 }
 
+function useYongqingSell(){
+  if(!hasPartner('yongqing_house')) return;
+  if(G.phase!=='place'){ addLog('🏠 只能在放置階段使用','b'); return; }
+  if(G._yongqingSellUsed){ addLog('🏠 擁慶記房屋：本回合已賣出','b'); return; }
+  G._yongqingSellMode=true;
+  addLog('🏠 擁慶記房屋：點擊要賣出的設施','w');
+  render();
+}
+function yongqingSellCell(r,c){
+  if(!G._yongqingSellMode) return false;
+  const bId=G.grid[r][c];
+  if(!isFacility(bId)){ addLog('🏠 該格沒有設施','b'); return true; }
+  // 計算收益
+  const st=G.partnerState.yongqing_house||{x:1};
+  const turnsPassed=G.turn||1;
+  const pct=0.1*st.x;
+  const bonus=Math.max(1,Math.ceil(G.profit*pct/100*turnsPassed));
+  // 移除設施（不產生廢墟）
+  const b=BLDG[bId];
+  const k=`${r},${c}`;
+  G.grid[r][c]=null; // 不用 destroyFacility（那會產生廢墟）
+  // 清除附帶資料
+  delete G.bldgUpgrades[k]; delete G.leyaPctMods[k]; delete G.cellMods[k];
+  if(G.bombTimers) delete G.bombTimers[k];
+  if(G.cellOverlay) delete G.cellOverlay[k];
+  if(G.tempShedMoves) delete G.tempShedMoves[k];
+  if(G.logisticsVault) delete G.logisticsVault[k];
+  if(G.futuresPct) delete G.futuresPct[k];
+  // 百貨公司：整體移除
+  if(bId==='dept_store'||bId==='dept_store_part'){
+    const gn=GN();
+    for(let dr=0;dr<gn;dr++) for(let dc=0;dc<gn;dc++){
+      if(G.grid[dr][dc]==='dept_store'||G.grid[dr][dc]==='dept_store_part'){
+        const dk=`${dr},${dc}`;
+        G.grid[dr][dc]=null;
+        delete G.bldgUpgrades[dk]; delete G.leyaPctMods[dk]; delete G.cellMods[dk];
+      }
+    }
+    rebuildDeptStore();
+  }
+  G.profit+=bonus;
+  st.x++;
+  G.partnerState.yongqing_house=st;
+  G._yongqingSellMode=false;
+  G._yongqingSellUsed=true;
+  addLog(`🏠 擁慶記房屋：賣出 ${b.emoji}${b.name}，+${bonus}收益（${pct}%×${turnsPassed}回合）`,'g');
+  profitFlyFromCell(r,c,bonus);
+  render();
+  return true;
+}
+
 function expandGrid(grid, newSize){
   const newGrid=Array(newSize).fill(null).map(()=>Array(newSize).fill(null));
   for(let r=0;r<Math.min(grid.length,newSize);r++)
@@ -5308,6 +5406,8 @@ const DIALOGUES = {
   "event_勞工保險": "我、我們不是勞工唷？我們是這個人的妻子啦！這樣應該不用扣稅吧？",
   "event_莫菲定律": "最近好像過得有點太順利了？這在地獄是不可能的。",
   "event_就業輔助": "竟然需要輔助？明明已經有我們的幫助了，你什麼時候偷偷申請這個的！",
+  "partner_hover_無冕之王": "你不會告訴家人自己的A書藏在哪對吧，也不會讓別人看自己的屁眼吧？",
+  "partner_hover_擁慶記房屋": "蓋大樓！",
   "bldg_hover_原料廠": "拿這些錢去買點好東西吧～♡",
   "bldg_hover_工廠": "要是能做點漂亮的商品就好了呢～",
   "bldg_hover_商店": "工讀生不夠啊…我難道要親自下場嗎？",
@@ -5428,7 +5528,8 @@ const DIALOGUE_EXPR = {
   "partner_hover_套利者":1,"partner_hover_壟斷者":1,"partner_hover_地皮炒家":5,
   "partner_hover_爆破工程師":5,"partner_hover_混沌建築師":5,"partner_hover_廢墟掠奪者":1,
   "partner_hover_阿北，物流之王":6,"partner_hover_市長":2,"partner_hover_公路之星":1,
-  "partner_hover_設施破壞者":1,"partner_hover_場風大師":3,"partner_hover_大地主":1
+  "partner_hover_設施破壞者":1,"partner_hover_場風大師":3,"partner_hover_大地主":1,
+  "partner_hover_無冕之王":6,"partner_hover_擁慶記房屋":2
 };
 
 // 預載所有表情圖片
