@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)",
+      "Search(**)",
+      "Bash(grep -n \"^// ═.*$\\\\|^// [A-Z]\\\\|^// 設施\\\\|^// 合夥人\\\\|^// 事件\\\\|^// 送入\\\\|^// 元素\\\\|^// 更新\\\\|^// 遊戲\\\\|^// 渲染\\\\|^// 開發\\\\|^// 教學\\\\|^// 台詞\\\\|^// 行動\\\\|^// 起始\\\\|^// 格子\\\\|^const [A-Z]\\\\|^function [a-zA-Z]\" \"E:/VT/index.html\")",
+      "Bash(awk -F: '{print $1, $2}')",
+      "Bash(read line:*)",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(python3 -c \" lines = [int\\(x\\) for x in open\\('/tmp/fns.txt'\\).read\\(\\).strip\\(\\).split\\('\\\\n'\\)] total = 5629 fns = [] for i in range\\(len\\(lines\\)\\): end = lines[i+1]-1 if i+1 < len\\(lines\\) else total size = end - lines[i] + 1 fns.append\\(\\(size, lines[i]\\)\\) fns.sort\\(reverse=True\\) for s, l in fns[:15]: print\\(f' Line {l}: ~{s} lines'\\) \")",
+      "Bash(awk -F: '/^function /{print NR, $0}' \"E:/VT/index.html\")",
+      "Bash(awk '/^function /{name=$0; line=NR; next} /^function /{print prev_line, NR-prev_line, prev_name} {prev_name=name; prev_line=line}' \"E:/VT/index.html\")",
+      "Bash(sort -rnk2)",
+      "Bash(awk -F: '{lines[NR]=$1; names[NR]=$2} END{for\\(i=1;i<NR;i++\\){size=lines[i+1]-lines[i]; print size, lines[i], names[i]}}')"
+    ],
+    "deny": [
+      "Read(//**)",
+      "Edit(//**)",
+      "Write(//**)",
+      "Bash(rm -rf **)",
+      "Bash(sudo *)",
+      "Bash(rm **)",
+      "Read(//c/**)",
+      "Read(//d/**)",
+      "Read(//e/**/!VT/**)"
+    ],
+    "additionalDirectories": []
+  },
+  "disableAllHooks": true,
+  "autoMode": {
+    "allow": [
+      "All routine file edits and reads inside the current project directory are allowed"
+    ],
+    "soft_deny": [
+      "Any operation outside the current working directory E:\\VT",
+      "Deleting files or directories outside the project",
+      "Running dangerous shell commands"
+    ]
+  },
+  "defaultMode": "acceptEdits"
+}
