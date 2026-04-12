@@ -504,3 +504,10 @@ E:\VT\
 - 確認 `G.inv` 在 `newGame()` 初始化為空物件、`sendEl()` 正確重置
 - 確認所有 `findCells` 回呼參數正確
 - 移除 `newGame()` 中殘留的 `turnFacilitiesHit`、`turnBuildingTypes` 孤兒屬性
+
+#### 地震事件重寫
+- **滑動機制修正**：設施逐個往指定方向滑動，直到遇到邊界或其他設施/廢墟
+  - 廢墟視為障礙不滑動（原本廢墟也跟著滑）
+  - 處理順序：靠近目標邊的設施先處理（避免碰撞）
+- **位置鍵值資料轉移**：滑動時一併轉移 `bldgUpgrades`、`leyaPctMods`、`bombTimers`、`tempShedMoves`、`futuresLock`、`logisticsVault`、`cellOverlay`（原本只轉移 bldgUpgrades 和 leyaPctMods）
+- 重建百貨公司追蹤和廢墟 Set
