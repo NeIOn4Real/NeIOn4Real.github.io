@@ -321,7 +321,7 @@
 
 ## 技術細節
 
-- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~5599 行）
+- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~5784 行）
 - **無框架**：純 vanilla JS，直接操作 DOM
 - **字體**：Noto Sans TC（中文）、DM Mono（數值）
 - **配色**：暖色系牛皮紙風格，CSS 變數控制主題色
@@ -577,3 +577,26 @@ E:\VT\
 - **莫菲定律改為觸發時劫持**：不進入預告池，在事件觸發時由 `checkMurphyHijack()` 根據權重替換預告事件（第 2 輪起）
 - **莫菲定律保證複合設施**：改為直接建立 2 張複合設施（原本 `addHandMaybeCompound` 只有 1/3 機率）
 - **跨輪事件保留**：`startRound()` 不再無條件重抽事件，保留上一輪未觸發的預告事件並更新觸發回合
+- **清倉拍賣場收益修正**：收益改用 `G.inv.clearanceBonus` 暫存，在 `finish()` 中入帳，正確計入 totalTurnProfit
+
+#### 收益飛行動畫系統
+- **新增 `profitFlyFrom(srcEl, amount)`**：通用動畫，從任意元素飛向收益 UI，負數紅色
+- **新增 `profitFlyFromCell(r, c, amount)`**：從格子飛出
+- **覆蓋 16 處非標準收益變動**：9 個合夥人 onSettle + 進出口稅站 + 清倉拍賣場 + 拆遷補償局 + 稅務局 + 嫉妒工廠 + 就業輔助事件
+
+#### 資料完整性修復
+- **onSettle `this` 綁定**：改用 `.call(p, ...)` 確保 `this.id` 正確
+- **G.inv 初始化補全**：加入 `clearanceBonus:0, clearanceCells:[]`
+- **swapCellData 完整性**：新增 `bombTimers`、`cellOverlay`、`tempShedMoves`、`futuresLock`、`logisticsVault` 交換
+- **莫菲定律打亂**：清除 `cellOverlay` 和 `bombTimers`
+- **checkMurphyHijack**：加入 `TUT.active` 防護
+- **新增 `.fc-back-mark` CSS**、**新增 `.move-src` CSS**
+
+#### 最終架構驗證
+- 15 個舊 flag 名稱全部清除 ✓
+- 所有函數均有呼叫者（無死碼）✓
+- FACILITY_FX 統一使用 `fx.hit()`（無 hitM）✓
+- `swapCellData` 交換 9 種位置鍵值資料 ✓
+- `cellPctMods` 正確不跟隨移動（事件效果綁定格子）✓
+- `_landSpecStale` 由 `onFacilityMoved` hook 處理 ✓
+- 百貨公司 2×2 由重建邏輯處理（非單格交換）✓
