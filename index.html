@@ -4064,13 +4064,16 @@ function showPartnerFloat(e){
   if(!pf||!pfRow) return;
   // 複製合夥人卡片內容到浮動面板（保留 onclick 等互動）
   pfRow.innerHTML=document.getElementById('partner-row').innerHTML;
-  // 浮動面板內卡片取消負 margin，正常間距；可點擊的加入互動提示
   pfRow.querySelectorAll('.joker-card').forEach(c=>{
     c.style.marginRight='0';
+    // 移除浮動面板內卡片的 showPartnerFloat/hidePartnerFloat（防止遞迴）
+    c.setAttribute('onmouseenter','tipFromAttr(event,this)');
+    c.setAttribute('onmouseleave','hideTooltip()');
     // 點擊合夥人效果後關閉浮動面板
     const origClick=c.getAttribute('onclick');
     if(origClick){
       c.setAttribute('onclick',origClick+";document.getElementById('partner-float').style.display='none';");
+      c.style.cursor='pointer';
     }
   });
   // 定位：出現在左側面板右邊
