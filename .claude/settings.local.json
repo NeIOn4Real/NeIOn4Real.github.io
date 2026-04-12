@@ -13,7 +13,12 @@
       "Bash(awk -F: '/^function /{print NR, $0}' \"E:/VT/index.html\")",
       "Bash(awk '/^function /{name=$0; line=NR; next} /^function /{print prev_line, NR-prev_line, prev_name} {prev_name=name; prev_line=line}' \"E:/VT/index.html\")",
       "Bash(sort -rnk2)",
-      "Bash(awk -F: '{lines[NR]=$1; names[NR]=$2} END{for\\(i=1;i<NR;i++\\){size=lines[i+1]-lines[i]; print size, lines[i], names[i]}}')"
+      "Bash(awk -F: '{lines[NR]=$1; names[NR]=$2} END{for\\(i=1;i<NR;i++\\){size=lines[i+1]-lines[i]; print size, lines[i], names[i]}}')",
+      "Bash(awk -F: '$1>=2768 && $1<=2980{print}')",
+      "Bash(cp:*)",
+      "Bash(sed:*)",
+      "Bash(node -c \"E:/VT/index.html\")",
+      "Bash(ls:*)"
     ],
     "deny": [
       "Read(//**)",

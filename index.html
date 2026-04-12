@@ -1231,19 +1231,51 @@ const EVENTS=[
       const ed=G.nextEventData||{};
       const d=ed.dir||['top','bottom','left','right'][Math.floor(Math.random()*4)];
       const gn=GN();
-      const newGrid=Array(gn).fill(null).map(()=>Array(gn).fill(null));
-      const newUpg={}, newLeya={};
-      if(d==='left'){
-        for(let r=0;r<gn;r++){ let w=0; for(let c=0;c<gn;c++){ if(G.grid[r][c]){ newGrid[r][w]=G.grid[r][c]; const u=G.bldgUpgrades?.[`${r},${c}`]; if(u) newUpg[`${r},${w}`]=u; const lp=G.leyaPctMods?.[`${r},${c}`]; if(lp) newLeya[`${r},${w}`]=lp; w++; }}}
-      } else if(d==='right'){
-        for(let r=0;r<gn;r++){ let w=gn-1; for(let c=gn-1;c>=0;c--){ if(G.grid[r][c]){ newGrid[r][w]=G.grid[r][c]; const u=G.bldgUpgrades?.[`${r},${c}`]; if(u) newUpg[`${r},${w}`]=u; const lp=G.leyaPctMods?.[`${r},${c}`]; if(lp) newLeya[`${r},${w}`]=lp; w--; }}}
-      } else if(d==='top'){
-        for(let c=0;c<gn;c++){ let w=0; for(let r=0;r<gn;r++){ if(G.grid[r][c]){ newGrid[w][c]=G.grid[r][c]; const u=G.bldgUpgrades?.[`${r},${c}`]; if(u) newUpg[`${w},${c}`]=u; const lp=G.leyaPctMods?.[`${r},${c}`]; if(lp) newLeya[`${w},${c}`]=lp; w++; }}}
-      } else {
-        for(let c=0;c<gn;c++){ let w=gn-1; for(let r=gn-1;r>=0;r--){ if(G.grid[r][c]){ newGrid[w][c]=G.grid[r][c]; const u=G.bldgUpgrades?.[`${r},${c}`]; if(u) newUpg[`${w},${c}`]=u; const lp=G.leyaPctMods?.[`${r},${c}`]; if(lp) newLeya[`${w},${c}`]=lp; w--; }}}
+      // 需要轉移的位置鍵值資料表
+      const keyedData=['bldgUpgrades','leyaPctMods','bombTimers','tempShedMoves','futuresLock','logisticsVault','cellOverlay'];
+      // 計算每個設施的目標位置（廢墟不滑動，視為障礙）
+      const moves={}; // 'r,c' → [nr,nc]
+      const dr=d==='top'?-1:d==='bottom'?1:0;
+      const dc=d==='left'?-1:d==='right'?1:0;
+      // 依滑動方向決定遍歷順序（靠近目標邊的先處理）
+      const rows=[...Array(gn).keys()], cols=[...Array(gn).keys()];
+      if(dr>0) rows.reverse();
+      if(dc>0) cols.reverse();
+      const occupied=new Set();
+      // 先標記廢墟位置（不動，視為障礙）
+      for(let r=0;r<gn;r++) for(let c=0;c<gn;c++) if(G.grid[r][c]==='ruin') occupied.add(`${r},${c}`);
+      // 逐一滑動設施
+      for(const r of rows) for(const c of cols){
+        if(!isFacility(G.grid[r][c])) continue;
+        let nr=r, nc=c;
+        while(true){
+          const tr=nr+dr, tc=nc+dc;
+          if(tr<0||tr>=gn||tc<0||tc>=gn) break;
+          if(occupied.has(`${tr},${tc}`)) break;
+          nr=tr; nc=tc;
+        }
+        occupied.add(`${nr},${nc}`);
+        if(nr!==r||nc!==c) moves[`${r},${c}`]=[nr,nc];
       }
-      G.grid=newGrid; G.bldgUpgrades=newUpg; G.leyaPctMods=newLeya;
-      // 重建 ruinCells
+      // 執行移動
+      const newGrid=Array(gn).fill(null).map((_,r)=>[...G.grid[r]]);
+      const newKeyed={}; keyedData.forEach(k=>newKeyed[k]={...(G[k]||{})});
+      // 先清除舊位置
+      Object.keys(moves).forEach(k=>{
+        const [r,c]=k.split(',').map(Number);
+        newGrid[r][c]=null;
+        keyedData.forEach(dk=>{ delete newKeyed[dk][k]; });
+      });
+      // 放到新位置
+      Object.entries(moves).forEach(([k,[nr,nc]])=>{
+        const [r,c]=k.split(',').map(Number);
+        const nk=`${nr},${nc}`;
+        newGrid[nr][nc]=G.grid[r][c];
+        keyedData.forEach(dk=>{ const v=G[dk]?.[k]; if(v!==undefined) newKeyed[dk][nk]=v; });
+      });
+      G.grid=newGrid;
+      keyedData.forEach(k=>G[k]=newKeyed[k]);
+      // 重建 ruinCells（廢墟不動，但以防萬一）
       G.ruinCells=new Set();
       for(let r=0;r<gn;r++) for(let c=0;c<gn;c++) if(G.grid[r][c]==='ruin') G.ruinCells.add(`${r},${c}`);
       // 重建百貨公司追蹤
@@ -1257,7 +1289,8 @@ const EVENTS=[
           });
         }
       }
-      addLog(`🌍 地震：所有設施往 ${labels[d]} 滑動！`,'b');
+      const moveCount=Object.keys(moves).length;
+      addLog(`🌍 地震：所有設施往 ${labels[d]} 滑動！（${moveCount}個設施移動）`,'b');
       showEv(ev.title,`地震！所有設施往 ${labels[d]} 方向滑動`,`<button class="eopt pri" onclick="evDone()">確認</button>`);
       render();
     },

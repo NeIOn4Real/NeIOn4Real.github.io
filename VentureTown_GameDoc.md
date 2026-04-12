@@ -492,7 +492,15 @@ E:\VT\
   - `finish()` 從 ~321 行縮減至 ~193 行
   - 新增合夥人結算效果只需在 PARTNERS 定義加 `onSettle`，不需修改 `finish()`
   - 統一 hook 名稱：`poverty_god.onFinish`、`greed.onTurnEnd`、`wrath.onTurnEnd` 均改為 `onSettle`
-- **`G.inv` 投入臨時 flag 統一管理**：15 個每次投入重置的 `G._xxx` flag 集中到 `G.inv={...}`
+- **`G.inv` 投入臨時 flag 統一管理**：14 個每次投入重置的 `G._xxx` flag 集中到 `G.inv={...}`
   - `sendEl()` 開頭一行重置所有 flag
-  - 旗標清單：`facHit`、`logSet`、`envyPen`、`cenHits`、`logHits`、`facMoved`、`speedAct`、`ampAct`、`fxM2G`/`fxG2M`、`arbM2G`/`arbG2M`、`windOK`、`hwCenter`、`exchBoard`
+  - 旗標清單：`facHit`、`logSet`、`envyPen`、`cenHits`、`logHits`、`speedAct`、`ampAct`、`fxM2G`/`fxG2M`、`arbM2G`/`arbG2M`、`windOK`、`hwCenter`、`exchBoard`
+- **`G.turnFacMoved` 獨立為每回合 flag**：動態加強器需要本回合（非本次投入）的設施移動計數，從 `G.inv` 移出至 `startTurn()` 重置
 - **`eachCell(fn)` / `findCells(pred)` 格子遍歷工具**：取代 8 處重複 `for(r) for(c)` 迴圈
+
+#### 重構後驗證
+- 確認無殘留舊 flag 名稱（15 個全部替換）
+- 確認 `lust.modifyFinish` 仍在 profit 計算前執行（未被誤改為 onSettle）
+- 確認 `G.inv` 在 `newGame()` 初始化為空物件、`sendEl()` 正確重置
+- 確認所有 `findCells` 回呼參數正確
+- 移除 `newGame()` 中殘留的 `turnFacilitiesHit`、`turnBuildingTypes` 孤兒屬性
