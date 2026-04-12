@@ -1407,6 +1407,66 @@ const EVENTS=[
     id:'skip', _dialogueKey:'event_平靜的一天', title:'😴 平靜的一天', onShow:()=>tryDialogue('event_平靜的一天'), desc:'什麼都沒發生。',
     show:(ev)=>{ showEv(ev.title,ev.desc,`<button class="eopt pri" onclick="evDone()">繼續</button>`); },
   },
+  {
+    id:'murphy', title:'🔀 莫菲定律', onShow:()=>tryDialogue('event_莫菲定律'), desc:'所有設施被隨機打亂位置，獲得2張複合設施',
+    show:(ev)=>{
+      const gn=GN();
+      // 收集所有設施及其附帶資料
+      const facs=[];
+      for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+        if(isFacility(G.grid[r][c])){
+          const k=`${r},${c}`;
+          facs.push({bId:G.grid[r][c], upg:G.bldgUpgrades[k]||0, leya:G.leyaPctMods[k]||0, mods:G.cellMods[k]||0});
+          G.grid[r][c]=null; delete G.bldgUpgrades[k]; delete G.leyaPctMods[k]; delete G.cellMods[k];
+        }
+      }
+      // 收集所有空格（含剛清空的）
+      const empties=[];
+      for(let r=0;r<gn;r++) for(let c=0;c<gn;c++) if(!G.grid[r][c]||G.grid[r][c]==='ruin') empties.push([r,c]);
+      // 隨機放回
+      empties.sort(()=>Math.random()-.5);
+      facs.sort(()=>Math.random()-.5);
+      facs.forEach((f,i)=>{
+        if(i>=empties.length) return;
+        const [nr,nc]=empties[i];
+        const nk=`${nr},${nc}`;
+        if(G.grid[nr][nc]==='ruin'&&G.ruinCells) G.ruinCells.delete(nk);
+        G.grid[nr][nc]=f.bId;
+        if(f.upg) G.bldgUpgrades[nk]=f.upg;
+        if(f.leya) G.leyaPctMods[nk]=f.leya;
+        if(f.mods) G.cellMods[nk]=f.mods;
+      });
+      // 重建百貨公司追蹤
+      G.deptStoreAnchors={}; G.deptStoreParts={};
+      for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+        if(G.grid[r][c]==='dept_store'){
+          const ak=`${r},${c}`;
+          G.deptStoreAnchors[ak]=true;
+          [[r,c+1],[r+1,c],[r+1,c+1]].forEach(([pr,pc])=>{
+            if(pr<gn&&pc<gn&&G.grid[pr][pc]==='dept_store_part') G.deptStoreParts[`${pr},${pc}`]=ak;
+          });
+        }
+      }
+      // 給予2張複合設施
+      addHandMaybeCompound(Object.keys(BLDG).filter(id=>id!=='ruin'&&id!=='dept_store_part'&&id!=='envy_factory')[Math.floor(Math.random()*40)]);
+      addHandMaybeCompound(Object.keys(BLDG).filter(id=>id!=='ruin'&&id!=='dept_store_part'&&id!=='envy_factory')[Math.floor(Math.random()*40)]);
+      // 莫菲定律後，下次事件限定為特定池
+      G._murphyNextPool=true;
+      addLog(`🔀 莫菲定律：所有設施被打亂！獲得2張複合設施`,'b');
+      showEv(ev.title,`所有設施位置被隨機打亂！獲得2張複合設施作為補償。`,`<button class="eopt pri" onclick="evDone()">確認</button>`);
+      render();
+    },
+  },
+  {
+    id:'job_assist', title:'💼 就業輔助', onShow:()=>tryDialogue('event_就業輔助'), desc:'獲得目標20%的收益',
+    show:(ev)=>{
+      const bonus=Math.ceil(G.goal*0.2);
+      G.profit+=bonus;
+      addLog(`💼 就業輔助：獲得目標20%收益 +${bonus}（共${G.profit}）`,'g');
+      showEv(ev.title,`獲得收益目標的 20% 作為補助：+${bonus}`,`<button class="eopt pri" onclick="evDone()">確認</button>`);
+      render();
+    },
+  },
 ];
 
 // ── 格子修正 helper ──
@@ -2139,6 +2199,11 @@ function sendEl(dir,idx){
   G.phase='animating';
   G._tutHitMatFactory = false; // 教學：每次投入重置
   G.sel=null;
+  // 莫菲定律：追蹤重複投入模式
+  const sendKey=`${dir},${idx}`;
+  if(!G._murphyTrack) G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
+  if(sendKey===G._murphyTrack.lastSend) G._murphyTrack.repeatCount++;
+  else { G._murphyTrack.lastSend=sendKey; G._murphyTrack.repeatCount=1; }
   render();
 
   const path=[];
@@ -3131,7 +3196,29 @@ function pickActionOptions(){
 function pickNextEvent(){
   // 預告下一個 EVENT_INTERVAL 倍數回合的事件
   const nextEvTurn = Math.ceil((G.turn+1)/EVENT_INTERVAL)*EVENT_INTERVAL;
-  G.nextEvent=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  let pool=EVENTS;
+  // 莫菲定律後，下次事件限定池
+  if(G._murphyNextPool){
+    pool=EVENTS.filter(e=>['pick_fac','earthquake','job_assist','leya_gift'].includes(e.id));
+    G._murphyNextPool=false;
+  }
+  // 加權抽選（莫菲定律權重根據重複行為提升）
+  const mt=G._murphyTrack||{repeatCount:0,noMove:0};
+  const weights=pool.map(ev=>{
+    if(ev.id==='murphy'){
+      // 基礎權重 1，重複投入和未移動都增加權重
+      return 1 + Math.max(0,mt.repeatCount-2)*3 + Math.max(0,mt.noMove-2)*2;
+    }
+    return 1;
+  });
+  const totalW=weights.reduce((a,b)=>a+b,0);
+  let roll=Math.random()*totalW;
+  let picked=pool[0];
+  for(let i=0;i<pool.length;i++){
+    roll-=weights[i];
+    if(roll<=0){ picked=pool[i]; break; }
+  }
+  G.nextEvent=picked;
   G.nextEventTurn=nextEvTurn;
   G.nextEventData=precomputeEventData(G.nextEvent);
 }
@@ -3170,6 +3257,9 @@ function precomputeEventData(ev){
     const filled=[];
     for(let r=0;r<gn;r++) for(let c=0;c<gn;c++) if(isFacility(G.grid[r][c])) filled.push([r,c]);
     if(filled.length>0){ data.target=filled[Math.floor(Math.random()*filled.length)]; data.cells.push(`${data.target[0]},${data.target[1]}`); }
+  } else if(ev.id==='murphy'){
+    // 預告高亮所有設施格
+    for(let r=0;r<gn;r++) for(let c=0;c<gn;c++) if(isFacility(G.grid[r][c])) data.cells.push(`${r},${c}`);
   }
   return data;
 }
@@ -3372,6 +3462,8 @@ function confirmRearrange(){
     addLog(`🔨 拆遷隊使用 1 次，剩餘 ${G.demolitionCharges} 次`,'g');
   }
   G._demolitionRearrange = false;
+  // 莫菲定律：重排後重置未移動計數
+  if(G._murphyTrack) G._murphyTrack.noMove=0;
   delete G._gridSnapshot;
   delete G._upgradesSnapshot;
   delete G._leyaSnapshot;
@@ -3392,6 +3484,10 @@ function startTurn(){
   G._demoExpertMode = false;
   G._hrUsedThisTurn = false; // 人力資源總監每回合重置
   G.turnFacMoved = 0; // 動態加強器用：本回合設施移動計數
+  // 莫菲定律：追蹤未移動回合數
+  if(!G._murphyTrack) G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
+  if(G.turnFacMoved===0&&G.turn>1) G._murphyTrack.noMove++;
+  else G._murphyTrack.noMove=0;
   // 合夥人每回合開始效果
   G.partners.forEach(pid=>{
     const p=PARTNERS[pid];
@@ -4738,6 +4834,8 @@ const DIALOGUES = {
   "event_運輸異常": "你說我的假髮被弄丟了是什麼意思？！",
   "event_重大食安": "嗚哇…早就說過那間店有問題了。",
   "event_勞工保險": "我、我們不是勞工唷？我們是這個人的妻子啦！這樣應該不用扣稅吧？",
+  "event_莫菲定律": "最近好像過得有點太順利了？這在地獄是不可能的。",
+  "event_就業輔助": "竟然需要輔助？明明已經有我們的幫助了，你什麼時候偷偷申請這個的！",
   "bldg_hover_原料廠": "拿這些錢去買點好東西吧～♡",
   "bldg_hover_工廠": "要是能做點漂亮的商品就好了呢～",
   "bldg_hover_商店": "工讀生不夠啊…我難道要親自下場嗎？",
@@ -4833,6 +4931,7 @@ const DIALOGUE_EXPR = {
   "event_行業熱潮":3,"event_區域效應":4,"event_地塊共鳴":3,"event_颱風來襲":4,"event_地區叛亂":4,
   "event_地震":3,"event_危險廢棄物":5,"event_譚雅的禮物":6,"event_蕾雅的禮物":1,
   "event_運輸異常":5,"event_重大食安":4,"event_勞工保險":6,
+  "event_莫菲定律":2,"event_就業輔助":3,
   "bldg_hover_原料廠":1,"bldg_hover_工廠":1,"bldg_hover_商店":4,"bldg_hover_小型販售商":2,"bldg_hover_黃牛販子":5,"bldg_hover_量販店":1,"bldg_hover_百貨公司":4,"bldg_hover_精煉廠":1,
   "bldg_hover_倉庫":5,"bldg_hover_增幅器":2,"bldg_hover_轉化器":6,"bldg_hover_物流中心":6,
   "bldg_hover_員工食堂":5,"bldg_hover_人力派遣":6,"bldg_hover_人力訓練中心":6,
