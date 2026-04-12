@@ -4187,8 +4187,8 @@ function renderGrid(){
     const evPreview=(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(`${r},${c}`))?' event-preview':'';
     const isCenter=isCenterCell(r,c);
     h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${centerHi}${evPreview}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
-      ${b?`onmouseenter="tipBldg(event,'${G.grid[r][c]}')"`:``}
-      onmouseleave="hideTooltip()"
+      onmouseenter="cellHoverStart(event,${r},${c})"
+      onmouseleave="cellHoverEnd()"
       onclick="onCell(${r},${c})"
       ${G.freeRearrange&&b?`draggable="true" ondragstart="onRearrangeDragStart(event,${r},${c})" ondragend="onRearrangeDragEnd(event)"`:''}
       ondragover="onCellDragOver(event,${r},${c});onTalentDragOverCell(event,${r},${c});onRearrangeDragOver(event,${r},${c})"
@@ -4434,6 +4434,72 @@ function tipBldg(e,id){
   const b=BLDG[id]; if(!b)return;
   showTooltip(e, b.name + '\n' + (b.desc||'') + '\n基礎輸出: +' + (b.fn(1)-1));
   DM.onBldgHover(id);
+}
+
+// 格子懸停：短暫顯示設施名，1秒後顯示詳細加成
+let _cellHoverTimer=null, _cellHoverEvt=null;
+function cellHoverStart(e,r,c){
+  clearTimeout(_cellHoverTimer);
+  _cellHoverEvt=e;
+  const bId=G.grid[r][c];
+  if(bId&&BLDG[bId]){
+    tipBldg(e,bId);
+  }
+  // 1秒後顯示詳細加成面板
+  _cellHoverTimer=setTimeout(()=>showCellDetailTip(e,r,c),1000);
+}
+function cellHoverEnd(){
+  clearTimeout(_cellHoverTimer);
+  hideTooltip();
+}
+function showCellDetailTip(e,r,c){
+  const k=`${r},${c}`;
+  const bId=G.grid[r][c];
+  const lines=[];
+  // 設施基礎資訊
+  if(bId&&BLDG[bId]){
+    const b=BLDG[bId];
+    lines.push(`<b>${b.emoji} ${b.name}</b>`);
+    lines.push(b.desc||'');
+  } else if(bId==='ruin'){
+    lines.push('<b>🏚️ 廢墟</b>');
+  } else {
+    lines.push('<b>空格</b>');
+  }
+  // 升級加成
+  const upg=G.bldgUpgrades&&G.bldgUpgrades[k]||0;
+  if(upg>0) lines.push(`⬆ 升級加成: +${upg}`);
+  // 蕾雅百分比
+  const leya=G.leyaPctMods&&G.leyaPctMods[k]||0;
+  if(leya>0) lines.push(`👩‍🔧 蕾雅: +${leya}%`);
+  // cellMods（人材/地皮炒家等）
+  const mod=G.cellMods&&G.cellMods[k]||0;
+  if(mod!==0) lines.push(`${mod>0?'🧑‍💼':'🏚️'} 格子加成: ${mod>0?'+':''}${mod}`);
+  // cellPctMods（事件效果）
+  const pct=G.cellPctMods&&G.cellPctMods[k]||0;
+  if(pct!==0) lines.push(`🎲 事件效果: ${pct>0?'+':''}${pct}%`);
+  // 期貨百分比
+  if(bId==='futures_market'){
+    const fp=G.futuresPct&&G.futuresPct[k]||0;
+    lines.push(`🏛 本回合期貨: ${fp>=0?'+':''}${fp}%`);
+  }
+  // 爆破倒數
+  if(bId==='bomb_device'&&G.bombTimers&&G.bombTimers[k]!==undefined){
+    lines.push(`💣 爆炸倒數: ${G.bombTimers[k]} 回合`);
+  }
+  // 疊加設施
+  if(G.cellOverlay&&G.cellOverlay[k]){
+    const ov=BLDG[G.cellOverlay[k]];
+    if(ov) lines.push(`🚛 疊加: ${ov.emoji} ${ov.name}`);
+  }
+  // 事件預告
+  if(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(k)){
+    lines.push(`⚠ 預告: ${G.nextEvent.title}`);
+  }
+  // 只在有加成資訊時顯示（超過基本設施描述）
+  if(lines.length>2||(!bId&&lines.length>1)){
+    showTooltip(_cellHoverEvt||e, lines.join('\n'));
+  }
 }
 
 // ══════════════════════════════════════
