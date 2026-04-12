@@ -488,4 +488,11 @@ E:\VT\
   - `stepWithMover` 從 ~740 行縮減至 ~360 行
   - 新增設施只需在 `BLDG` 定義 + `FACILITY_FX` 新增 handler，不需修改核心函數
   - 保留 inline：鑽石×12、物流中心轉向（redirect）、通用轉換邏輯
-- **評估後暫緩**：`finish()` partner hooks、臨時 flag 統一管理、格子遍歷工具函數（風險大於收益）
+- **`onSettle` 合夥人結算 hook**：15 個合夥人結算效果從 `finish()` 提取至 PARTNERS 定義的 `onSettle(G, profit, el)` 方法
+  - `finish()` 從 ~321 行縮減至 ~193 行
+  - 新增合夥人結算效果只需在 PARTNERS 定義加 `onSettle`，不需修改 `finish()`
+  - 統一 hook 名稱：`poverty_god.onFinish`、`greed.onTurnEnd`、`wrath.onTurnEnd` 均改為 `onSettle`
+- **`G.inv` 投入臨時 flag 統一管理**：15 個每次投入重置的 `G._xxx` flag 集中到 `G.inv={...}`
+  - `sendEl()` 開頭一行重置所有 flag
+  - 旗標清單：`facHit`、`logSet`、`envyPen`、`cenHits`、`logHits`、`facMoved`、`speedAct`、`ampAct`、`fxM2G`/`fxG2M`、`arbM2G`/`arbG2M`、`windOK`、`hwCenter`、`exchBoard`
+- **`eachCell(fn)` / `findCells(pred)` 格子遍歷工具**：取代 8 處重複 `for(r) for(c)` 迴圈
