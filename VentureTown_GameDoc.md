@@ -520,3 +520,11 @@ E:\VT\
   - 處理順序：靠近目標邊的設施先處理（避免碰撞）
 - **位置鍵值資料轉移**：滑動時一併轉移 `bldgUpgrades`、`leyaPctMods`、`bombTimers`、`tempShedMoves`、`futuresLock`、`logisticsVault`、`cellOverlay`（原本只轉移 bldgUpgrades 和 leyaPctMods）
 - 重建百貨公司追蹤和廢墟 Set
+
+#### 教學 Bug 修復
+- **Step 8 拆遷隊非強制**：原本玩家必須使用拆遷隊才能繼續，現在可直接按「結束回合」跳過
+  - `G.phase` 設為 `'done'` 讓結束回合按鈕可按
+  - `doNext()` 新增 `waitingFor==='use_demolition'` 處理，直接進入 Step 9
+
+#### UI 修復
+- **格子修正重複顯示**：`cellMods`（+N）和 `cellPctMods`（+10%）在有設施的格子上同時顯示在 inline span 和浮動 badge，移除 inline span 重複
