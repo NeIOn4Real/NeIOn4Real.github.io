@@ -735,7 +735,7 @@ const BLDG = {
   demolish_fab:   { name:'建築廢料廠',   emoji:'🏗', desc:'資源通過時消滅自身，本次投入×2', req:'any', out:null, fn:v=>v, special:'demolish_fab' },
   temp_shed:      { name:'臨時工棚',     emoji:'🛖', desc:'每移動一次輸出+1（最高+5）', req:'any', out:null, fn:v=>v, special:'temp_shed' },
   magnet_plate:   { name:'磁力板',       emoji:'🧲', desc:'每回合開始與相鄰隨機設施交換位置', req:'any', out:null, fn:v=>v, special:'magnet_plate' },
-  ruin_monument:  { name:'廢墟紀念碑',   emoji:'🗿', desc:'只能放在有設施被消滅的格子，輸出+5', req:'any', out:null, fn:v=>Math.max(0,v+5), special:'ruin_monument', ruinOnly:true },
+  ruin_monument:  { name:'廢墟紀念碑',   emoji:'🗿', desc:'只能放在廢墟上，資源通過時+5', req:'any', out:null, fn:v=>Math.max(0,v+5), special:'ruin_monument', ruinOnly:true },
   demolish_bureau:{ name:'拆遷補償局',   emoji:'🏢', desc:'每次移動或消滅設施+1收益', req:'any', out:null, fn:v=>v, special:'demolish_bureau' },
   dynamic_amp:    { name:'動態加強器',   emoji:'🔋', desc:'本回合設施被移動過，此設施輸出×2', req:'any', out:null, fn:v=>v, special:'dynamic_amp' },
   unstable_base:  { name:'地基不穩定站', emoji:'⚠️', desc:'相鄰有減益時輸出翻倍；相鄰有增益時-1', req:'any', out:null, fn:v=>v, special:'unstable_base' },
@@ -5476,7 +5476,7 @@ const DIALOGUES = {
   "bldg_hover_建築廢料廠": "買下這種東西到底是想幹嘛…",
   "bldg_hover_臨時工棚": "不動產可是很賺的，畢竟地獄人滿為患。",
   "bldg_hover_磁力板": "喂，你亂動了我的東西對吧！",
-  "bldg_hover_廢墟紀念碑": "失去的東西最好不要一直唸唸不忘唷。",
+  "bldg_hover_廢墟紀念碑": "失去的東西最好不要念念不忘唷。",
   "bldg_hover_拆遷補償局": "很難過對吧，我來給你呼呼。",
   "bldg_hover_動態加強器": "這個東西放到哪裡都無所謂吧？",
   "bldg_hover_地基不穩定站": "喂喂，這完全沒有用吧！",
@@ -6244,6 +6244,8 @@ const DEV={
       <div class="dev-row" title="強制設定 phase 為 done，可以結束回合" onclick="G.phase='done';render();"><span class="de">⏹</span><span class="dn">強制 phase=done</span></div>
       <div class="dev-row" title="直接跳到本輪的最後一個回合" onclick="G.turn=G.maxTurns-1;render();"><span class="de">⏩</span><span class="dn">跳到最後回合</span></div>
       <div class="dev-row" title="將收益設為等於目標，之後結束回合即過關" onclick="G.profit=G.goal;render();"><span class="de">🏆</span><span class="dn">收益=目標（過關）</span></div>
+      <div class="dev-row" title="增加10回合上限" onclick="G.maxTurns+=10;addLog('DEV：+10回合（共'+G.maxTurns+'）');render();"><span class="de">⏱️</span><span class="dn">+10 回合</span></div>
+      <div class="dev-row" title="獲得1張廢墟紀念碑" onclick="addHand('ruin_monument');renderFanHand();render();"><span class="de">🗿</span><span class="dn">獲得廢墟紀念碑</span></div>
     </div>`;
 
     panel.innerHTML=h;
