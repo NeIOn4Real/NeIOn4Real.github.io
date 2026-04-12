@@ -1712,7 +1712,13 @@ function canPlaceCompound(r,c,h){
 // ══════════════════════════════════════
 function triggerEvent(){
   G.phase='event';
-  const ev=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  let ev;
+  if(checkMurphyHijack()){
+    ev=EVENTS.find(e=>e.id==='murphy');
+  } else {
+    const pool=EVENTS.filter(e=>e.id!=='murphy');
+    ev=pool[Math.floor(Math.random()*pool.length)];
+  }
   G.nextEventData=precomputeEventData(ev);
   ev.show(ev);
   render();
@@ -3199,31 +3205,26 @@ function pickActionOptions(){
 function pickNextEvent(){
   // 預告下一個 EVENT_INTERVAL 倍數回合的事件
   const nextEvTurn = Math.ceil((G.turn+1)/EVENT_INTERVAL)*EVENT_INTERVAL;
-  let pool=EVENTS;
   // 莫菲定律後，下次事件限定池
-  if(G._murphyNextPool){
-    pool=EVENTS.filter(e=>['pick_fac','earthquake','job_assist','leya_gift'].includes(e.id));
-    G._murphyNextPool=false;
-  }
-  // 加權抽選（莫菲定律權重根據重複行為提升）
-  const mt=G._murphyTrack||{repeatCount:0,noMove:0};
-  const weights=pool.map(ev=>{
-    if(ev.id==='murphy'){
-      // 基礎權重 1，重複投入和未移動都增加權重
-      return 1 + Math.max(0,mt.repeatCount-2)*3 + Math.max(0,mt.noMove-2)*2;
-    }
-    return 1;
-  });
-  const totalW=weights.reduce((a,b)=>a+b,0);
-  let roll=Math.random()*totalW;
-  let picked=pool[0];
-  for(let i=0;i<pool.length;i++){
-    roll-=weights[i];
-    if(roll<=0){ picked=pool[i]; break; }
-  }
-  G.nextEvent=picked;
+  let pool=G._murphyNextPool
+    ? EVENTS.filter(e=>['pick_fac','earthquake','job_assist','leya_gift'].includes(e.id))
+    : EVENTS.filter(e=>e.id!=='murphy'); // 莫菲定律不進預告池
+  G._murphyNextPool=false;
+  G.nextEvent=pool[Math.floor(Math.random()*pool.length)];
   G.nextEventTurn=nextEvTurn;
   G.nextEventData=precomputeEventData(G.nextEvent);
+}
+// 莫菲定律：事件觸發時檢查是否劫持（第2輪起）
+function checkMurphyHijack(){
+  if(G.round<2) return false;
+  const mt=G._murphyTrack||{repeatCount:0,noMove:0};
+  const murphyWeight=1+Math.max(0,mt.repeatCount-2)*3+Math.max(0,mt.noMove-2)*2;
+  const normalWeight=1;
+  // 莫菲定律 vs 當前事件的加權判定
+  if(Math.random()*( murphyWeight+normalWeight) < murphyWeight && murphyWeight>1){
+    return true;
+  }
+  return false;
 }
 
 function precomputeEventData(ev){
@@ -3682,7 +3683,11 @@ function doNext(){
 
   // 每 EVENT_INTERVAL 回合觸發固定隨機事件
   if(G.turn%EVENT_INTERVAL===0 && G.nextEvent){
-    const ev=G.nextEvent;
+    let ev=G.nextEvent;
+    // 莫菲定律劫持：第2輪起根據權重替換預告事件
+    if(checkMurphyHijack()){
+      ev=EVENTS.find(e=>e.id==='murphy');
+    }
     G.nextEvent=null;
     G.cellMods={}; G.cellPctMods={}; // 確保事件效果從乾淨狀態套用
     G.phase='event';
