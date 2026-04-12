@@ -2552,8 +2552,8 @@ const FACILITY_FX={
     if(fx.el.type!=='goods') return;
     const prev=fx.el.value;
     const bonus=prev*4;
-    G.profit+=bonus;
-    addLog(`  🏷️ 清倉拍賣場: 📦${prev}×4 → +${bonus}收益，商品變為1`,'g');
+    G.inv.clearanceBonus=(G.inv.clearanceBonus||0)+bonus;
+    addLog(`  🏷️ 清倉拍賣場: 📦${prev}×4 → +${bonus}收益（結算時入帳），商品變為1`,'g');
     fx.el={value:1,type:'goods'};
     fx.hit();
   },
@@ -3029,6 +3029,12 @@ function finish(el,startVal){
   const profit=Math.max(0,finalMoney-startVal);
   const profitAtStart=G.profit;
   G.profit+=profit;
+  // 清倉拍賣場：結算時入帳
+  if(G.inv.clearanceBonus>0){
+    G.profit+=G.inv.clearanceBonus;
+    addLog(`  🏷️ 清倉拍賣場結算：+${G.inv.clearanceBonus}收益`,'g');
+    G.inv.clearanceBonus=0;
+  }
   // 匯率波動板：本次投入有通過匯率波動板，隨機調整收益
   if(G.inv.exchBoard && profit > 0){
     const pcts = [-15,-12,-10,-8,-5,-3,3,5,8,10,12,15];
