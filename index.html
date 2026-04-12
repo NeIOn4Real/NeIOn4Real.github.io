@@ -1298,7 +1298,7 @@ const EVENTS=[
       const d=ed.dir||['top','bottom','left','right'][Math.floor(Math.random()*4)];
       const gn=GN();
       // 需要轉移的位置鍵值資料表
-      const keyedData=['bldgUpgrades','leyaPctMods','bombTimers','tempShedMoves','futuresLock','logisticsVault','cellOverlay'];
+      const keyedData=['bldgUpgrades','leyaPctMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay'];
       // 計算每個設施的目標位置（廢墟不滑動，視為障礙）
       const moves={}; // 'r,c' → [nr,nc]
       const dr=d==='top'?-1:d==='bottom'?1:0;
@@ -1507,6 +1507,7 @@ const EVENTS=[
       // 清除疊加設施和爆破計時（打亂後位置不對應）
       G.cellOverlay={};
       G.bombTimers={};
+      G._futuresMoveNext=[];
       // 重建百貨公司追蹤
       G.deptStoreAnchors={}; G.deptStoreParts={};
       for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
@@ -1649,7 +1650,6 @@ function newGame(){
     ruinCells:new Set(), // 廢墟格子
     deptStoreAnchors:{}, // 百貨公司錨點
     deptStoreParts:{},   // 百貨公司部分→錨點映射
-    futuresLock:{},     // 期貨交易所鎖定倍率
     bombTimers:{},      // 爆破裝置倒數計時
     inv:{}, // 每次投入重置的臨時 flags（sendEl 初始化）
     logisticsVault:{},  // 物流倉儲存值
@@ -2073,6 +2073,12 @@ function onCell(r,c){
   e.count--;
   G.grid[r][c]=G.sel;
   addLog(`放置 ${BLDG[G.sel].emoji}${BLDG[G.sel].name} (${r+1},${c+1})`);
+  // 轉運中心：放置後選擇方向
+  if(G.sel==='transfer_hub'){
+    G.sel=null; pulse(r,c); render();
+    showTransferHubDirPicker(r,c);
+    return;
+  }
   G.sel=null;
   pulse(r,c);
   render();
@@ -3754,7 +3760,7 @@ function startTurn(){
         G.grid[r][c]=null; G.grid[nr][nc]='futures_market';
         // 轉移附帶資料
         const ok=`${r},${c}`, nk=`${nr},${nc}`;
-        ['bldgUpgrades','leyaPctMods','cellMods'].forEach(dk=>{
+        ['bldgUpgrades','leyaPctMods','cellMods','bombTimers','cellOverlay','tempShedMoves','logisticsVault'].forEach(dk=>{
           if(G[dk]&&G[dk][ok]!==undefined){ G[dk][nk]=G[dk][ok]; delete G[dk][ok]; }
         });
         addLog(`🏛 期貨交易所 (${r+1},${c+1})→(${nr+1},${nc+1}) 移動到新位置`,'w');
@@ -4059,7 +4065,13 @@ function showTransferHubDirPicker(r,c){
     };
     panel.appendChild(btn);
   });
+  panel.onclick=(e)=>e.stopPropagation();
   document.body.appendChild(panel);
+  // 點擊外部或 ESC 關閉（保留 transfer_hub 原樣，預設 dir:right）
+  const _closePicker=()=>{ if(panel.parentNode) panel.remove(); document.removeEventListener('keydown',_escPicker); };
+  const _escPicker=(e)=>{ if(e.key==='Escape') _closePicker(); };
+  setTimeout(()=>document.addEventListener('click',_closePicker,{once:true}),50);
+  document.addEventListener('keydown',_escPicker);
 }
 
 function renderGrid(){
@@ -4919,8 +4931,8 @@ function swapCellData(r1,c1,r2,c2){
     if(!G.cellOverlay[k1]) delete G.cellOverlay[k1];
     if(!G.cellOverlay[k2]) delete G.cellOverlay[k2];
   }
-  // tempShedMoves / futuresLock / logisticsVault
-  ['tempShedMoves','futuresLock','logisticsVault'].forEach(dk=>{
+  // tempShedMoves / logisticsVault
+  ['tempShedMoves','logisticsVault'].forEach(dk=>{
     if(!G[dk]) return;
     const v1=G[dk][k1], v2=G[dk][k2];
     if(v1!==undefined||v2!==undefined){ G[dk][k1]=v2; G[dk][k2]=v1; }
