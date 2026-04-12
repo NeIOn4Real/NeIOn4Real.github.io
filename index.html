@@ -3037,22 +3037,20 @@ function finish(el,startVal){
 
   // Tutorial hook: step6 投入完成後，提示點擊結束回合
   if(TUT.active && TUT.step===6 && !TUT.waitingFor){
+    // 立即允許結束回合（不等對話結束）
+    TUT.waitingFor = 'tut_end_turn_for_partner';
     setTimeout(()=>{
       if(totalTurnProfit > 0){
         TUT.speak([
           `太棒了！你獲得了 +${totalTurnProfit} 收益！`,
           '現在點擊「結束回合」按鈕吧！',
-        ], ()=>{
-          TUT.waitingFor = 'tut_end_turn_for_partner';
-        });
+        ]);
       } else {
         TUT.speak([
           '哎呀，這次沒有獲得收益……',
           '可能是設施的排列方式不對，讓資源沒有正確轉換成金錢。',
           '沒關係，先點「結束回合」繼續吧！',
-        ], ()=>{
-          TUT.waitingFor = 'tut_end_turn_for_partner';
-        });
+        ]);
       }
     }, 500);
     return;
