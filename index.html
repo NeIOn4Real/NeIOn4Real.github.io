@@ -162,9 +162,7 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 
 @keyframes cardPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 
-/* ── 拖曳目標高亮 ── */
-.dbtn.drag-over{background:rgba(42,122,58,.2)!important;border-color:var(--green)!important;
-  color:var(--green)!important;transform:scale(1.1);}
+.cell.move-src{outline:3px solid var(--acc);box-shadow:0 0 10px rgba(179,58,0,.3);z-index:2;}
 .cell.ruin-cell{background:repeating-linear-gradient(45deg,var(--bg2),var(--bg2) 4px,rgba(120,100,80,.12) 4px,rgba(120,100,80,.12) 8px);border-color:rgba(120,100,80,.4);}
 .cell.drag-target{background:rgba(179,58,0,.1);border-color:var(--acc);border-style:dashed;}
 .cell.drag-over-cell{background:rgba(42,122,58,.12);border:2px solid var(--green);}
@@ -1412,20 +1410,6 @@ const EVENTS=[
 ];
 
 // ── 格子修正 helper ──
-function applyRowColMod(axis,idx,val){
-  for(let i=0;i<GN();i++){
-    const key=axis==='row'?`${idx},${i}`:`${i},${idx}`;
-    G.cellMods[key]=(G.cellMods[key]||0)+val;
-  }
-  flashModCells(axis,idx,val);
-}
-function apply2x2Mod(r,c,val){
-  for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
-    const key=`${r+dr},${c+dc}`;
-    G.cellMods[key]=(G.cellMods[key]||0)+val;
-  }
-  flash2x2Cells(r,c,val);
-}
 function applyRowColPctMod(axis,idx,val){
   if(!G.cellPctMods) G.cellPctMods={};
   for(let i=0;i<GN();i++){
@@ -2206,7 +2190,7 @@ const FACILITY_FX={
       fx.el={value:prev+2,type:'money'};
       addLog(`  🛍️ 小型販售商: 💰${prev}→📦→💰${fx.el.value} (+2)`);
     }
-    fx.hitM();
+    fx.hit();
   },
   scalper(fx){
     if(fx.el.type!=='goods') return;
@@ -2214,7 +2198,7 @@ const FACILITY_FX={
     const nv2=Math.max(1,Math.floor(money*0.9));
     fx.el={value:nv2,type:'goods'};
     addLog(`  🎫 黃牛販子: 📦${prev}→💰${money}→📦${nv2} (-10%)`);
-    fx.hitM();
+    fx.hit();
   },
   bulk_store(fx){
     if(fx.el.type!=='goods') return;
@@ -2222,7 +2206,7 @@ const FACILITY_FX={
     const nv2=Math.max(1,Math.floor(prev*1.5));
     fx.el={value:nv2,type:'goods'};
     addLog(`  🛒 量販店: 📦${prev}→💰(+50%)→📦${nv2}`);
-    fx.hitM();
+    fx.hit();
   },
   dept_store(fx){
     if(fx.el.type!=='goods') return;
@@ -2230,7 +2214,7 @@ const FACILITY_FX={
     const step2=Math.max(1,Math.floor(step1*1.02));
     fx.el={value:step2,type:'money'};
     addLog(`  🏬 百貨公司: 📦${prev}→💰${step1}(×2)→📦(+2%)→💰${step2}`);
-    fx.hitM();
+    fx.hit();
   },
   dept_store_part(fx){
     fx.next(200);
@@ -2255,7 +2239,7 @@ const FACILITY_FX={
     const nv2=fx.el.value+add;
     addLog(`  🔬 科技研發：📦商品${fx.el.value} → 📦商品${nv2} (+${add}, +2%)`);
     fx.el={value:nv2,type:'goods'};
-    fx.hitM();
+    fx.hit();
   },
   tax_office(fx){
     addLog(`  🏛 稅務局：通過（最終收益-10%）`);
@@ -2576,7 +2560,6 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
     }
   };
   const _hit=(delay=350)=>{G.inv.facHit=(G.inv.facHit||0)+1;pulse(r,c);updateCard(el);updateMover(el);_next(delay);};
-  const _hitM=_hit; // 統一：_hit 已包含 updateMover
   // ── 廢墟：資源直接通過，不產生任何交互 ──
   if(bId==='ruin'){
     // 廢墟掠奪者：廢墟格+5
@@ -2611,7 +2594,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       }
       addLog(`  🏪 商店: 💎鑽石 ${prev.value} → 💰金錢 ${nv} (×12)`,'g');
       G.partners.forEach(pid=>{ const p=PARTNERS[pid]; if(p&&p.onBuildingHit){ const pb=G.profit; p.onBuildingHit(G,'shop'); const g=G.profit-pb; if(g>0){addLog(`  ${p.emoji}${p.name}：+${g} 收益`,'g');setTimeout(()=>profitFlyFromPartner(pid,g),200);} } });
-      _hitM(); return;
+      _hit(); return;
     }
 
     // ── 設施特效調度 ──
@@ -2620,7 +2603,6 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       const fx={
         el, r, c, cellEl,
         hit(d=350){_fxDone=true;el=fx.el;_hit(d);},
-        hitM(d=350){_fxDone=true;el=fx.el;_hitM(d);},
         next(d=350){_fxDone=true;el=fx.el;_next(d);},
         pulse(){pulse(r,c);},
         updateCard(){el=fx.el;updateCard(el);},
@@ -4340,6 +4322,7 @@ function useDemolition(){
   G._gridSnapshot=G.grid.map(r=>[...r]);
   G._upgradesSnapshot=JSON.parse(JSON.stringify(G.bldgUpgrades||{}));
   G._leyaSnapshot=JSON.parse(JSON.stringify(G.leyaPctMods||{}));
+  G._cellModsSnapshot=JSON.parse(JSON.stringify(G.cellMods||{}));
   G.freeRearrange=true; G.moveMode=false; G.moveSrc=null;
   G._demolitionRearrange = true; // 標記為拆遷隊啟動的重排
   addLog('🔨 拆遷隊啟動！拖曳設施到想要的位置，完成後點「確認排列」');
