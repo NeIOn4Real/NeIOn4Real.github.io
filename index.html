@@ -236,6 +236,12 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   filter:drop-shadow(0 4px 24px rgba(0,0,0,.7));
 }
 .murphy-shaking{ animation:murphyShake .5s ease-in-out 3; }
+/* 人材發光提示 */
+@keyframes talentGlow{
+  0%,100%{box-shadow:0 0 4px rgba(176,96,0,.2);}
+  50%{box-shadow:0 0 14px rgba(176,96,0,.6),0 0 24px rgba(176,96,0,.3);}
+}
+.talent-glow{ animation:talentGlow 1.5s ease-in-out 3; }
 
 /* ── 格子閃光 ── */
 .cell.active-path{
@@ -423,10 +429,14 @@ body { padding-bottom: 150px; }
   display:flex;gap:0;
   overflow-x:auto;overflow-y:visible;
   padding:8px 4px 12px;
-  scrollbar-width:none;
+  scrollbar-width:thin;
+  scrollbar-color:var(--br2) transparent;
   scroll-behavior:smooth;
 }
-#partner-row::-webkit-scrollbar{display:none;}
+#partner-row::-webkit-scrollbar{height:6px;}
+#partner-row::-webkit-scrollbar-track{background:transparent;}
+#partner-row::-webkit-scrollbar-thumb{background:var(--br2);border-radius:3px;}
+#partner-row::-webkit-scrollbar-thumb:hover{background:var(--acc);}
 /* 懸停展開合夥人浮動面板 */
 #partner-float{
   position:fixed;z-index:500;
@@ -3814,6 +3824,11 @@ function startTurn(){
   }
   addLog(`── 回合 ${G.turn}/${G.maxTurns} ──`);
   render();
+  // 人材發光提示
+  if((G.talentCards||0)>0){
+    const tt=document.querySelector('.talent-token');
+    if(tt){ tt.classList.remove('talent-glow'); void tt.offsetWidth; tt.classList.add('talent-glow'); }
+  }
   if(hasPartner('tanya')){
     tanyaOfferSwap(); // 譚雅：先交換再選行動
   } else {
