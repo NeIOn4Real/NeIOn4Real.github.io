@@ -422,6 +422,16 @@ body { padding-bottom: 150px; }
   scroll-behavior:smooth;
 }
 #partner-row::-webkit-scrollbar{display:none;}
+/* 懸停展開合夥人浮動面板 */
+#partner-float{
+  position:fixed;z-index:500;
+  background:var(--sur);border:2px solid var(--br2);border-radius:12px;
+  box-shadow:0 8px 30px rgba(42,26,8,.25);
+  padding:10px 14px 14px;
+  display:none;
+}
+#partner-float .pf-title{font-size:10px;font-weight:700;color:var(--mu);margin-bottom:6px;}
+#partner-float .pf-row{display:flex;gap:6px;flex-wrap:wrap;}
 .joker-card {
   flex-shrink:0;
   width:64px;height:88px;
@@ -622,6 +632,7 @@ body { padding-bottom: 150px; }
   </div>
 </div>
 
+<div id="partner-float"><div class="pf-title">合夥人</div><div class="pf-row" id="pf-row"></div></div>
 <!-- 扇形手牌區域 -->
 <div id="hand-fan-area"></div>
 
@@ -3936,8 +3947,8 @@ function renderPartners(){
       : `<div class="jc-emoji">${p.emoji}</div>`;
     return `<div class="joker-card${isDemon}" style="z-index:${i+1};${clickable?'cursor:pointer;':''}"
       data-tip="${tip}"
-      onmouseenter="tipFromAttr(event,this); DM.onPartnerHover('${p.name}')"
-      onmouseleave="hideTooltip()"
+      onmouseenter="tipFromAttr(event,this); DM.onPartnerHover('${p.name}'); showPartnerFloat(event)"
+      onmouseleave="hideTooltip(); hidePartnerFloat(event)"
       ${isDemo&&charges>0?`onclick="useDemolition()"`:''} ${expertClickable?`onclick="useDemoExpert()"`:''}>
       ${emojiHtml}
       <div class="jc-name">${p.name}</div>
@@ -3946,6 +3957,41 @@ function renderPartners(){
     </div>`;
   }).join('');
 }
+
+let _partnerFloatTimer=null;
+function showPartnerFloat(e){
+  if(!G.partners||G.partners.length<=1) return;
+  clearTimeout(_partnerFloatTimer);
+  const pf=document.getElementById('partner-float');
+  const pfRow=document.getElementById('pf-row');
+  if(!pf||!pfRow) return;
+  // 複製合夥人卡片內容到浮動面板
+  pfRow.innerHTML=document.getElementById('partner-row').innerHTML;
+  // 浮動面板內卡片取消負 margin，正常間距
+  pfRow.querySelectorAll('.joker-card').forEach(c=>{c.style.marginRight='0';});
+  // 定位：出現在左側面板右邊
+  const section=document.getElementById('partner-section');
+  if(section){
+    const rect=section.getBoundingClientRect();
+    pf.style.left=(rect.right+6)+'px';
+    pf.style.top=Math.max(8,rect.top)+'px';
+  }
+  pf.style.display='block';
+}
+function hidePartnerFloat(e){
+  const pf=document.getElementById('partner-float');
+  if(!pf) return;
+  // 延遲隱藏，讓鼠標可以移到浮動面板上
+  _partnerFloatTimer=setTimeout(()=>{pf.style.display='none';},200);
+}
+// 浮動面板本身的 hover 保持顯示
+document.addEventListener('DOMContentLoaded',()=>{
+  const pf=document.getElementById('partner-float');
+  if(pf){
+    pf.addEventListener('mouseenter',()=>clearTimeout(_partnerFloatTimer));
+    pf.addEventListener('mouseleave',()=>{pf.style.display='none';});
+  }
+});
 
 function renderGrid(){
   const area=document.getElementById('grid-area');
