@@ -194,6 +194,44 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   80%{opacity:1;}
   100%{opacity:0;transform:scale(.6) translateY(-120px) translateX(var(--tx,0px));}
 }
+/* 莫菲定律全屏特效 */
+@keyframes murphyShake{
+  0%,100%{transform:translate(0,0)}
+  10%{transform:translate(-8px,4px)}
+  20%{transform:translate(6px,-6px)}
+  30%{transform:translate(-10px,2px)}
+  40%{transform:translate(8px,-4px)}
+  50%{transform:translate(-4px,8px)}
+  60%{transform:translate(6px,-2px)}
+  70%{transform:translate(-6px,6px)}
+  80%{transform:translate(4px,-8px)}
+  90%{transform:translate(-2px,4px)}
+}
+@keyframes murphyFadeIn{
+  0%{opacity:0;transform:scale(2) translateY(40px);}
+  100%{opacity:1;transform:scale(1) translateY(0);}
+}
+#murphy-overlay{
+  position:fixed;inset:0;z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.7);
+  pointer-events:auto;cursor:pointer;
+}
+#murphy-overlay .murphy-text{
+  color:#fff;font-size:18px;font-weight:900;text-align:center;
+  text-shadow:0 2px 12px rgba(0,0,0,.8);
+  margin-bottom:16px;
+  animation:murphyFadeIn .6s ease-out;
+}
+#murphy-overlay .murphy-chars{
+  display:flex;gap:0;align-items:flex-end;
+  animation:murphyFadeIn .8s ease-out;
+}
+#murphy-overlay .murphy-chars img{
+  width:240px;height:auto;image-rendering:auto;
+  filter:drop-shadow(0 4px 20px rgba(0,0,0,.6));
+}
+.murphy-shaking{ animation:murphyShake .5s ease-in-out 3; }
 
 /* ── 格子閃光 ── */
 .cell.active-path{
@@ -1479,8 +1517,25 @@ const EVENTS=[
       // 觸發後重置權重追蹤，避免連續觸發
       G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
       addLog(`🔀 莫菲定律：所有設施被打亂！獲得2張複合設施`,'b');
-      showEv(ev.title,`所有設施位置被隨機打亂！獲得2張複合設施作為補償。`,`<button class="eopt pri" onclick="evDone()">確認</button>`);
-      render();
+      // 全屏特效：震動 + 立繪 + 台詞
+      document.body.classList.add('murphy-shaking');
+      const overlay=document.createElement('div');
+      overlay.id='murphy-overlay';
+      overlay.innerHTML=`
+        <div class="murphy-text">最近好像過得有點太順利了？<br>這在地獄是不可能的。</div>
+        <div class="murphy-chars">
+          <img src="img/C_2.png" alt="譚雅與蕾雅">
+        </div>
+      `;
+      overlay.onclick=()=>{
+        overlay.remove();
+        document.body.classList.remove('murphy-shaking');
+        showEv(ev.title,`所有設施位置被隨機打亂！獲得2張複合設施作為補償。`,`<button class="eopt pri" onclick="evDone()">確認</button>`);
+        render();
+      };
+      document.body.appendChild(overlay);
+      // 自動跳過（5秒後）
+      setTimeout(()=>{ if(document.getElementById('murphy-overlay')) overlay.click(); },5000);
     },
   },
   {
