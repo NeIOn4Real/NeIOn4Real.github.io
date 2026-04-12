@@ -4893,13 +4893,25 @@ function useYongqingSell(){
   if(G.phase!=='place'){ addLog('🏠 只能在放置階段使用','b'); return; }
   if(G._yongqingSellUsed){ addLog('🏠 擁慶記房屋：本回合已賣出','b'); return; }
   G._yongqingSellMode=true;
-  addLog('🏠 擁慶記房屋：點擊要賣出的設施','w');
+  addLog('🏠 擁慶記房屋：點擊要賣出的設施（點擊空格或按 ESC 取消）','w');
+  const _cancelSell=(e)=>{
+    if(e.key==='Escape'&&G._yongqingSellMode){
+      G._yongqingSellMode=false; addLog('🏠 取消賣出'); render();
+      document.removeEventListener('keydown',_cancelSell);
+    }
+  };
+  document.addEventListener('keydown',_cancelSell);
   render();
 }
 function yongqingSellCell(r,c){
   if(!G._yongqingSellMode) return false;
   const bId=G.grid[r][c];
-  if(!isFacility(bId)){ addLog('🏠 該格沒有設施','b'); return true; }
+  if(!isFacility(bId)){
+    addLog('🏠 取消賣出');
+    G._yongqingSellMode=false;
+    render();
+    return true;
+  }
   // 計算收益
   const st=G.partnerState.yongqing_house||{x:1};
   const turnsPassed=G.turn||1;
@@ -4916,14 +4928,18 @@ function yongqingSellCell(r,c){
   if(G.tempShedMoves) delete G.tempShedMoves[k];
   if(G.logisticsVault) delete G.logisticsVault[k];
   if(G.futuresPct) delete G.futuresPct[k];
-  // 百貨公司：整體移除
+  // 百貨公司：只移除被點的那組（用錨點定位）
   if(bId==='dept_store'||bId==='dept_store_part'){
-    const gn=GN();
-    for(let dr=0;dr<gn;dr++) for(let dc=0;dc<gn;dc++){
-      if(G.grid[dr][dc]==='dept_store'||G.grid[dr][dc]==='dept_store_part'){
-        const dk=`${dr},${dc}`;
-        G.grid[dr][dc]=null;
+    const anchor=bId==='dept_store'?k:(G.deptStoreParts&&G.deptStoreParts[k]||k);
+    const [ar,ac]=anchor.split(',').map(Number);
+    for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
+      const pr=ar+dr, pc=ac+dc;
+      if(pr<GN()&&pc<GN()&&(G.grid[pr][pc]==='dept_store'||G.grid[pr][pc]==='dept_store_part')){
+        const dk=`${pr},${pc}`;
+        G.grid[pr][pc]=null;
         delete G.bldgUpgrades[dk]; delete G.leyaPctMods[dk]; delete G.cellMods[dk];
+        if(G.bombTimers) delete G.bombTimers[dk];
+        if(G.cellOverlay) delete G.cellOverlay[dk];
       }
     }
     rebuildDeptStore();
