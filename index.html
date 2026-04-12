@@ -2562,7 +2562,9 @@ const FACILITY_FX={
     const key=`${fx.r},${fx.c}`;
     if(G.futuresPct[key]===undefined) G.futuresPct[key]=Math.floor(Math.random()*21)-10;
     const pct=G.futuresPct[key];
-    const change=Math.round(fx.el.value*pct/100);
+    // 無條件向上取整（正數 ceil，負數也保證至少 ±1）
+    const raw=fx.el.value*Math.abs(pct)/100;
+    const change=pct===0?0:(pct>0?Math.ceil(raw):-Math.ceil(raw));
     const nv=Math.max(1, fx.el.value+change);
     addLog(`  🏛 期貨交易所: ${pct>=0?'+':''}${pct}% → ${fx.el.value}→${nv}`,(pct>=0?'g':'b'));
     fx.el={...fx.el, value:nv};
