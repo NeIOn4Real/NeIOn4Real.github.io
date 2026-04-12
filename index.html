@@ -1298,7 +1298,7 @@ const EVENTS=[
       const d=ed.dir||['top','bottom','left','right'][Math.floor(Math.random()*4)];
       const gn=GN();
       // 需要轉移的位置鍵值資料表
-      const keyedData=['bldgUpgrades','leyaPctMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay','futuresPct'];
+      const keyedData=['bldgUpgrades','leyaPctMods','cellMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay','futuresPct'];
       // 計算每個設施的目標位置（廢墟不滑動，視為障礙）
       const moves={}; // 'r,c' → [nr,nc]
       const dr=d==='top'?-1:d==='bottom'?1:0;
@@ -3166,7 +3166,7 @@ function finish(el,startVal){
   if(G.inv.exchBoard && profit > 0){
     const pcts = [-15,-12,-10,-8,-5,-3,3,5,8,10,12,15];
     const pct = pcts[Math.floor(Math.random()*pcts.length)];
-    const adj = Math.round(profit * pct / 100);
+    const adj = Math.ceil(Math.abs(profit * pct / 100)) * Math.sign(pct);
     G.profit += adj;
     addLog(`📈 匯率波動板：結算隨機 ${pct>0?'+':''}${pct}% → ${adj>0?'+':''}${adj} 收益（共${G.profit}）`, adj>=0?'g':'b');
     G.inv.exchBoard = false;
