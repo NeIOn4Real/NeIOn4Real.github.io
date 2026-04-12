@@ -3530,7 +3530,7 @@ function doAction(id){
         desc:BLDG[bid].desc, pos:'', neg:'',
         onclick:`cardChooserPick(()=>{evPick('${bid}',null)})`
       })),
-      ()=>{G.profit+=refund; closeActionOverlay(); G.actionOptions=[]; startTurn();}
+      ()=>{G.profit+=refund; closeActionOverlay(); G.actionOptions=[]; G.phase="place"; render();}
     );
     G.phase='event'; render(); return;
   }
@@ -3549,7 +3549,7 @@ function doAction(id){
   }
   if(id==='get_partner'){
     const pool=Object.keys(PARTNERS).filter(pid=>!hasPartner(pid));
-    if(!pool.length){addLog('⚠ 已招募所有合夥人','b');G.profit+=actCost;startTurn();return;}
+    if(!pool.length){addLog('⚠ 已招募所有合夥人','b');G.profit+=actCost;G.phase='place';render();return;}
     const picks=pool.sort(()=>Math.random()-.5).slice(0,3);
     const refund=actCost;
     showCardChooser(
@@ -3558,16 +3558,16 @@ function doAction(id){
         emoji:PARTNERS[pid].emoji, name:PARTNERS[pid].name,
         desc:PARTNERS[pid].desc||'',
         pos:PARTNERS[pid].pos||'', neg:PARTNERS[pid].neg||'',
-        onclick:`cardChooserPick(()=>{recruitPartner('${pid}');startTurn();})`
+        onclick:`cardChooserPick(()=>{recruitPartner('${pid}');G.phase='place';render();})`
       })),
-      ()=>{G.profit+=refund; closeActionOverlay(); G.actionOptions=[]; startTurn();}
+      ()=>{G.profit+=refund; closeActionOverlay(); G.actionOptions=[]; G.phase="place"; render();}
     );
     G.phase='event'; render(); return;
   }
   if(id==='upgrade'){
     const filled=[];
     for(let r=0;r<N;r++) for(let cc=0;cc<N;cc++) if(isFacility(G.grid[r][cc])) filled.push([r,cc]);
-    if(!filled.length){addLog('⚠ 沒有可提升的設施','b');G.profit+=act.cost;startTurn();return;}
+    if(!filled.length){addLog('⚠ 沒有可提升的設施','b');G.profit+=act.cost;G.phase='place';render();return;}
     G.upgradeMode=true;
     G.phase='place';
     addLog('⬆ 點擊想要提升的設施（永久 +1 輸出）','w');
@@ -3590,7 +3590,8 @@ function doAction(id){
 
   closeActionOverlay();
   G.actionOptions=[];
-  startTurn();
+  G.phase='place';
+  render();
 }
 
 function upgradeCell(r,c){
