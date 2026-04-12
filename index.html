@@ -4210,8 +4210,20 @@ function renderGrid(){
       if(b.special==='redirect'){
         h+=`<div style="font-size:32px;line-height:1;">${b.emoji}</div>`;
         if(baseBonus>0) h+=`<div style="font-size:8px;font-weight:700;color:var(--money);">+${baseBonus}</div>`;
+      } else if(bId==='dept_store'){
+        // 百貨公司錨點：渲染 2×2 整體方塊
+        const cellSize=getComputedStyle(document.documentElement).getPropertyValue('--cell').trim()||'72px';
+        const sz=`calc(${cellSize} * 2 + 6px)`; // 2 cells + gap + borders
+        h+=`<div style="position:absolute;top:-1px;left:-1px;width:${sz};height:${sz};
+          background:linear-gradient(145deg,#fff5ee,#ffe8d0);border:2px solid var(--money);border-radius:10px;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          z-index:3;pointer-events:none;box-shadow:0 2px 10px rgba(176,96,0,.2);">
+          <div style="font-size:36px;line-height:1;">🏬</div>
+          <div style="font-size:10px;font-weight:700;color:var(--tx);">百貨公司</div>
+          <div style="font-size:8px;font-weight:700;color:var(--money);">+${baseBonus}</div>
+        </div>`;
       } else if(bId==='dept_store_part'){
-        h+=`<div class="cemoji" style="opacity:.3;font-size:16px;">🏬</div>`;
+        // 百貨公司部分格：不渲染內容（由錨點的 overlay 覆蓋）
       } else if(bId==='bomb_device'){
         const bombKey=`${r},${c}`;
         const bombTimer=G.bombTimers&&G.bombTimers[bombKey]!==undefined?G.bombTimers[bombKey]:3;
