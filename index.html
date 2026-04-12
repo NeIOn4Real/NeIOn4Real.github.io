@@ -779,6 +779,7 @@ const PARTNERS = {
         const cut = Math.floor(G.profit * 0.33);
         G.profit = Math.max(0, G.profit - cut);
         addLog(`🔥 激情惡魔：超過5回合無減益，收益-33%`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
       G.partnerState.wrath = st;
     }
@@ -858,9 +859,11 @@ const PARTNERS = {
       if((G.talentCards||0)>=3){
         const bonus=Math.ceil(profit*0.5);
         G.profit+=bonus; addLog(`✊ 工會主席：3+人材，+50% → +${bonus}`,'g');
+        setTimeout(()=>profitFlyFromPartner(this.id,bonus),150);
       } else if(profit>0){
         const cut=Math.floor(profit*0.2);
         G.profit-=cut; addLog(`✊ 工會主席：人材不足，-20% -${cut}`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
     },
   },
@@ -885,6 +888,7 @@ const PARTNERS = {
         const cut=Math.floor(profit*0.5);
         G.profit-=cut;
         addLog(`🚢 運輸大亨：未通過物流中心，收益-50% -${cut}`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
     },
   },
@@ -908,6 +912,7 @@ const PARTNERS = {
         const cut=Math.floor(profit*0.3);
         G.profit-=cut;
         addLog(`🗺️ 路線規劃師：物流中心僅${cnt}個（<2），-30% -${cut}`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
     },
   },
@@ -919,10 +924,12 @@ const PARTNERS = {
         const bonus=Math.ceil(profit*0.1);
         G.profit+=bonus;
         addLog(`🚀 快遞達人：${G.inv.facHit}格，+10% → +${bonus}`,'g');
+        setTimeout(()=>profitFlyFromPartner(this.id,bonus),150);
       } else if(profit>0){
         const cut=Math.floor(profit*0.5);
         G.profit-=cut;
         addLog(`🚀 快遞達人：不足4格（${G.inv.facHit}），收益減半-${cut}`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
     },
   },
@@ -937,11 +944,13 @@ const PARTNERS = {
         const bonus=Math.ceil(profit*0.1);
         G.profit+=bonus;
         addLog(`💹 外匯交易員：金錢↔商品轉換，+10% +${bonus}`,'g');
+        setTimeout(()=>profitFlyFromPartner(this.id,bonus),150);
       }
       if(el.type==='material'){
         const cut=Math.floor(profit*0.5);
         G.profit-=cut;
         addLog(`💹 外匯交易員：原料輸出，-50% -${cut}`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),200);
       }
     },
   },
@@ -965,10 +974,12 @@ const PARTNERS = {
         const bonus=Math.ceil(profit*0.2);
         G.profit+=bonus;
         addLog(`⚖️ 套利者：雙向轉換，+20% +${bonus}`,'g');
+        setTimeout(()=>profitFlyFromPartner(this.id,bonus),150);
       } else if(G.inv.arbM2G||G.inv.arbG2M){
         const cut=Math.floor(profit*0.2);
         G.profit-=cut;
         addLog(`⚖️ 套利者：單向轉換，-20% -${cut}`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
     },
   },
@@ -983,6 +994,7 @@ const PARTNERS = {
         const cut=Math.floor(profit*missing*0.1);
         G.profit-=cut;
         addLog(`🎩 壟斷者：僅${shopCount}商店（差${missing}），-${missing*10}% -${cut}`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
     },
   },
@@ -1036,6 +1048,7 @@ const PARTNERS = {
         const cut=ruinCount*2;
         G.profit-=cut;
         addLog(`💀 廢墟掠奪者：${ruinCount}廢墟（>3），-${cut}收益`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
     },
   },
@@ -1083,6 +1096,7 @@ const PARTNERS = {
         const cut=Math.floor(profit*0.5);
         G.profit-=cut;
         addLog(`🌟 公路之星：未經中央，收益減半 -${cut}`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
     },
   },
@@ -1473,6 +1487,7 @@ const EVENTS=[
       G.profit+=bonus;
       addLog(`💼 就業輔助：獲得目標20%收益 +${bonus}（共${G.profit}）`,'g');
       showEv(ev.title,`獲得收益目標的 20% 作為補助：+${bonus}`,`<button class="eopt pri" onclick="evDone()">確認</button>`);
+      setTimeout(()=>profitFlyFrom(document.getElementById('ev-banner'),bonus),300);
       render();
     },
   },
@@ -2409,6 +2424,7 @@ const FACILITY_FX={
     G.profit=Math.max(0,G.profit-1);
     const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value*2,'進出口稅站');
     addLog(`  🧾 進出口稅站: ×2→${nv2}（扣1收益）`);
+    profitFlyFromCell(fx.r,fx.c,-1);
     fx.el={...fx.el,value:nv2};
     fx.hit();
   },
@@ -2553,6 +2569,8 @@ const FACILITY_FX={
     const prev=fx.el.value;
     const bonus=prev*4;
     G.inv.clearanceBonus=(G.inv.clearanceBonus||0)+bonus;
+    if(!G.inv.clearanceCells) G.inv.clearanceCells=[];
+    G.inv.clearanceCells.push({r:fx.r,c:fx.c,bonus});
     addLog(`  🏷️ 清倉拍賣場: 📦${prev}×4 → +${bonus}收益（結算時入帳），商品變為1`,'g');
     fx.el={value:1,type:'goods'};
     fx.hit();
@@ -3033,7 +3051,8 @@ function finish(el,startVal){
   if(G.inv.clearanceBonus>0){
     G.profit+=G.inv.clearanceBonus;
     addLog(`  🏷️ 清倉拍賣場結算：+${G.inv.clearanceBonus}收益`,'g');
-    G.inv.clearanceBonus=0;
+    (G.inv.clearanceCells||[]).forEach((cc,i)=>setTimeout(()=>profitFlyFromCell(cc.r,cc.c,cc.bonus),i*200));
+    G.inv.clearanceBonus=0; G.inv.clearanceCells=[];
   }
   // 匯率波動板：本次投入有通過匯率波動板，隨機調整收益
   if(G.inv.exchBoard && profit > 0){
@@ -3051,17 +3070,20 @@ function finish(el,startVal){
   });
   // 稅務局：-10%最終收益
   if(profit>0){
-    const hasTax=findCells((r,c,b)=>b==='tax_office').length>0;
-    if(hasTax){
+    const taxCells=findCells((r,c,b)=>b==='tax_office');
+    if(taxCells.length>0){
       const cut=Math.ceil(profit*0.1);
       G.profit-=cut;
       addLog(`  🏛 稅務局：-10% (-${cut})`,'b');
+      setTimeout(()=>profitFlyFromCell(taxCells[0][0],taxCells[0][1],-cut),150);
     }
   }
   if(G.inv.envyPen && profit>0){
     const cut=Math.floor(profit*0.5);
     G.profit-=cut;
     addLog(`💚 嫉妒工廠負面：收益-50% (-${cut})`,'b');
+    const envyCells=findCells((r,c,b)=>b==='envy_factory');
+    if(envyCells.length>0) setTimeout(()=>profitFlyFromCell(envyCells[0][0],envyCells[0][1],-cut),150);
     G.inv.envyPen=false;
   }
   // 勞工保險：最終收益扣除 人材數×2%
@@ -4372,33 +4394,36 @@ function renderFanHand() {
 }
 
 // 從合夥人卡片飛出 +X 收益動畫
-function profitFlyFromPartner(pid, amount) {
-  const row = document.getElementById('partner-row');
-  if (!row) return;
-  // find the joker card
-  const cards = row.querySelectorAll('.joker-card');
-  let srcEl = null;
-  G.partners.forEach((p, i) => { if(p===pid) srcEl=cards[i]; });
-  const targetEl = document.getElementById('r-profit');
-  if (!srcEl || !targetEl) return;
-
-  const src = srcEl.getBoundingClientRect();
-  const dst = targetEl.getBoundingClientRect();
-
-  const fly = document.createElement('div');
-  fly.className = 'profit-fly';
-  fly.textContent = '+' + amount;
-  fly.style.left = (src.left + src.width/2) + 'px';
-  fly.style.top  = (src.top + src.height/2) + 'px';
-  const dx = dst.left - src.left - src.width/2;
-  fly.style.setProperty('--tx', dx + 'px');
-
-  // pulse the joker card
-  srcEl.style.transform = 'translateY(-18px) scale(1.15)';
-  setTimeout(()=>{ srcEl.style.transform=''; }, 400);
-
+// 通用收益飛行動畫：從任意元素飛向收益 UI
+function profitFlyFrom(srcEl, amount){
+  const targetEl=document.getElementById('r-profit');
+  if(!srcEl||!targetEl) return;
+  const src=srcEl.getBoundingClientRect();
+  const dst=targetEl.getBoundingClientRect();
+  const fly=document.createElement('div');
+  fly.className='profit-fly';
+  fly.textContent=(amount>=0?'+':'')+amount;
+  if(amount<0) fly.style.color='var(--red)';
+  fly.style.left=(src.left+src.width/2)+'px';
+  fly.style.top=(src.top+src.height/2)+'px';
+  fly.style.setProperty('--tx',(dst.left-src.left-src.width/2)+'px');
   document.body.appendChild(fly);
-  setTimeout(()=>fly.remove(), 1300);
+  setTimeout(()=>fly.remove(),1300);
+}
+// 從合夥人卡片飛出
+function profitFlyFromPartner(pid, amount){
+  const row=document.getElementById('partner-row');
+  if(!row) return;
+  const cards=row.querySelectorAll('.joker-card');
+  let srcEl=null;
+  G.partners.forEach((p,i)=>{ if(p===pid) srcEl=cards[i]; });
+  if(srcEl){ srcEl.style.transform='translateY(-18px) scale(1.15)'; setTimeout(()=>{srcEl.style.transform='';},400); }
+  profitFlyFrom(srcEl, amount);
+}
+// 從格子飛出
+function profitFlyFromCell(r, c, amount){
+  const cellEl=document.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+  profitFlyFrom(cellEl, amount);
 }
 
 function demolitionChargeFly(){
@@ -4716,8 +4741,8 @@ function onFacilityMoved(r,c,sr,sc){
       G.tempShedMoves[tk]=Math.min((G.tempShedMoves[tk]||0)+1,5);
     }
   }
-  { let f=false; for(let ri=0;ri<GN();ri++) for(let ci=0;ci<GN();ci++) if(G.grid[ri][ci]==='demolish_bureau') f=true;
-    if(f){G.profit+=1;addLog('🏢 拆遷補償局：設施移動+1收益','g');} }
+  { const bureaus=findCells((r,c,b)=>b==='demolish_bureau');
+    if(bureaus.length>0){G.profit+=1;addLog('🏢 拆遷補償局：設施移動+1收益','g');profitFlyFromCell(bureaus[0][0],bureaus[0][1],1);} }
   if(hasPartner('land_speculator')){
     if(!G._landSpecStale) G._landSpecStale={};
     G.cellMods[`${r},${c}`]=(G.cellMods[`${r},${c}`]||0)+20;
