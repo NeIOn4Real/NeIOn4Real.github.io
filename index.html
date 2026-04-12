@@ -2249,6 +2249,8 @@ function onCellDragOver(e,r,c){
     }
     return;
   }
+  // 中央限定：非中央格不預覽
+  if(BLDG[bldgDragging]&&BLDG[bldgDragging].centerOnly&&!isCenterCell(r,c)) return;
   // 蕾雅：允許拖到相同設施的格子
   const isLeyaUpgrade = G.grid[r][c]===bldgDragging && hasPartner('leya');
   // 廢墟紀念碑：允許拖到廢墟格
@@ -2322,6 +2324,11 @@ function onCellDrop(e,r,c){
     addLog(`放置 ${BLDG.ruin_monument.emoji}${BLDG.ruin_monument.name} (${r+1},${c+1})（取代廢墟）`);
     bldgDragging=null;
     pulse(r,c); render(); return;
+  }
+  // 中央限定設施
+  if(BLDG[bldgDragging]&&BLDG[bldgDragging].centerOnly&&!isCenterCell(r,c)){
+    addLog(`🚫 ${BLDG[bldgDragging].name}只能放在中央區域！`,'b');
+    bldgDragging=null; return;
   }
   if(G.grid[r][c]) return;
   const h=G.hand.find(h=>h.id===bldgDragging);
