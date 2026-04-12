@@ -237,6 +237,16 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 }
 .murphy-shaking{ animation:murphyShake .5s ease-in-out 3; }
 /* 人材發光提示 */
+/* 擁慶記房屋賣出模式：設施發抖 */
+@keyframes sellShake{
+  0%,100%{transform:translate(0,0) rotate(0deg);}
+  20%{transform:translate(-2px,1px) rotate(-1deg);}
+  40%{transform:translate(2px,-1px) rotate(1deg);}
+  60%{transform:translate(-1px,2px) rotate(-0.5deg);}
+  80%{transform:translate(1px,-1px) rotate(0.5deg);}
+}
+.sell-shake{animation:sellShake .4s ease-in-out infinite;cursor:pointer !important;}
+.sell-shake:hover{outline:2px solid var(--red);box-shadow:0 0 10px rgba(200,0,0,.3);}
 @keyframes talentGlow{
   0%,100%{box-shadow:0 0 4px rgba(176,96,0,.2);}
   50%{box-shadow:0 0 14px rgba(176,96,0,.6),0 0 24px rgba(176,96,0,.3);}
@@ -4268,8 +4278,9 @@ function renderGrid(){
     const routeTargetHi=G._freeMoveLogistics&&!G._freeMoveLogisticsSrc&&b&&b.special==='redirect'?' upgrade-glow':'';
     const centerHi=isCenterCell(r,c)?' center-cell':'';
     const evPreview=(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(`${r},${c}`))?' event-preview':'';
+    const sellHi=(G._yongqingSellMode&&b)?' sell-shake':'';
     const isCenter=isCenterCell(r,c);
-    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${centerHi}${evPreview}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
+    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${centerHi}${evPreview}${sellHi}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
       onmouseenter="cellHoverStart(event,${r},${c})"
       onmouseleave="cellHoverEnd()"
       onclick="onCell(${r},${c})"
