@@ -2061,6 +2061,350 @@ function sendEl(dir,idx){
   stepWithMover(path,el,0,startVal,mover,updateMover);
 }
 
+const FACILITY_FX={
+  small_shop(fx){
+    const prev=fx.el.value;
+    if(fx.el.type==='goods'){
+      fx.el={value:prev+1,type:'money'};
+      addLog(`  🛍️ 小型販售商: 📦${prev}→💰${fx.el.value} (+1)`);
+    } else if(fx.el.type==='money'){
+      fx.el={value:prev+2,type:'money'};
+      addLog(`  🛍️ 小型販售商: 💰${prev}→📦→💰${fx.el.value} (+2)`);
+    }
+    fx.hitM();
+  },
+  scalper(fx){
+    if(fx.el.type!=='goods') return;
+    const prev=fx.el.value, money=prev+1;
+    const nv2=Math.max(1,Math.floor(money*0.9));
+    fx.el={value:nv2,type:'goods'};
+    addLog(`  🎫 黃牛販子: 📦${prev}→💰${money}→📦${nv2} (-10%)`);
+    fx.hitM();
+  },
+  bulk_store(fx){
+    if(fx.el.type!=='goods') return;
+    const prev=fx.el.value;
+    const nv2=Math.max(1,Math.floor(prev*1.5));
+    fx.el={value:nv2,type:'goods'};
+    addLog(`  🛒 量販店: 📦${prev}→💰(+50%)→📦${nv2}`);
+    fx.hitM();
+  },
+  dept_store(fx){
+    if(fx.el.type!=='goods') return;
+    const prev=fx.el.value, step1=prev*2;
+    const step2=Math.max(1,Math.floor(step1*1.02));
+    fx.el={value:step2,type:'money'};
+    addLog(`  🏬 百貨公司: 📦${prev}→💰${step1}(×2)→📦(+2%)→💰${step2}`);
+    fx.hitM();
+  },
+  dept_store_part(fx){
+    fx.next(200);
+  },
+  trade_hub(fx){
+    if(fx.el.type==='money'){
+      const add=Math.max(1,Math.floor(fx.el.value*0.01));
+      const nv2=fx.el.value+add;
+      addLog(`  🌐 貿易代理：💰金錢${fx.el.value} → 🪨原料${nv2} (+${add}, +1%)`);
+      fx.el={value:nv2,type:'material'};
+    } else if(fx.el.type==='goods'){
+      const add=Math.max(1,Math.floor(fx.el.value*0.01));
+      const nv2=fx.el.value+add;
+      addLog(`  🌐 貿易代理：📦商品${fx.el.value} → 💰金錢${nv2} (+${add}, +1%)`);
+      fx.el={value:nv2,type:'money'};
+    } else { addLog(`  🌐 貿易代理：類型不符，略過`); }
+    fx.hit();
+  },
+  tech_lab(fx){
+    if(fx.el.type!=='goods') return;
+    const add=Math.max(1,Math.floor(fx.el.value*0.02));
+    const nv2=fx.el.value+add;
+    addLog(`  🔬 科技研發：📦商品${fx.el.value} → 📦商品${nv2} (+${add}, +2%)`);
+    fx.el={value:nv2,type:'goods'};
+    fx.hitM();
+  },
+  tax_office(fx){
+    addLog(`  🏛 稅務局：通過（最終收益-10%）`);
+    G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1; fx.next(300);
+  },
+  temp_shed(fx){
+    if(!G.tempShedMoves) G.tempShedMoves={};
+    const key=`${fx.r},${fx.c}`;
+    const bonus=Math.min(G.tempShedMoves[key]||0,5);
+    const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value+bonus,'臨時工棚');
+    addLog(`  🛖 臨時工棚: +${bonus}（移動${G.tempShedMoves[key]||0}次）→${nv2}`);
+    fx.el={...fx.el,value:nv2};
+    fx.hit();
+  },
+  logistics_amp(fx){
+    G._logisticsAmpActive=true;
+    addLog(`  📡 物流放大器：下一設施效果×2`,'g');
+    fx.hit(300);
+  },
+  logistics_vault(fx){
+    if(!G.logisticsVault) G.logisticsVault={};
+    const key=`${fx.r},${fx.c}`;
+    const stored=G.logisticsVault[key]||0;
+    const toStore=Math.floor(fx.el.value*0.5);
+    if(stored>0){
+      fx.el={...fx.el,value:fx.el.value+stored};
+      addLog(`  🏪 物流倉：釋放儲存+${stored}→${fx.el.value}`,'g');
+      G.logisticsVault[key]=toStore;
+    } else {
+      G.logisticsVault[key]=toStore;
+      addLog(`  🏪 物流倉：儲存${toStore}（下次釋放）`);
+    }
+    fx.hit();
+  },
+  talent_bank(fx){
+    if(fx.el.type!=='money') return;
+    if(!G.talentBankStored) G.talentBankStored=0;
+    const stored=G.talentBankStored;
+    const toStore=Math.floor(fx.el.value*0.1);
+    if(stored>0){
+      fx.el={...fx.el,value:fx.el.value+stored};
+      addLog(`  🏧 人力銀行：釋放+${stored}→${fx.el.value}`,'g');
+      G.talentBankStored=toStore;
+    } else {
+      G.talentBankStored=toStore;
+      addLog(`  🏧 人力銀行：儲存${toStore}（下次釋放）`);
+    }
+    fx.hit();
+  },
+  strike_board(fx){
+    const talents=G.talentCards||0;
+    if(talents>0){
+      const bonus=talents*10;
+      G.talentCards=0;
+      fx.el={...fx.el,value:fx.el.value+bonus};
+      addLog(`  📢 集體罷工台：消耗${talents}人材，+${bonus}→${fx.el.value}`,'g');
+      renderTalentPanel();
+    } else {
+      addLog(`  📢 集體罷工台：無人材可消耗`);
+    }
+    fx.hit();
+  },
+  talent_market(fx){
+    if(fx.el.type==='money'){
+      if(fx.el.value<3){
+        G.talentCards=(G.talentCards||0)+1;
+        addLog(`  🏦 人才市場: 💰${fx.el.value}（不足3），免費+1人材（共${G.talentCards}）`,'g');
+      } else {
+        const cost=Math.max(3,Math.ceil(fx.el.value*0.03));
+        fx.el={...fx.el,value:fx.el.value-cost};
+        G.talentCards=(G.talentCards||0)+2;
+        addLog(`  🏦 人才市場: 消耗💰${cost}（3%），+2人材（共${G.talentCards}），剩餘💰${fx.el.value}`,'g');
+      }
+      renderTalentPanel();
+    } else {
+      addLog(`  🏦 人才市場: 需要金錢，${TLABEL[fx.el.type]}略過`);
+    }
+    fx.hit();
+  },
+  import_tax(fx){
+    G.profit=Math.max(0,G.profit-1);
+    const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value*2,'進出口稅站');
+    addLog(`  🧾 進出口稅站: ×2→${nv2}（扣1收益）`);
+    fx.el={...fx.el,value:nv2};
+    fx.hit();
+  },
+  overtime(fx){
+    const talents=G.talentCards||0;
+    const pct=Math.floor(talents/2);
+    if(pct>0){
+      const bonus=Math.max(1,Math.ceil(fx.el.value*pct/100));
+      fx.el={...fx.el,value:fx.el.value+bonus};
+      addLog(`  💼 加班辦公室: +${pct}%（人材${talents}÷2），+${bonus}→${fx.el.value}`,'g');
+    } else {
+      addLog(`  💼 加班辦公室: 無人材，無加成`);
+    }
+    fx.hit();
+  },
+  speed_station(fx){
+    addLog(`  ⚡ 速遞站：下一格將觸發兩次`);
+    G._speedStationActive=true;
+    fx.hit(300);
+  },
+  ruin_monument(fx){
+    const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value+5,'廢墟紀念碑');
+    addLog(`  🗿 廢墟紀念碑: +5→${nv2}`,'g');
+    fx.el={...fx.el,value:nv2};
+    fx.hit();
+  },
+  futures_market(fx){
+    if(fx.el.type!=='goods') return;
+    const key=`${fx.r},${fx.c}`;
+    if(!G.futuresLock) G.futuresLock={};
+    if(!G.futuresLock[key]){
+      G.futuresLock[key]=Math.floor(Math.random()*3)+1;
+      addLog(`  🏛 期貨交易所：鎖定倍率×${G.futuresLock[key]}（永久）`,'g');
+    }
+    const mult=G.futuresLock[key];
+    const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value*mult,'期貨交易所');
+    addLog(`  🏛 期貨交易所: 📦${fx.el.value}→💰${nv2}（鎖定×${mult}）`,'g');
+    fx.el={value:nv2,type:'money'};
+    fx.hit();
+  },
+  demolish_bureau(fx){
+    G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
+    const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value,'拆遷補償局');
+    fx.el={...fx.el,value:nv2};
+    addLog(`  🏢 拆遷補償局: 通過（移動/消滅設施時+1收益）`);
+    fx.pulse(); fx.updateCard(); fx.next();
+  },
+  terminal(fx){
+    const bonus=(G.turnFacilitiesHit||0)*2;
+    G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
+    let termVal=fx.el.value+bonus;
+    termVal=applyUpgradeBonus(fx.r,fx.c,termVal,'終點站');
+    const t_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
+    const t_parts=[`通過${G.turnFacilitiesHit-1}設施×2=+${bonus}`]; if(t_upg>0) t_parts.push(`升級+${t_upg}`);
+    addLog(`  🏁 終點站: ${TLABEL[fx.el.type]}${fx.el.value}→${termVal}（${t_parts.join('，')}）`,'g');
+    fx.el={...fx.el,value:termVal};
+    fx.pulse(); fx.updateCard(); fx.next();
+  },
+  spiral_hub(fx){
+    const bonus=(G.turnFacilitiesHit||0)*2;
+    G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
+    let spiralVal=fx.el.value+bonus;
+    spiralVal=applyUpgradeBonus(fx.r,fx.c,spiralVal,'螺旋物流站');
+    const sp_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
+    const sp_parts=[`通過${G.turnFacilitiesHit-1}設施×2=+${bonus}`]; if(sp_upg>0) sp_parts.push(`升級+${sp_upg}`);
+    addLog(`  🔄 螺旋物流站: +${bonus+sp_upg}（${sp_parts.join('，')}）`);
+    fx.el={...fx.el,value:spiralVal};
+    fx.pulse(); fx.updateCard(); fx.next();
+  },
+  labor_convert(fx){
+    if((G.talentCards||0)>=2){
+      G.talentCards-=2;
+      let lc_val=fx.el.value*2;
+      lc_val=applyUpgradeBonus(fx.r,fx.c,lc_val,'勞動轉換站');
+      fx.el={...fx.el,value:lc_val};
+      addLog(`  ⚙️ 勞動轉換站: ×2（消耗2人材）→ ${fx.el.value}`,'g');
+    } else {
+      addLog(`  ⚙️ 勞動轉換站: 人材不足（需2），略過`,'b');
+    }
+    fx.hit();
+  },
+  talent_storage(fx){
+    let ts_bonus=(G.talentCards||0)>=5?5:0;
+    ts_bonus=applyUpgradeBonus(fx.r,fx.c,ts_bonus,'人材倉庫');
+    if(ts_bonus) fx.el={...fx.el,value:fx.el.value+ts_bonus};
+    addLog(`  🗃️ 人材倉庫: +${ts_bonus}（人材${G.talentCards||0}個）`);
+    fx.hit();
+  },
+  dispatch_hq(fx){
+    if(fx.el.type!=='goods') return;
+    G.talentCards=(G.talentCards||0)+2;
+    addLog(`  🏢 派遣總部: +2人材（共${G.talentCards}）`,'g');
+    fx.hit();
+  },
+  env_sensor(fx){
+    const adj=[[fx.r-1,fx.c],[fx.r+1,fx.c],[fx.r,fx.c-1],[fx.r,fx.c+1]];
+    const adjCount=adj.filter(([ar,ac])=>ar>=0&&ar<GN()&&ac>=0&&ac<GN()&&isFacility(G.grid[ar][ac])).length;
+    let env_val=fx.el.value+adjCount;
+    env_val=applyUpgradeBonus(fx.r,fx.c,env_val,'環境感應站');
+    fx.el={...fx.el,value:env_val};
+    const es_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
+    const es_parts=[`周圍${adjCount}設施+${adjCount}`]; if(es_upg>0) es_parts.push(`升級+${es_upg}`);
+    addLog(`  📊 環境感應站: →${fx.el.value}（${es_parts.join('，')}）`);
+    fx.hit();
+  },
+  trade_port(fx){
+    if(fx.el.type!=='goods') return;
+    const tiers=Math.floor(fx.el.value/10);
+    if(tiers>0){
+      const tp_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
+      const tp_add=Math.floor(fx.el.value*tiers*0.1)+tp_upg;
+      fx.el={...fx.el,value:fx.el.value+tp_add};
+      addLog(`  ⚓ 外貿港口: +${tp_add}（${tiers}階×10%${tp_upg>0?`，升級+${tp_upg}`:''}）`,'g');
+    }
+    fx.hit();
+  },
+  exchange_board(fx){
+    addLog(`  📈 匯率波動板: 資源通過，結算時將隨機調整收益`,'w');
+    G._exchangeBoardActive = true;
+    fx.hit();
+  },
+  trade_zone(fx){
+    const adj=[[fx.r-1,fx.c],[fx.r+1,fx.c],[fx.r,fx.c-1],[fx.r,fx.c+1]];
+    const hasShop=adj.some(([ar,ac])=>ar>=0&&ar<GN()&&ac>=0&&ac<GN()&&isShopType(G.grid[ar][ac]));
+    const prevVal=fx.el.value;
+    let tz_val=fx.el.value;
+    let tz_parts=[];
+    if(hasShop){
+      tz_val=Math.floor(tz_val*1.5);
+      tz_parts.push('相鄰商店×1.5');
+    }
+    tz_val=applyUpgradeBonus(fx.r,fx.c,tz_val,'貿易特區');
+    const upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
+    if(upg>0) tz_parts.push(`升級+${upg}`);
+    fx.el={...fx.el,value:tz_val};
+    const calcStr=tz_parts.length?`（${tz_parts.join('，')}）`:'';
+    addLog(`  🌏 貿易特區: ${TLABEL[fx.el.type]}${prevVal}→${tz_val}${calcStr}`,'g');
+    fx.hit();
+  },
+  clearance(fx){
+    if(fx.el.type!=='goods') return;
+    let cl_val=applyUpgradeBonus(fx.r,fx.c,fx.el.value*4,'清倉拍賣場');
+    addLog(`  🏷️ 清倉拍賣場: 📦${fx.el.value}→💰${cl_val}（×4）`,'g');
+    fx.el={value:cl_val,type:'money'};
+    fx.hit();
+  },
+  demolish_fab(fx){
+    let df_val=applyUpgradeBonus(fx.r,fx.c,fx.el.value*2,'建築廢料廠');
+    fx.el={...fx.el,value:df_val};
+    addLog(`  🏗 建築廢料廠: ×2→${fx.el.value}，自毀！`,'g');
+    destroyFacility(fx.r,fx.c);
+    fx.hit();
+  },
+  dynamic_amp(fx){
+    const mult=(G._facilitiesMovedThisTurn||0)>0?2:1;
+    let da_val=applyUpgradeBonus(fx.r,fx.c,fx.el.value*mult,'動態加強器');
+    fx.el={...fx.el,value:da_val};
+    const da_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
+    const da_parts=[`×${mult}`]; if(mult===2) da_parts.push('有移動'); if(da_upg>0) da_parts.push(`升級+${da_upg}`);
+    addLog(`  🔋 動態加強器: →${fx.el.value}（${da_parts.join('，')}）`);
+    fx.hit();
+  },
+  unstable_base(fx){
+    const adj=[[fx.r-1,fx.c],[fx.r+1,fx.c],[fx.r,fx.c-1],[fx.r,fx.c+1]];
+    const adjMods=adj.map(([ar,ac])=>ar>=0&&ar<GN()&&ac>=0&&ac<GN()?(G.cellMods[`${ar},${ac}`]||0):0);
+    const hasNeg=adjMods.some(m=>m<0);
+    const hasPos=adjMods.some(m=>m>0);
+    if(hasNeg){ fx.el={...fx.el,value:fx.el.value*2}; addLog(`  ⚠️ 地基不穩定站: ×2（相鄰有減益）`,'g'); }
+    else if(hasPos){ fx.el={...fx.el,value:Math.max(0,fx.el.value-1)}; addLog(`  ⚠️ 地基不穩定站: -1（相鄰有增益）`,'b'); }
+    fx.hit();
+  },
+  staffing(fx){
+    if(fx.el.type!=='money') return;
+    G.talentCards=(G.talentCards||0)+1;
+    addLog(`  🏢 人力派遣：金錢通過，獲得1人材（共${G.talentCards}）`,'g');
+    fx.pulse();
+    fx.cellEl?.classList.add('transform-flash');
+    setTimeout(()=>fx.cellEl?.classList.remove('transform-flash'),500);
+    if(fx.cellEl){
+      const badge=document.createElement('div');
+      badge.className='change-badge';
+      badge.textContent=`🏢 +1🧑‍💼 人材`;
+      badge.style.background='var(--blue)';
+      fx.cellEl.appendChild(badge);
+      setTimeout(()=>badge.remove(),700);
+    }
+    fx.updateCard(); fx.next();
+  },
+  cafeteria(fx){
+    if(fx.el.type!=='goods') return;
+    if(G.buff&&G.buff.cafeteriaDisabled){
+      addLog(`  🍱 員工食堂：重大食安導致失效，略過`,'b');
+      fx.next(300);
+      return;
+    }
+    G.talentCards=(G.talentCards||0)+1;
+    addLog(`  🍱 員工食堂：商品通過，獲得1人材（共${G.talentCards}）`,'g');
+    fx.hit();
+  },
+};
+
 function stepWithMover(path,el,i,startVal,mover,updateMover){
   if(i>=path.length){
     mover.style.display='none';
@@ -2135,401 +2479,21 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       _hitM(); return;
     }
 
-    // ── 小型販售商：商品→金錢+1；金錢→商品→金錢+2 ──
-    if(b.special==='small_shop'){
-      const prev=el.value;
-      if(el.type==='goods'){
-        el={value:prev+1,type:'money'};
-        addLog(`  🛍️ 小型販售商: 📦${prev}→💰${el.value} (+1)`);
-      } else if(el.type==='money'){
-        el={value:prev+2,type:'money'};
-        addLog(`  🛍️ 小型販售商: 💰${prev}→📦→💰${el.value} (+2)`);
-      }
-      _hitM(); return;
-    }
-    // ── 黃牛販子：商品→金錢+1→商品(-10%) ──
-    if(b.special==='scalper' && el.type==='goods'){
-      const prev=el.value, money=prev+1;
-      const nv2=Math.max(1,Math.floor(money*0.9));
-      el={value:nv2,type:'goods'};
-      addLog(`  🎫 黃牛販子: 📦${prev}→💰${money}→📦${nv2} (-10%)`);
-      _hitM(); return;
-    }
-    // ── 量販店：商品→金錢(+50%)→商品 ──
-    if(b.special==='bulk_store' && el.type==='goods'){
-      const prev=el.value;
-      const nv2=Math.max(1,Math.floor(prev*1.5));
-      el={value:nv2,type:'goods'};
-      addLog(`  🛒 量販店: 📦${prev}→💰(+50%)→📦${nv2}`);
-      _hitM(); return;
-    }
-    // ── 百貨公司：商品→×2金錢→+2%商品→金錢 ──
-    if(b.special==='dept_store' && el.type==='goods'){
-      const prev=el.value, step1=prev*2;
-      const step2=Math.max(1,Math.floor(step1*1.02));
-      el={value:step2,type:'money'};
-      addLog(`  🏬 百貨公司: 📦${prev}→💰${step1}(×2)→📦(+2%)→💰${step2}`);
-      _hitM(); return;
-    }
-    // ── 百貨公司部分：資源直接通過 ──
-    if(b.special==='dept_store_part'){
-      _next(200); return;
-    }
-
-    // ── 貿易代理：金錢→1%原料；商品→1%金錢（中央限定）──
-    if(b.special==='trade_hub'){
-      if(el.type==='money'){
-        const add=Math.max(1,Math.floor(el.value*0.01));
-        const nv2=el.value+add;
-        addLog(`  🌐 貿易代理：💰金錢${el.value} → 🪨原料${nv2} (+${add}, +1%)`);
-        el={value:nv2,type:'material'};
-      } else if(el.type==='goods'){
-        const add=Math.max(1,Math.floor(el.value*0.01));
-        const nv2=el.value+add;
-        addLog(`  🌐 貿易代理：📦商品${el.value} → 💰金錢${nv2} (+${add}, +1%)`);
-        el={value:nv2,type:'money'};
-      } else { addLog(`  🌐 貿易代理：類型不符，略過`); }
-      _hit(); return;
-    }
-
-    // ── 科技研發：商品→+2%商品 ──
-    if(b.special==='tech_lab' && el.type==='goods'){
-      const add=Math.max(1,Math.floor(el.value*0.02));
-      const nv2=el.value+add;
-      addLog(`  🔬 科技研發：📦商品${el.value} → 📦商品${nv2} (+${add}, +2%)`);
-      el={value:nv2,type:'goods'};
-      _hitM(); return;
-    }
-
-    // ── 稅務局：資源直接通過 ──
-    if(b.special==='tax_office'){
-      addLog(`  🏛 稅務局：通過（最終收益-10%）`);
-      G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1; _next(300); return;
-    }
-
-    // ── 臨時工棚：每次移動+1（最高+5），通過時套用當前加成 ──
-    if(b.special==='temp_shed'){
-      if(!G.tempShedMoves) G.tempShedMoves={};
-      const key=`${r},${c}`;
-      const bonus=Math.min(G.tempShedMoves[key]||0,5);
-      const nv2=applyUpgradeBonus(r,c,el.value+bonus,'臨時工棚');
-      addLog(`  🛖 臨時工棚: +${bonus}（移動${G.tempShedMoves[key]||0}次）→${nv2}`);
-      el={...el,value:nv2};
-      _hit(); return;
-    }
-
-    // ── 物流放大器：通過後下一設施效果×2 ──
-    if(b.special==='logistics_amp'){
-      G._logisticsAmpActive=true;
-      addLog(`  📡 物流放大器：下一設施效果×2`,'g');
-      _hit(300); return;
-    }
-
-    // ── 物流倉：儲存50%，下次釋放為加成 ──
-    if(b.special==='logistics_vault'){
-      if(!G.logisticsVault) G.logisticsVault={};
-      const key=`${r},${c}`;
-      const stored=G.logisticsVault[key]||0;
-      const toStore=Math.floor(el.value*0.5);
-      if(stored>0){
-        el={...el,value:el.value+stored};
-        addLog(`  🏪 物流倉：釋放儲存+${stored}→${el.value}`,'g');
-        G.logisticsVault[key]=toStore;
-      } else {
-        G.logisticsVault[key]=toStore;
-        addLog(`  🏪 物流倉：儲存${toStore}（下次釋放）`);
-      }
-      _hit(); return;
-    }
-
-    // ── 人力銀行：金錢通過儲存10%，下次投入釋放 ──
-    if(b.special==='talent_bank' && el.type==='money'){
-      if(!G.talentBankStored) G.talentBankStored=0;
-      const stored=G.talentBankStored;
-      const toStore=Math.floor(el.value*0.1);
-      if(stored>0){
-        el={...el,value:el.value+stored};
-        addLog(`  🏧 人力銀行：釋放+${stored}→${el.value}`,'g');
-        G.talentBankStored=toStore;
-      } else {
-        G.talentBankStored=toStore;
-        addLog(`  🏧 人力銀行：儲存${toStore}（下次釋放）`);
-      }
-      _hit(); return;
-    }
-
-    // ── 集體罷工台：主動觸發消耗所有人材，各+10 ──
-    // 被動通過時：若有人材則自動消耗
-    if(b.special==='strike_board'){
-      const talents=G.talentCards||0;
-      if(talents>0){
-        const bonus=talents*10;
-        G.talentCards=0;
-        el={...el,value:el.value+bonus};
-        addLog(`  📢 集體罷工台：消耗${talents}人材，+${bonus}→${el.value}`,'g');
-        renderTalentPanel();
-      } else {
-        addLog(`  📢 集體罷工台：無人材可消耗`);
-      }
-      _hit(); return;
-    }
-
-    // ── 人才市場：金錢通過時消耗3%（至少3）獲得2人材；不足3金錢免費獲得1人材 ──
-    if(b.special==='talent_market'){
-      if(el.type==='money'){
-        if(el.value<3){
-          G.talentCards=(G.talentCards||0)+1;
-          addLog(`  🏦 人才市場: 💰${el.value}（不足3），免費+1人材（共${G.talentCards}）`,'g');
-        } else {
-          const cost=Math.max(3,Math.ceil(el.value*0.03));
-          el={...el,value:el.value-cost};
-          G.talentCards=(G.talentCards||0)+2;
-          addLog(`  🏦 人才市場: 消耗💰${cost}（3%），+2人材（共${G.talentCards}），剩餘💰${el.value}`,'g');
-        }
-        renderTalentPanel();
-      } else {
-        addLog(`  🏦 人才市場: 需要金錢，${TLABEL[el.type]}略過`);
-      }
-      _hit(); return;
-    }
-
-    // ── 進出口稅站：扣1收益，效果×2 ──
-    if(b.special==='import_tax'){
-      G.profit=Math.max(0,G.profit-1);
-      const nv2=applyUpgradeBonus(r,c,el.value*2,'進出口稅站');
-      addLog(`  🧾 進出口稅站: ×2→${nv2}（扣1收益）`);
-      el={...el,value:nv2};
-      _hit(); return;
-    }
-
-    // ── 加班辦公室：資源+人材數量一半% ──
-    if(b.special==='overtime'){
-      const talents=G.talentCards||0;
-      const pct=Math.floor(talents/2);
-      if(pct>0){
-        const bonus=Math.max(1,Math.ceil(el.value*pct/100));
-        el={...el,value:el.value+bonus};
-        addLog(`  💼 加班辦公室: +${pct}%（人材${talents}÷2），+${bonus}→${el.value}`,'g');
-      } else {
-        addLog(`  💼 加班辦公室: 無人材，無加成`);
-      }
-      _hit(); return;
-    }
-
-    // ── 速遞站：下一格立即再觸發 ──
-    if(b.special==='speed_station'){
-      addLog(`  ⚡ 速遞站：下一格將觸發兩次`);
-      G._speedStationActive=true;
-      _hit(300); return;
-    }
-
-    // ── 廢墟紀念碑：輸出+5 ──
-    if(b.special==='ruin_monument'){
-      const nv2=applyUpgradeBonus(r,c,el.value+5,'廢墟紀念碑');
-      addLog(`  🗿 廢墟紀念碑: +5→${nv2}`,'g');
-      el={...el,value:nv2};
-      _hit(); return;
-    }
-
-    // ── 期貨交易所：使用鎖定倍率 ──
-    if(b.special==='futures_market' && el.type==='goods'){
-      const key=`${r},${c}`;
-      if(!G.futuresLock) G.futuresLock={};
-      if(!G.futuresLock[key]){
-        G.futuresLock[key]=Math.floor(Math.random()*3)+1;
-        addLog(`  🏛 期貨交易所：鎖定倍率×${G.futuresLock[key]}（永久）`,'g');
-      }
-      const mult=G.futuresLock[key];
-      const nv2=applyUpgradeBonus(r,c,el.value*mult,'期貨交易所');
-      addLog(`  🏛 期貨交易所: 📦${el.value}→💰${nv2}（鎖定×${mult}）`,'g');
-      el={value:nv2,type:'money'};
-      _hit(); return;
-    }
-
-    // ── 拆遷補償局：資源通過並不轉換，但觸發效果 ──
-    if(b.special==='demolish_bureau'){
-      // 效果已在設施移動/消滅時觸發(+1收益)，此處僅允許資源通過
-      G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
-      const nv2=applyUpgradeBonus(r,c,el.value,'拆遷補償局');
-      el={...el,value:nv2};
-      addLog(`  🏢 拆遷補償局: 通過（移動/消滅設施時+1收益）`);
-      pulse(r,c); updateCard(el); _next(); return;
-    }
-
-    // ── 終點站：+（已通過設施數×2）──
-    if(b.special==='terminal'){
-      const bonus=(G.turnFacilitiesHit||0)*2;
-      G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
-      let termVal=el.value+bonus;
-      termVal=applyUpgradeBonus(r,c,termVal,'終點站');
-      const t_upg=G.bldgUpgrades?.[`${r},${c}`]||0;
-      const t_parts=[`通過${G.turnFacilitiesHit-1}設施×2=+${bonus}`]; if(t_upg>0) t_parts.push(`升級+${t_upg}`);
-      addLog(`  🏁 終點站: ${TLABEL[el.type]}${el.value}→${termVal}（${t_parts.join('，')}）`,'g');
-      el={...el,value:termVal};
-      pulse(r,c); updateCard(el); _next(); return;
-    }
-
-    // ── 螺旋物流站：每通過1設施+2 ──
-    if(b.special==='spiral_hub'){
-      const bonus=(G.turnFacilitiesHit||0)*2;
-      G.turnFacilitiesHit=(G.turnFacilitiesHit||0)+1;
-      let spiralVal=el.value+bonus;
-      spiralVal=applyUpgradeBonus(r,c,spiralVal,'螺旋物流站');
-      const sp_upg=G.bldgUpgrades?.[`${r},${c}`]||0;
-      const sp_parts=[`通過${G.turnFacilitiesHit-1}設施×2=+${bonus}`]; if(sp_upg>0) sp_parts.push(`升級+${sp_upg}`);
-      addLog(`  🔄 螺旋物流站: +${bonus+sp_upg}（${sp_parts.join('，')}）`);
-      el={...el,value:spiralVal};
-      pulse(r,c); updateCard(el); _next(); return;
-    }
-
-    // ── 勞動轉換站：消耗2人材 → ×2 ──
-    if(b.special==='labor_convert'){
-      if((G.talentCards||0)>=2){
-        G.talentCards-=2;
-        let lc_val=el.value*2;
-        lc_val=applyUpgradeBonus(r,c,lc_val,'勞動轉換站');
-        el={...el,value:lc_val};
-        addLog(`  ⚙️ 勞動轉換站: ×2（消耗2人材）→ ${el.value}`,'g');
-      } else {
-        addLog(`  ⚙️ 勞動轉換站: 人材不足（需2），略過`,'b');
-      }
-      _hit(); return;
-    }
-
-    // ── 人材倉庫：持有5+人材時+5 ──
-    if(b.special==='talent_storage'){
-      let ts_bonus=(G.talentCards||0)>=5?5:0;
-      ts_bonus=applyUpgradeBonus(r,c,ts_bonus,'人材倉庫');
-      if(ts_bonus) el={...el,value:el.value+ts_bonus};
-      addLog(`  🗃️ 人材倉庫: +${ts_bonus}（人材${G.talentCards||0}個）`);
-      _hit(); return;
-    }
-
-    // ── 派遣總部：商品通過+2人材 ──
-    if(b.special==='dispatch_hq' && el.type==='goods'){
-      G.talentCards=(G.talentCards||0)+2;
-      addLog(`  🏢 派遣總部: +2人材（共${G.talentCards}）`,'g');
-      _hit(); return;
-    }
-
-    // ── 環境感應站：周圍4格設施數×+1 ──
-    if(b.special==='env_sensor'){
-      const adj=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
-      const adjCount=adj.filter(([ar,ac])=>ar>=0&&ar<GN()&&ac>=0&&ac<GN()&&isFacility(G.grid[ar][ac])).length;
-      let env_val=el.value+adjCount;
-      env_val=applyUpgradeBonus(r,c,env_val,'環境感應站');
-      el={...el,value:env_val};
-      const es_upg=G.bldgUpgrades?.[`${r},${c}`]||0;
-      const es_parts=[`周圍${adjCount}設施+${adjCount}`]; if(es_upg>0) es_parts.push(`升級+${es_upg}`);
-      addLog(`  📊 環境感應站: →${el.value}（${es_parts.join('，')}）`);
-      _hit(); return;
-    }
-
-    // ── 外貿港口：商品>10每10+10% ──
-    if(b.special==='trade_port' && el.type==='goods'){
-      const tiers=Math.floor(el.value/10);
-      if(tiers>0){
-        const tp_upg=G.bldgUpgrades?.[`${r},${c}`]||0;
-        const tp_add=Math.floor(el.value*tiers*0.1)+tp_upg;
-        el={...el,value:el.value+tp_add};
-        addLog(`  ⚓ 外貿港口: +${tp_add}（${tiers}階×10%${tp_upg>0?`，升級+${tp_upg}`:''}）`,'g');
-      }
-      _hit(); return;
-    }
-
-    // ── 匯率波動板：資源直接通過（效果在結算時觸發）──
-    if(b.special==='exchange_board'){
-      addLog(`  📈 匯率波動板: 資源通過，結算時將隨機調整收益`,'w');
-      G._exchangeBoardActive = true;  // 標記本次投入有匯率波動板
-      _hit(); return;
-    }
-
-    // ── 貿易特區：周圍4格有商店時×1.5 ──
-    if(b.special==='trade_zone'){
-      const adj=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
-      const hasShop=adj.some(([ar,ac])=>ar>=0&&ar<GN()&&ac>=0&&ac<GN()&&isShopType(G.grid[ar][ac]));
-      const prevVal=el.value;
-      let tz_val=el.value;
-      let tz_parts=[];
-      if(hasShop){
-        tz_val=Math.floor(tz_val*1.5);
-        tz_parts.push('相鄰商店×1.5');
-      }
-      tz_val=applyUpgradeBonus(r,c,tz_val,'貿易特區');
-      const upg=G.bldgUpgrades?.[`${r},${c}`]||0;
-      if(upg>0) tz_parts.push(`升級+${upg}`);
-      el={...el,value:tz_val};
-      const calcStr=tz_parts.length?`（${tz_parts.join('，')}）`:'';
-      addLog(`  🌏 貿易特區: ${TLABEL[el.type]}${prevVal}→${tz_val}${calcStr}`,'g');
-      _hit(); return;
-    }
-
-    // ── 清倉拍賣場：商品×4金錢 ──
-    if(b.special==='clearance' && el.type==='goods'){
-      let cl_val=applyUpgradeBonus(r,c,el.value*4,'清倉拍賣場');
-      addLog(`  🏷️ 清倉拍賣場: 📦${el.value}→💰${cl_val}（×4）`,'g');
-      el={value:cl_val,type:'money'};
-      _hit(); return;
-    }
-
-    // ── 建築廢料廠：消滅自身，×2 ──
-    if(b.special==='demolish_fab'){
-      let df_val=applyUpgradeBonus(r,c,el.value*2,'建築廢料廠');
-      el={...el,value:df_val};
-      addLog(`  🏗 建築廢料廠: ×2→${el.value}，自毀！`,'g');
-      destroyFacility(r,c);
-      _hit(); return;
-    }
-
-    // ── 動態加強器：本回合設施被移動過則×2 ──
-    if(b.special==='dynamic_amp'){
-      const mult=(G._facilitiesMovedThisTurn||0)>0?2:1;
-      let da_val=applyUpgradeBonus(r,c,el.value*mult,'動態加強器');
-      el={...el,value:da_val};
-      const da_upg=G.bldgUpgrades?.[`${r},${c}`]||0;
-      const da_parts=[`×${mult}`]; if(mult===2) da_parts.push('有移動'); if(da_upg>0) da_parts.push(`升級+${da_upg}`);
-      addLog(`  🔋 動態加強器: →${el.value}（${da_parts.join('，')}）`);
-      _hit(); return;
-    }
-
-    // ── 地基不穩定站：相鄰減益翻倍，相鄰增益-1 ──
-    if(b.special==='unstable_base'){
-      const adj=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
-      const adjMods=adj.map(([ar,ac])=>ar>=0&&ar<GN()&&ac>=0&&ac<GN()?(G.cellMods[`${ar},${ac}`]||0):0);
-      const hasNeg=adjMods.some(m=>m<0);
-      const hasPos=adjMods.some(m=>m>0);
-      if(hasNeg){ el={...el,value:el.value*2}; addLog(`  ⚠️ 地基不穩定站: ×2（相鄰有減益）`,'g'); }
-      else if(hasPos){ el={...el,value:Math.max(0,el.value-1)}; addLog(`  ⚠️ 地基不穩定站: -1（相鄰有增益）`,'b'); }
-      _hit(); return;
-    }
-
-    // ── 人力派遣：金錢通過 → 獲得1人材，資源不變，不計入收益 ──
-    if(b.special==='staffing' && el.type==='money'){
-      G.talentCards=(G.talentCards||0)+1;
-      addLog(`  🏢 人力派遣：金錢通過，獲得1人材（共${G.talentCards}）`,'g');
-      pulse(r,c);
-      cellEl?.classList.add('transform-flash');
-      setTimeout(()=>cellEl?.classList.remove('transform-flash'),500);
-      if(cellEl){
-        const badge=document.createElement('div');
-        badge.className='change-badge';
-        badge.textContent=`🏢 +1🧑‍💼 人材`;
-        badge.style.background='var(--blue)';
-        cellEl.appendChild(badge);
-        setTimeout(()=>badge.remove(),700);
-      }
-      updateCard(el); _next(); return;
-    }
-
-    // ── 員工食堂：商品通過 → 獲得1人材 ──
-    if(b.special==='cafeteria' && el.type==='goods'){
-      if(G.buff&&G.buff.cafeteriaDisabled){
-        addLog(`  🍱 員工食堂：重大食安導致失效，略過`,'b');
-        _next(300); return;
-      }
-      G.talentCards=(G.talentCards||0)+1;
-      addLog(`  🍱 員工食堂：商品通過，獲得1人材（共${G.talentCards}）`,'g');
-      _hit(); return;
+    // ── 設施特效調度 ──
+    if(b.special && FACILITY_FX[b.special]){
+      let _fxDone=false;
+      const fx={
+        el, r, c, cellEl,
+        hit(d=350){_fxDone=true;el=fx.el;_hit(d);},
+        hitM(d=350){_fxDone=true;el=fx.el;_hitM(d);},
+        next(d=350){_fxDone=true;el=fx.el;_next(d);},
+        pulse(){pulse(r,c);},
+        updateCard(){el=fx.el;updateCard(el);},
+        updateMover(){el=fx.el;updateMover(el);},
+      };
+      FACILITY_FX[b.special](fx);
+      if(_fxDone) return;
+      el=fx.el;
     }
 
     // ── 物流中心：轉向 ──
