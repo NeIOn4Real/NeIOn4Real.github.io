@@ -1298,7 +1298,7 @@ const EVENTS=[
       const d=ed.dir||['top','bottom','left','right'][Math.floor(Math.random()*4)];
       const gn=GN();
       // 需要轉移的位置鍵值資料表
-      const keyedData=['bldgUpgrades','leyaPctMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay'];
+      const keyedData=['bldgUpgrades','leyaPctMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay','futuresPct'];
       // 計算每個設施的目標位置（廢墟不滑動，視為障礙）
       const moves={}; // 'r,c' → [nr,nc]
       const dr=d==='top'?-1:d==='bottom'?1:0;
@@ -1653,6 +1653,7 @@ function newGame(){
     bombTimers:{},      // 爆破裝置倒數計時
     inv:{}, // 每次投入重置的臨時 flags（sendEl 初始化）
     logisticsVault:{},  // 物流倉儲存值
+    futuresPct:{},      // 期貨交易所本回合百分比 {'r,c': pct}
     talentBankStored:0, // 人力銀行儲存值
     tempShedMoves:{},   // 臨時工棚移動次數
     partners:[],         // 當前持有的合夥人 [{id, state}]
@@ -2072,6 +2073,11 @@ function onCell(r,c){
   if(!e||e.count<=0)return;
   e.count--;
   G.grid[r][c]=G.sel;
+  // 期貨交易所：放置時決定本回合百分比
+  if(G.sel==='futures_market'){
+    if(!G.futuresPct) G.futuresPct={};
+    G.futuresPct[`${r},${c}`]=Math.floor(Math.random()*21)-10;
+  }
   addLog(`放置 ${BLDG[G.sel].emoji}${BLDG[G.sel].name} (${r+1},${c+1})`);
   // 轉運中心：放置後選擇方向
   if(G.sel==='transfer_hub'){
@@ -2263,6 +2269,11 @@ function onCellDrop(e,r,c){
   if(!h||h.count<=0) return;
   h.count--;
   G.grid[r][c]=bldgDragging;
+  // 期貨交易所：放置時決定本回合百分比
+  if(bldgDragging==='futures_market'){
+    if(!G.futuresPct) G.futuresPct={};
+    G.futuresPct[`${r},${c}`]=Math.floor(Math.random()*21)-10;
+  }
   // Tutorial hook
   if(TUT.active){
     if(TUT.waitingFor==='place_mat_factory' && bldgDragging==='mat_factory') TUT.onAction('place_mat_factory');
@@ -2546,8 +2557,10 @@ const FACILITY_FX={
     fx.hit();
   },
   futures_market(fx){
-    // 隨機 ±10% 資源數值
-    const pct=Math.floor(Math.random()*21)-10; // -10 ~ +10
+    // 使用預先決定的百分比
+    if(!G.futuresPct) G.futuresPct={};
+    const key=`${fx.r},${fx.c}`;
+    const pct=G.futuresPct[key]||0;
     const change=Math.round(fx.el.value*pct/100);
     const nv=Math.max(1, fx.el.value+change);
     addLog(`  🏛 期貨交易所: ${pct>=0?'+':''}${pct}% → ${fx.el.value}→${nv}`,(pct>=0?'g':'b'));
@@ -3760,10 +3773,14 @@ function startTurn(){
         G.grid[r][c]=null; G.grid[nr][nc]='futures_market';
         // 轉移附帶資料
         const ok=`${r},${c}`, nk=`${nr},${nc}`;
-        ['bldgUpgrades','leyaPctMods','cellMods','bombTimers','cellOverlay','tempShedMoves','logisticsVault'].forEach(dk=>{
+        ['bldgUpgrades','leyaPctMods','cellMods','bombTimers','cellOverlay','tempShedMoves','logisticsVault','futuresPct'].forEach(dk=>{
           if(G[dk]&&G[dk][ok]!==undefined){ G[dk][nk]=G[dk][ok]; delete G[dk][ok]; }
         });
-        addLog(`🏛 期貨交易所 (${r+1},${c+1})→(${nr+1},${nc+1}) 移動到新位置`,'w');
+        // 轉移並重新抽選百分比
+        if(G.futuresPct){ delete G.futuresPct[ok]; }
+        if(!G.futuresPct) G.futuresPct={};
+        G.futuresPct[nk]=Math.floor(Math.random()*21)-10;
+        addLog(`🏛 期貨交易所 (${r+1},${c+1})→(${nr+1},${nc+1}) 移動，本回合 ${G.futuresPct[nk]>=0?'+':''}${G.futuresPct[nk]}%`,'w');
       } else {
         // 沒有空格，消滅自己
         destroyFacility(r,c);
@@ -3771,6 +3788,17 @@ function startTurn(){
       }
     });
     G._futuresMoveNext=[];
+  }
+  // 期貨交易所：每回合重新抽選所有期貨的百分比
+  {
+    if(!G.futuresPct) G.futuresPct={};
+    const gn=GN();
+    for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+      if(G.grid[r][c]==='futures_market'){
+        const k=`${r},${c}`;
+        G.futuresPct[k]=Math.floor(Math.random()*21)-10;
+      }
+    }
   }
   // 場風大師：每回合重新抽方向（颱風時不覆蓋）
   if(hasPartner('wind_master')){
@@ -4152,6 +4180,12 @@ function renderGrid(){
         const bombTimer=G.bombTimers&&G.bombTimers[bombKey]!==undefined?G.bombTimers[bombKey]:3;
         h+=`<div class="cemoji">${b.emoji}</div>`;
         h+=`<div style="font-size:10px;font-weight:900;color:var(--red);line-height:1;">${bombTimer}</div>`;
+      } else if(bId==='futures_market'){
+        const fpct=G.futuresPct&&G.futuresPct[`${r},${c}`]||0;
+        const fpColor=fpct>=0?'var(--green)':'var(--red)';
+        h+=`<div class="cemoji">${b.emoji}</div>`;
+        h+=`<div style="font-size:11px;font-weight:900;color:${fpColor};line-height:1;">${fpct>=0?'+':''}${fpct}%</div>`;
+        h+=`<div class="cname">${b.name}</div>`;
       } else {
         h+=`<div class="cemoji">${b.emoji}</div>`;
         h+=`<div class="cname">${b.name}</div>`;
@@ -4932,7 +4966,7 @@ function swapCellData(r1,c1,r2,c2){
     if(!G.cellOverlay[k2]) delete G.cellOverlay[k2];
   }
   // tempShedMoves / logisticsVault
-  ['tempShedMoves','logisticsVault'].forEach(dk=>{
+  ['tempShedMoves','logisticsVault','futuresPct'].forEach(dk=>{
     if(!G[dk]) return;
     const v1=G[dk][k1], v2=G[dk][k2];
     if(v1!==undefined||v2!==undefined){ G[dk][k1]=v2; G[dk][k2]=v1; }
