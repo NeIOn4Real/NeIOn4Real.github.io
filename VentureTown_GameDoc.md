@@ -619,5 +619,21 @@ E:\VT\
 - 顯示所有合夥人卡片（正常間距），鼠標可移到面板上保持顯示
 - 200ms 延遲隱藏
 
+#### 設施改版
+- **轉運中心**：放置後彈出 4 方向選擇器（⬆️⬇️⬅️➡️），點選後變成對應物流箭頭。支援點擊和拖曳放置，ESC/點擊外部可關閉
+- **期貨交易所**（全面改版）：
+  - 接受任意資源，隨機 ±10%（向上取整，至少 ±1，最小值 1）
+  - 百分比每回合重新抽選，在格子上顯示（綠色正/紅色負）
+  - 下回合自動移動到隨機空格，無空格時消滅自己
+  - `G.futuresPct` 加入 newGame/swapCellData/earthquake/futures 移動
+- **清倉拍賣場**：商品值×4 加入收益，商品以值 1 繼續流動（不轉換成金錢）
+
+#### 最終架構驗證（第二次）
+- 匯率波動板：`Math.round` → `Math.ceil` + sign（向上取整一致性）
+- 地震 keyedData：補入 `cellMods`（人材/地皮炒家加成跟隨滑動）
+- futuresPct 資料完整性：newGame/swapCellData/earthquake/futures 移動/handler fallback 全覆蓋
+- 廢棄 `futuresLock` 全部移除
+- 轉運中心：onCell + onCellDrop 雙路徑均觸發方向選擇器
+
 #### 企劃書更新
 - `VentureTown_企劃書.xlsx`：市場事件 17→19 種、事件規則更新、新增莫菲定律權重系統與收益飛行動畫至特殊機制
