@@ -3035,13 +3035,6 @@ function finish(el,startVal){
   updateCard(el);
   render();
 
-  // Tutorial hook: step8 若玩家在使用拆遷隊前投入元素，自動跳到 step9
-  if(TUT.active && TUT.waitingFor==='use_demolition'){
-    TUT.waitingFor=null;
-    if(TUT._skipBtn){ TUT._skipBtn.remove(); TUT._skipBtn=null; }
-    document.querySelectorAll('.joker-card').forEach(c=>{c.style.outline='';c.style.animation='';});
-    setTimeout(()=>{ TUT.step=8; TUT.next(); },800);
-  }
   // Tutorial hook: step6 投入完成後，提示點擊結束回合
   if(TUT.active && TUT.step===6 && !TUT.waitingFor){
     setTimeout(()=>{
@@ -3573,6 +3566,14 @@ function doNext(){
     render();
     TUT.waitingFor = null;
     TUT.step = 6;
+    TUT.next();
+    return;
+  }
+  // Tutorial hook: step8 玩家跳過拆遷隊，直接結束回合
+  if(TUT.active && (TUT.waitingFor==='use_demolition'||TUT.waitingFor==='confirm_rearrange')){
+    TUT.waitingFor=null;
+    document.querySelectorAll('.joker-card').forEach(c=>{c.style.outline='';c.style.animation='';});
+    TUT.step=8;
     TUT.next();
     return;
   }
@@ -5298,30 +5299,14 @@ const TUT = {
     ], ()=>{
       TUT.waitingFor = 'use_demolition';
       TUT.highlightPartner('demolition');
-      // 允許跳過拆遷隊教學
-      const skipBtn=document.createElement('button');
-      skipBtn.className='abtn';
-      skipBtn.textContent='⏭ 跳過，直接開始遊戲';
-      skipBtn.style.cssText='position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:100;opacity:.7;font-size:12px;';
-      skipBtn.onclick=()=>{
-        skipBtn.remove();
-        if(TUT.waitingFor==='use_demolition'||TUT.waitingFor==='confirm_rearrange'){
-          TUT.waitingFor=null;
-          // 清除合夥人高亮
-          document.querySelectorAll('.joker-card').forEach(c=>{c.style.outline='';c.style.animation='';});
-          TUT.step=8;
-          TUT.next();
-        }
-      };
-      document.body.appendChild(skipBtn);
-      TUT._skipBtn=skipBtn;
+      // 允許結束回合跳過拆遷隊：設 phase='done' 讓按鈕可按
+      G.phase='done';
+      render();
     });
   },
 
   // ── Step 9: 最後說明，進入正式遊戲 ──
   step9(){
-    // 清除跳過按鈕（若有）
-    if(TUT._skipBtn){ TUT._skipBtn.remove(); TUT._skipBtn=null; }
     TUT.speak([
       '很棒！看到了吧？合夥人能讓你更靈活地應對各種狀況。',
       '但記得——每個合夥人都有自己的負面效果，選擇時要仔細考慮策略！',
