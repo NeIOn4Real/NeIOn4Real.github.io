@@ -905,10 +905,7 @@ const PARTNERS = {
     },
     onSettle(G, profit, el){
       if(profit<=0) return;
-      let cnt=0;
-      for(let _r=0;_r<GN();_r++) for(let _c=0;_c<GN();_c++){
-        const bid=G.grid[_r][_c]; if(bid&&BLDG[bid]&&BLDG[bid].special==='redirect') cnt++;
-      }
+      const cnt=findCells((r,c,b)=>b&&BLDG[b]&&BLDG[b].special==='redirect').length;
       if(cnt<2){
         const cut=Math.floor(profit*0.3);
         G.profit-=cut;
@@ -982,8 +979,7 @@ const PARTNERS = {
     pos:'每3個商店，商品→金錢時+5%', neg:'少於3商店時每少一個-10%收益', desc:'壟斷者',
     onSettle(G, profit, el){
       if(profit<=0) return;
-      let shopCount=0;
-      for(let _r=0;_r<GN();_r++) for(let _c=0;_c<GN();_c++) if(isShopType(G.grid[_r][_c])) shopCount++;
+      const shopCount=findCells((r,c,b)=>isShopType(b)).length;
       if(shopCount<3){
         const missing=3-shopCount;
         const cut=Math.floor(profit*missing*0.1);
@@ -1012,10 +1008,8 @@ const PARTNERS = {
     id:'chaos_architect', name:'混沌建築師', emoji:'🌀',
     pos:'每回合開始隨機移動一個設施到空格', neg:'設施被隨機移動時，玩家失去-5%收益', desc:'混沌建築師',
     onTurnStart(G){
-      const filled=[];
-      for(let r=0;r<GN();r++) for(let cc=0;cc<GN();cc++) if(isFacility(G.grid[r][cc])) filled.push([r,cc]);
-      const empties=[];
-      for(let r=0;r<GN();r++) for(let cc=0;cc<GN();cc++) if(!G.grid[r][cc]||G.grid[r][cc]==='ruin') empties.push([r,cc]);
+      const filled=findCells((r,c,b)=>isFacility(b));
+      const empties=findCells((r,c,b)=>!b||b==='ruin');
       if(filled.length&&empties.length){
         const [fr,fc]=filled[Math.floor(Math.random()*filled.length)];
         const [er,ec]=empties[Math.floor(Math.random()*empties.length)];
@@ -1146,6 +1140,8 @@ const N=4; // base grid size
 function GN(){ return (G&&G.gridSize)||N; }
 function isFacility(bId){ return bId&&bId!=='ruin'; }
 function isShopType(bId){ return bId&&BLDG[bId]&&BLDG[bId].isShop===true; }
+function eachCell(fn){ for(let r=0;r<GN();r++) for(let c=0;c<GN();c++) fn(r,c,G.grid[r][c]); }
+function findCells(pred){ const res=[]; eachCell((r,c,b)=>{ if(pred(r,c,b)) res.push([r,c]); }); return res; }
 
 // ══════════════════════════════════════
 // 事件池
@@ -1156,7 +1152,7 @@ const EVENTS=[
     show:(ev)=>{
       if(hasPartner('landlord')){
         const allFac=[];
-        for(let r=0;r<GN();r++) for(let cc=0;cc<GN();cc++) if(isFacility(G.grid[r][cc])) allFac.push({r,cc});
+        findCells((r,cc,b)=>isFacility(b)).forEach(([r,cc])=>allFac.push({r,cc}));
         const handFac=G.hand.filter(h=>h.count>0);
         if(allFac.length>0||handFac.length>0){
           addLog('🏗 大地主：設施補給觸發，必須失去一個設施','b');
@@ -2811,7 +2807,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       }
       // 壟斷者正面：每3個商店+5%
       if(hasPartner('monopolist')&&prev.type==='goods'&&nt==='money'){
-        let _sc=0; for(let _r=0;_r<GN();_r++) for(let _c2=0;_c2<GN();_c2++) if(isShopType(G.grid[_r][_c2])) _sc++;
+        let _sc=findCells((r,c,b)=>isShopType(b)).length;
         const _tiers=Math.floor(_sc/3);
         if(_tiers>0){ const _bonus=Math.ceil(nv*_tiers*0.05); nv+=_bonus; addLog(`  🎩 壟斷者：${_sc}商店（${_tiers}×3），+${_tiers*5}% +${_bonus}`,'g'); }
       }
@@ -2948,8 +2944,7 @@ function finish(el,startVal){
   });
   // 稅務局：-10%最終收益
   if(profit>0){
-    let hasTax=false;
-    for(let r=0;r<GN();r++) for(let cc=0;cc<GN();cc++) if(G.grid[r][cc]==='tax_office') hasTax=true;
+    const hasTax=findCells((r,c,b)=>b==='tax_office').length>0;
     if(hasTax){
       const cut=Math.ceil(profit*0.1);
       G.profit-=cut;
@@ -3417,11 +3412,10 @@ function startTurn(){
 
   // 稅務局：每回合開始隨機升級一個設施
   {
-    let taxCells=[];
-    for(let r=0;r<GN();r++) for(let cc=0;cc<GN();cc++) if(G.grid[r][cc]==='tax_office') taxCells.push([r,cc]);
+    const taxCells=findCells((r,c,b)=>b==='tax_office');
     if(taxCells.length>0){
       const allFilled=[];
-      for(let r=0;r<GN();r++) for(let cc=0;cc<GN();cc++) if(isFacility(G.grid[r][cc])&&G.grid[r][cc]!=='tax_office') allFilled.push([r,cc]);
+      findCells((r,c,b)=>isFacility(b)&&b!=='tax_office').forEach(p=>allFilled.push(p));
       if(allFilled.length>0){
         const [tr,tc]=allFilled[Math.floor(Math.random()*allFilled.length)];
         const key=`${tr},${tc}`;
@@ -5115,7 +5109,7 @@ const TUT = {
         if(TUT.waitingFor !== 'place_mat_factory') return;
         // 檢查玩家是否已經放置了
         let hasMatFactory = false;
-        for(let r=0;r<GN();r++) for(let cc=0;cc<GN();cc++) if(G.grid[r][cc]==='mat_factory') hasMatFactory=true;
+        if(findCells((r,c,b)=>b==='mat_factory').length>0) hasMatFactory=true;
         if(hasMatFactory){
           TUT.waitingFor = null;
           TUT.next();
