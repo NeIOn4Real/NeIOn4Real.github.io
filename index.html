@@ -837,7 +837,7 @@ const BLDG = {
   futures_market: { name:'期貨交易所',   emoji:'🏛', desc:'資源通過時隨機±10%，下回合移動到隨機空格', req:'any', out:null, fn:v=>v, special:'futures_market' },
   trade_zone:     { name:'貿易特區',     emoji:'🌏', desc:'周圍4格有商店時輸出×1.5', req:'any', out:null, fn:v=>v, special:'trade_zone' },
   clearance:      { name:'清倉拍賣場',   emoji:'🏷️', desc:'商品通過時獲得數值×4收益，商品變成1', req:'goods', out:'goods', fn:v=>v, special:'clearance' },
-  import_tax:     { name:'進出口稅站',   emoji:'🧾', desc:'扣除1金錢（從收益），本格效果×2', req:'any', out:null, fn:v=>v, special:'import_tax' },
+  import_tax:     { name:'進出口稅站',   emoji:'🧾', desc:'扣除1收益；通過4+物流中心後×2', req:'any', out:null, fn:v=>v, special:'import_tax' },
   free_market:    { name:'自由市場',     emoji:'🗽', desc:'任意資源進入，輸出金錢（當前數值）', req:'any', out:'money', fn:v=>v },
 
   // ── 拆遷流設施 ──
@@ -1396,19 +1396,19 @@ function findCells(pred){ const res=[]; eachCell((r,c,b)=>{ if(pred(r,c,b)) res.
 function findFacilityCells(){ return findCells((r,c,b)=>isFacility(b)); }
 function saveGridSnapshot(){
   G._gridSnapshot=G.grid.map(r=>[...r]);
-  G._upgradesSnapshot=JSON.parse(JSON.stringify(G.bldgUpgrades||{}));
-  G._leyaSnapshot=JSON.parse(JSON.stringify(G.leyaPctMods||{}));
-  G._cellModsSnapshot=JSON.parse(JSON.stringify(G.cellMods||{}));
+  G._keyedSnapshot={};
+  KEYED_DATA_FIELDS.forEach(dk=>{ G._keyedSnapshot[dk]=JSON.parse(JSON.stringify(G[dk]||{})); });
+  G._ruinCellsSnapshot=G.ruinCells?new Set(G.ruinCells):new Set();
 }
 function restoreGridSnapshot(){
   if(!G._gridSnapshot) return;
-  G.grid=G._gridSnapshot; G.bldgUpgrades=G._upgradesSnapshot||{};
-  G.leyaPctMods=G._leyaSnapshot||{}; G.cellMods=G._cellModsSnapshot||{};
+  G.grid=G._gridSnapshot;
+  if(G._keyedSnapshot) KEYED_DATA_FIELDS.forEach(dk=>{ G[dk]=G._keyedSnapshot[dk]||{}; });
+  if(G._ruinCellsSnapshot) G.ruinCells=G._ruinCellsSnapshot;
   deleteGridSnapshot();
 }
 function deleteGridSnapshot(){
-  delete G._gridSnapshot; delete G._upgradesSnapshot;
-  delete G._leyaSnapshot; delete G._cellModsSnapshot;
+  delete G._gridSnapshot; delete G._keyedSnapshot; delete G._ruinCellsSnapshot;
 }
 
 // ══════════════════════════════════════
@@ -2687,10 +2687,15 @@ const FACILITY_FX={
   },
   import_tax(fx){
     G.profit=Math.max(0,G.profit-1);
-    const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value*2,'進出口稅站');
-    addLog(`  🧾 進出口稅站: ×2→${nv2}（扣1收益）`);
+    const logPassed=G.inv.logSet?G.inv.logSet.size:0;
+    if(logPassed>=4){
+      const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value*2,'進出口稅站');
+      addLog(`  🧾 進出口稅站: 通過${logPassed}物流，×2→${nv2}（扣1收益）`);
+      fx.el={...fx.el,value:nv2};
+    } else {
+      addLog(`  🧾 進出口稅站: 通過${logPassed}/4物流，×2未觸發（扣1收益）`,'b');
+    }
     setTimeout(()=>profitFlyFromCell(fx.r,fx.c,-1),100);
-    fx.el={...fx.el,value:nv2};
     fx.hit();
   },
   overtime(fx){
@@ -3760,7 +3765,8 @@ function onRearrangeDrop(e,r,c){
   // 一般交換
   swapCellData(sr,sc,r,c);
   addLog(`🔧 已交換 (${sr+1},${sc+1}) ↔ (${r+1},${c+1})`,'g');
-  onFacilityMoved(r,c,sr,sc);
+  // 只有實際設施被移動時才觸發合夥人效果
+  if(isFacility(G.grid[r][c])||isFacility(G.grid[sr][sc])) onFacilityMoved(r,c,sr,sc);
   G.moveSrc=null;
   pulse(r,c); render();
 }
@@ -4095,15 +4101,16 @@ function doPermShop(){
         emoji:BLDG[bid].emoji, name:BLDG[bid].name,
         desc:BLDG[bid].desc+(afford?'':'\n⚠ 收益不足'),
         pos:free?'免費':'-'+c+' 收益', neg:'',
-        onclick:afford?`cardChooserPick(()=>{G.profit-=${c};evPick('${bid}',null);render();})`:'',
+        onclick:afford?`cardChooserPick(()=>{G.profit-=${c};addHandMaybeCompound('${bid}');addLog('🏗 購買了 ${BLDG[bid].emoji}${BLDG[bid].name}','g');G.phase='${prevPhase}';render();})`:'',
       };
     }),
-    ()=>{ G.phase=prevPhase; render(); } // 取消：回到之前狀態
+    ()=>{ G.phase=prevPhase; render(); } // 取消
   );
   G.phase='event'; render();
 }
 // ── 常駐行動：資源轉換器 ──
 function doPermConvert(){
+  if(G.phase!=='place'&&G.phase!=='done') return;
   if(!G.card||G.card.type==='money') return;
   const oldType=G.card.type, oldVal=G.card.value;
   const profit=Math.max(1,Math.floor(oldVal*0.6));
@@ -6290,7 +6297,7 @@ function deserializeGame(save){
   delete data._freeMoveLogistics; delete data._freeMoveLogisticsSrc;
   delete data._demoExpertMode; delete data._yongqingSellMode; delete data._yongqingSellUsed;
   delete data._demolitionRearrange; delete data._laborMinisterUsed;
-  delete data._gridSnapshot; delete data._upgradesSnapshot; delete data._leyaSnapshot; delete data._cellModsSnapshot;
+  delete data._gridSnapshot; delete data._keyedSnapshot; delete data._ruinCellsSnapshot;
   delete data._talentUsedOnElement; delete data._hrUsedThisTurn;
   delete data._tanyaSwapPending; delete data._tanyaSwapPool;
   G=data;
