@@ -5217,6 +5217,7 @@ function useDemolition(){
   if(!hasPartner('demolition')) return;
   if((G.demolitionCharges||0)<=0){ addLog('🔨 拆遷隊次數不足','b'); return; }
   if(G.phase!=='place'){ addLog('🔨 只能在放置階段使用','b'); return; }
+  if(G.freeRearrange){ addLog('🔨 已在排列模式中','b'); return; }
   saveGridSnapshot();
   G.freeRearrange=true; G.moveMode=false; G.moveSrc=null;
   G._demolitionRearrange = true; // 標記為拆遷隊啟動的重排
