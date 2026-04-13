@@ -286,6 +286,18 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 .act-opt-desc{font-size:9px;color:var(--mu);margin-top:2px;}
 .act-cost{color:var(--acc);font-size:10px;font-weight:700;white-space:nowrap;}
 .act-cost.free{color:var(--green);}
+/* 通用按鈕發光提示 */
+@keyframes btnGlow{0%,100%{box-shadow:0 0 4px rgba(176,96,0,.3)}50%{box-shadow:0 0 14px rgba(176,96,0,.6),0 0 24px rgba(176,96,0,.25)}}
+.btn-glow{animation:btnGlow 1.2s ease-in-out infinite;border-color:var(--acc)!important;}
+/* 常駐按鈕 */
+.perm-btn{
+  display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;
+  border:1.5px solid var(--br2);background:var(--sur);cursor:pointer;
+  font-family:'Noto Sans TC',sans-serif;font-size:10px;font-weight:700;color:var(--tx);
+  transition:box-shadow .2s,border-color .2s;
+}
+.perm-btn:hover:not(.perm-disabled){border-color:var(--acc);box-shadow:0 0 8px rgba(176,96,0,.2);}
+.perm-btn.perm-disabled{opacity:.4;cursor:not-allowed;}
 .cell.upgrade-glow{
   border-color:var(--money)!important;
   box-shadow:0 0 0 2px rgba(176,96,0,.3), 0 0 10px rgba(176,96,0,.2);
@@ -735,6 +747,10 @@ body { padding-bottom: 150px; }
     <div id="el-profit" style="font-size:15px;font-weight:700;color:var(--money);">—</div>
     <div class="pt" style="margin-top:8px;">回合記錄</div>
     <div id="side-log" style="max-height:260px;overflow-y:auto;"></div>
+    <div id="perm-btns" style="display:flex;gap:6px;margin-top:8px;">
+      <button id="btn-perm-shop" class="perm-btn" onclick="doPermShop()">🏗 商店</button>
+      <button id="btn-perm-convert" class="perm-btn perm-disabled" onclick="doPermConvert()">🔄 轉換收益</button>
+    </div>
     <div style="margin-top:8px;"></div>
     <button class="abtn" id="btn-next" onclick="doNext()" disabled>⏩ 結束回合</button>
   </div>
@@ -752,17 +768,6 @@ body { padding-bottom: 150px; }
   <div style="position:absolute;inset:0;pointer-events:auto;"></div>
   <div style="position:relative;z-index:1;font-size:11px;font-weight:700;color:var(--tx);letter-spacing:.5px;opacity:.7;pointer-events:none;">⚡ 本回合行動（選一）</div>
   <div id="action-cards" style="position:relative;z-index:1;display:flex;gap:16px;justify-content:center;pointer-events:auto;"></div>
-  <div id="perm-actions-row" style="position:relative;z-index:1;display:flex;gap:10px;justify-content:center;pointer-events:auto;margin-top:2px;">
-    <div style="font-size:9px;font-weight:700;color:var(--mu);opacity:.6;align-self:center;">常駐</div>
-    <div id="perm-action-shop" class="acard" style="padding:6px 10px;min-width:0;width:auto;cursor:pointer;" onclick="doPermShop()">
-      <div class="acard-label" style="font-size:10px;">🏗 購買設施</div>
-      <div id="perm-shop-cost" class="acard-cost" style="font-size:9px;"></div>
-    </div>
-    <div id="perm-action-convert" class="acard" style="padding:6px 10px;min-width:0;width:auto;cursor:pointer;" onclick="doPermConvert()">
-      <div class="acard-label" style="font-size:10px;">🔄 資源轉換</div>
-      <div class="acard-desc" style="font-size:8px;">非金錢資源→60%收益</div>
-    </div>
-  </div>
   <button onclick="closeActionOverlay()" style="position:relative;z-index:1;pointer-events:auto;padding:5px 20px;border-radius:99px;border:1px solid var(--br2);
     background:var(--bg2);color:var(--mu);font-size:10px;cursor:pointer;
     font-family:'Noto Sans TC',sans-serif;">✕ 放棄選擇</button>
@@ -902,6 +907,7 @@ const PARTNERS = {
     neg:'放棄選擇時，1/3機率資源變成1',
     desc:'怠惰惡魔',
     onSkipAction(G){
+      if(!G.card) return;
       const roll = Math.random();
       if(roll < 2/3){
         G.card.value += 10;
@@ -1368,15 +1374,16 @@ function isFacility(bId){ return bId&&bId!=='ruin'; }
 function isShopType(bId){ return bId&&BLDG[bId]&&BLDG[bId].isShop===true; }
 const BASIC_FACILITIES=['mat_factory','factory','shop','refinery','warehouse','booster','converter'];
 const LOGISTICS_DIRS=['logistics_up','logistics_down','logistics_left','logistics_right'];
+let _safetyNetRoll=false; // 本回合安全網是否已判定
 function checkSafetyNet(){
-  // 連續3回合零收益，且觸發<4次，機率隨使用遞減：100%/75%/50%/25%
+  // 每回合只判定一次，多處呼叫共用結果
+  if(_safetyNetRoll!==false) return _safetyNetRoll;
   const z=G._zeroProfitTurns||0, used=G._safetyNetUsed||0;
-  if(z<3||used>=4) return false;
+  if(z<3||used>=4){ _safetyNetRoll=false; return false; }
   const chance=[1,0.75,0.5,0.25][used]||0;
-  if(Math.random()>=chance) return false;
-  G._safetyNetUsed=used+1;
-  G._zeroProfitTurns=0; // 觸發後重置
-  return true;
+  _safetyNetRoll=Math.random()<chance;
+  if(_safetyNetRoll){ G._safetyNetUsed=used+1; G._zeroProfitTurns=0; }
+  return _safetyNetRoll;
 }
 function rollWindDir(){
   const dirs=['left','right','top','bottom'];
@@ -2018,6 +2025,9 @@ function showEv(title,desc,optsHtml){
   document.getElementById('ev-desc').textContent=desc;
   document.getElementById('ev-opts').innerHTML=optsHtml;
   document.getElementById('ev-banner').classList.add('show');
+  // 確認按鈕發光提示
+  const confirmBtn=document.querySelector('#ev-opts .eopt.pri');
+  if(confirmBtn) confirmBtn.classList.add('btn-glow');
   DM.onEvent(title);
 }
 function hideEv(){
@@ -3795,6 +3805,7 @@ function startTurn(){
   if(G.turnFacMoved===0&&G.turn>1) G._murphyTrack.noMove++;
   else G._murphyTrack.noMove=0;
   G.turnFacMoved = 0; // 動態加強器用：本回合設施移動計數（重置放在檢查之後）
+  _safetyNetRoll = false; // 重置安全網判定
   // 合夥人每回合開始效果
   G.partners.forEach(pid=>{
     const p=PARTNERS[pid];
@@ -4048,28 +4059,21 @@ function doNext(){
   startTurn();
 }
 
-// ── 常駐行動：購買設施 ──
+// ── 常駐行動：購買設施（商店） ──
 function getPermShopCost(){
-  // 基礎cost 5 (比 buy_fac 的 4 高), scaled by round
-  const base=5;
-  return scaledCost(base);
+  return scaledCost(5); // 基礎 5，隨輪數遞增
 }
 function isPermShopFree(){
-  const handFacs=G.hand.filter(h=>h.count>0&&!h.compound&&BLDG[h.id]).length
-    +G.hand.filter(h=>h.count>0&&h.compound).length;
+  const handFacs=G.hand.filter(h=>h.count>0).length;
   if(handFacs>0) return false;
-  const gn=GN(), total=gn*gn;
-  const filled=findFacilityCells().length;
-  return filled<total/2;
+  return findFacilityCells().length < GN()*GN()/2;
 }
 function doPermShop(){
-  const cost=isPermShopFree()?0:getPermShopCost();
-  if(G.profit<cost){ addLog(`⚠ 收益不足（需要 ${cost}，現有 ${G.profit}）`,'b'); return; }
-  G.profit-=cost;
+  if(G.phase!=='place'&&G.phase!=='done') return;
   // 基礎設施池 + 1 隨機物流方向
   let pool=[...BASIC_FACILITIES];
   pool.push(LOGISTICS_DIRS[Math.floor(Math.random()*LOGISTICS_DIRS.length)]);
-  // 有機率額外出現一個非基礎設施
+  // 35% 機率額外出現一個非基礎設施
   if(Math.random()<0.35){
     const nonBasic=Object.keys(BLDG).filter(id=>
       !BASIC_FACILITIES.includes(id)&&!LOGISTICS_DIRS.includes(id)&&
@@ -4078,37 +4082,50 @@ function doPermShop(){
     );
     if(nonBasic.length) pool.push(nonBasic[Math.floor(Math.random()*nonBasic.length)]);
   }
-  // 從池中隨機取 3 個不重複
   const shuffled=[...new Set(pool)].sort(()=>Math.random()-.5).slice(0,3);
-  const refund=cost;
-  document.getElementById('action-chooser').style.display='none';
+  const free=isPermShopFree();
+  const cost=free?0:getPermShopCost();
+  const prevPhase=G.phase;
   showCardChooser(
-    '🏗 選擇一個設施加入手牌',
-    shuffled.map(bid=>({
-      emoji:BLDG[bid].emoji, name:BLDG[bid].name,
-      desc:BLDG[bid].desc, pos:'', neg:'',
-      onclick:`cardChooserPick(()=>{evPick('${bid}',null)})`
-    })),
-    ()=>{G.profit+=refund; G.actionOptions=[]; G.phase='place'; render();}
+    `🏗 商店${free?' （免費）':''}`,
+    shuffled.map(bid=>{
+      const c=free?0:cost;
+      const afford=G.profit>=c;
+      return {
+        emoji:BLDG[bid].emoji, name:BLDG[bid].name,
+        desc:BLDG[bid].desc+(afford?'':'\n⚠ 收益不足'),
+        pos:free?'免費':'-'+c+' 收益', neg:'',
+        onclick:afford?`cardChooserPick(()=>{G.profit-=${c};evPick('${bid}',null);render();})`:'',
+      };
+    }),
+    ()=>{ G.phase=prevPhase; render(); } // 取消：回到之前狀態
   );
-  G.actionOptions=[];
   G.phase='event'; render();
 }
 // ── 常駐行動：資源轉換器 ──
 function doPermConvert(){
-  if(!G.card||G.card.type==='money'){
-    addLog('🔄 資源轉換器：目前資源已是金錢，無需轉換','b'); return;
-  }
+  if(!G.card||G.card.type==='money') return;
   const oldType=G.card.type, oldVal=G.card.value;
   const profit=Math.max(1,Math.floor(oldVal*0.6));
   G.profit+=profit;
   G.card={value:1,type:'money'};
   updateCard(G.card);
-  addLog(`🔄 資源轉換器：${TLABEL[oldType]}${oldVal} → +${profit} 收益`,'g');
-  document.getElementById('action-chooser').style.display='none';
-  G.actionOptions=[];
-  G.phase='place'; render();
-  profitFlyFrom(document.getElementById('perm-action-convert'),profit);
+  addLog(`🔄 資源轉換：${TLABEL[oldType]}${oldVal} → +${profit} 收益`,'g');
+  render();
+  profitFlyFrom(document.getElementById('btn-perm-convert'),profit);
+}
+// 更新常駐按鈕狀態
+function updatePermBtns(){
+  const shopBtn=document.getElementById('btn-perm-shop');
+  const convBtn=document.getElementById('btn-perm-convert');
+  if(!shopBtn||!convBtn) return;
+  const inGame=G.phase==='place'||G.phase==='done';
+  // 商店：place/done 階段可用
+  shopBtn.classList.toggle('perm-disabled',!inGame||TUT.active);
+  // 轉換器：只有輸出非金錢時才亮
+  const canConv=inGame&&G.card&&G.card.type!=='money'&&!TUT.active;
+  convBtn.classList.toggle('perm-disabled',!canConv);
+  convBtn.classList.toggle('btn-glow',!!canConv);
 }
 
 function openActionOverlay(){
@@ -4129,30 +4146,10 @@ function openActionOverlay(){
   }).join('');
   // Hide skip button if player can afford options (must choose) — sloth demon always allows skip
   const skipBtn=chooser.querySelector('button[onclick="closeActionOverlay()"]');
-  if(skipBtn) skipBtn.style.display=(canAffordAny&&!hasPartner('sloth'))?'none':'block';
-  // 教學中隱藏常駐行動
-  const permRow=document.getElementById('perm-actions-row');
-  if(permRow) permRow.style.display=TUT.active?'none':'flex';
-  // 更新常駐購買設施費用
-  const permShopEl=document.getElementById('perm-action-shop');
-  const permShopCostEl=document.getElementById('perm-shop-cost');
-  if(permShopEl&&permShopCostEl){
-    const free=isPermShopFree();
-    const sc=free?0:getPermShopCost();
-    const canBuy=G.profit>=sc;
-    permShopCostEl.textContent=free?'免費':'-'+sc+' 收益';
-    permShopCostEl.className='acard-cost'+(free?' free':'');
-    permShopEl.classList.toggle('acard-disabled',!canBuy);
-    permShopEl.style.cursor=canBuy?'pointer':'not-allowed';
-    permShopEl.onclick=canBuy?doPermShop:null;
-  }
-  // 更新常駐資源轉換器狀態
-  const permConvEl=document.getElementById('perm-action-convert');
-  if(permConvEl){
-    const canConv=G.card&&G.card.type!=='money';
-    permConvEl.classList.toggle('acard-disabled',!canConv);
-    permConvEl.style.cursor=canConv?'pointer':'not-allowed';
-    permConvEl.onclick=canConv?doPermConvert:null;
+  const showSkip=!canAffordAny||hasPartner('sloth');
+  if(skipBtn){
+    skipBtn.style.display=showSkip?'block':'none';
+    skipBtn.classList.toggle('btn-glow',!canAffordAny&&showSkip);
   }
   chooser.style.display='flex';
 }
@@ -4230,8 +4227,7 @@ function render(){
   }
 
   document.getElementById('btn-next').disabled=G.phase!=='done';
-
-  // 行動選項按鈕（右側面板，點擊開啟卡牌 overlay）
+  updatePermBtns();
 
   renderGrid();
   renderHand();
