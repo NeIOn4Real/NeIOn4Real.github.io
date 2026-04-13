@@ -239,6 +239,34 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   filter:drop-shadow(0 4px 24px rgba(0,0,0,.7));
 }
 .murphy-shaking{ animation:murphyShake .5s ease-in-out 3; }
+/* 大熱波全屏特效 */
+#heatwave-overlay{
+  position:fixed;inset:0;z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(30,0,0,.8);
+  pointer-events:auto;cursor:pointer;
+}
+#heatwave-overlay .hw-explosion{
+  font-size:120px;position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%) scale(0);
+  animation:hwBoom .8s ease-out forwards;z-index:2;
+}
+@keyframes hwBoom{0%{transform:translate(-50%,-50%) scale(0);opacity:1}40%{transform:translate(-50%,-50%) scale(3);opacity:1}100%{transform:translate(-50%,-50%) scale(4);opacity:0}}
+#heatwave-overlay .hw-text{
+  color:#ff4444;font-size:22px;font-weight:900;text-align:center;
+  text-shadow:0 2px 16px rgba(255,0,0,.7);
+  z-index:3;animation:murphyFadeIn .6s ease-out .5s both;
+}
+#heatwave-overlay .hw-chars{
+  display:flex;align-items:flex-start;justify-content:center;
+  width:80vw;max-width:700px;height:calc(100vh - 120px);overflow:hidden;
+  margin-top:-20px;z-index:1;animation:murphyFadeIn .8s ease-out .3s both;
+}
+#heatwave-overlay .hw-chars img{
+  width:100%;height:100%;
+  object-fit:cover;object-position:top center;
+  filter:drop-shadow(0 4px 24px rgba(255,0,0,.5));
+}
 /* 人材發光提示 */
 /* 擁慶記房屋賣出模式：設施發抖 */
 @keyframes sellShake{
@@ -1429,26 +1457,29 @@ function checkHeatwave(){
 
   if(!target) return;
 
-  // 炸彈特效 + 對話
   const [tr,tc]=target;
   const tBldg=BLDG[G.grid[tr][tc]];
   addLog(`🔥 大熱波：${tBldg?tBldg.emoji+tBldg.name:'設施'} (${tr+1},${tc+1}) 被炸毀！`,'b');
-  DM.show('地獄之城沒有活著的傳奇。', 5000, 4);
 
-  // 炸彈動畫
-  const cellEl=document.querySelector(`[data-r="${tr}"][data-c="${tc}"]`);
-  if(cellEl){
-    const bomb=document.createElement('div');
-    bomb.textContent='💥';
-    bomb.style.cssText=`position:absolute;font-size:48px;z-index:500;
-      top:50%;left:50%;transform:translate(-50%,-50%) scale(0);
-      animation:hwBomb .6s ease-out forwards;pointer-events:none;`;
-    cellEl.style.position='relative';
-    cellEl.appendChild(bomb);
-    setTimeout(()=>bomb.remove(),800);
-  }
-  // 消滅設施
-  setTimeout(()=>{ destroyFacility(tr,tc); render(); },400);
+  // 全屏爆炸特效 + 角色立繪（參照莫菲定律演出）
+  document.getElementById('main').classList.add('murphy-shaking');
+  const charTray=document.getElementById('char-tray');
+  if(charTray) charTray.style.display='none';
+  const overlay=document.createElement('div');
+  overlay.id='heatwave-overlay';
+  overlay.innerHTML=`
+    <div class="hw-explosion">💥</div>
+    <div class="hw-text">地獄之城沒有活著的傳奇。</div>
+    <div class="hw-chars"><img src="img/C_4.png" alt="角色"></div>
+  `;
+  overlay.onclick=()=>{
+    overlay.remove();
+    document.getElementById('main').classList.remove('murphy-shaking');
+    if(charTray) charTray.style.display='';
+    destroyFacility(tr,tc); render();
+  };
+  document.body.appendChild(overlay);
+  setTimeout(()=>{ if(document.getElementById('heatwave-overlay')) overlay.click(); },5000);
 }
 function rollWindDir(){
   const dirs=['left','right','top','bottom'];
