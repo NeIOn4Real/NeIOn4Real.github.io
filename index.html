@@ -288,6 +288,7 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 .act-cost.free{color:var(--green);}
 /* 通用按鈕發光提示 */
 @keyframes btnGlow{0%,100%{box-shadow:0 0 4px rgba(176,96,0,.3)}50%{box-shadow:0 0 14px rgba(176,96,0,.6),0 0 24px rgba(176,96,0,.25)}}
+@keyframes hwBomb{0%{transform:translate(-50%,-50%) scale(0);opacity:1}60%{transform:translate(-50%,-50%) scale(2);opacity:1}100%{transform:translate(-50%,-50%) scale(2.5);opacity:0}}
 .btn-glow{animation:btnGlow 1.2s ease-in-out infinite;border-color:var(--acc)!important;}
 /* 常駐按鈕 */
 .perm-btn{
@@ -1385,6 +1386,70 @@ function checkSafetyNet(){
   if(_safetyNetRoll){ G._safetyNetUsed=used+1; G._zeroProfitTurns=0; }
   return _safetyNetRoll;
 }
+// ── 大熱波懲罰機制 ──
+function checkHeatwave(turnProfit){
+  if(TUT.active) return;
+  if(!G._heatwave) G._heatwave={pathHistory:[], facProfits:{}, samePathCount:0, lastPath:''};
+  const hw=G._heatwave;
+  // 更新設施收益追蹤
+  if(G.inv.facProfitMap) Object.entries(G.inv.facProfitMap).forEach(([k,v])=>{ hw.facProfits[k]=(hw.facProfits[k]||0)+v; });
+  // 更新路徑歷史（方向+設施序列）
+  const pathKey=(G.inv.sendDir||'')+'|'+(G.inv.facPath||[]).join(',');
+  if(pathKey===hw.lastPath) hw.samePathCount++;
+  else { hw.samePathCount=1; hw.lastPath=pathKey; }
+
+  // 條件1：連續3輪且每輪都1回合達標
+  const rh=G.roundHistory||[];
+  const cond1=rh.length>=3&&rh.slice(-3).every(r=>r.turnsUsed<=1);
+  // 條件2：本次投入經過設施<4個
+  const cond2=(G.inv.facHit||0)<4;
+  // 條件3：有設施的累積收益>當輪目標的150%
+  const threshold=G.goal*1.5;
+  const cond3=Object.values(hw.facProfits).some(v=>v>threshold);
+  // 條件4：連續5回合相同方向+相同設施+相同順序
+  const cond4=hw.samePathCount>=5;
+
+  if(!(cond1&&cond2&&cond3&&cond4)) return;
+
+  // 觸發大熱波！重置追蹤
+  hw.facProfits={}; hw.samePathCount=0; hw.lastPath='';
+
+  // 選擇炸毀目標：收益最高的設施 或 重複路徑上的設施
+  let target=null, targetKey='';
+  // 優先：收益最高的設施（在場上的）
+  let bestVal=0;
+  const pathFacs=(G.inv.facPath||[]);
+  eachCell((r,c,b)=>{
+    if(!isFacility(b)) return;
+    // 計算設施效率：在路徑中出現且有收益
+    const profitContrib=G.inv.facProfitMap&&G.inv.facProfitMap[b]||0;
+    const inPath=pathFacs.includes(b);
+    const score=profitContrib+(inPath?50:0);
+    if(score>bestVal){ bestVal=score; target=[r,c]; targetKey=`${r},${c}`; }
+  });
+  if(!target) return;
+
+  // 炸彈特效 + 對話
+  const [tr,tc]=target;
+  const tBldg=BLDG[G.grid[tr][tc]];
+  addLog(`🔥 大熱波：${tBldg?tBldg.emoji+tBldg.name:'設施'} (${tr+1},${tc+1}) 被炸毀！`,'b');
+  DM.show('地獄之城沒有活著的傳奇。', 5000, 4);
+
+  // 炸彈動畫
+  const cellEl=document.querySelector(`[data-r="${tr}"][data-c="${tc}"]`);
+  if(cellEl){
+    const bomb=document.createElement('div');
+    bomb.textContent='💥';
+    bomb.style.cssText=`position:absolute;font-size:48px;z-index:500;
+      top:50%;left:50%;transform:translate(-50%,-50%) scale(0);
+      animation:hwBomb .6s ease-out forwards;pointer-events:none;`;
+    cellEl.style.position='relative';
+    cellEl.appendChild(bomb);
+    setTimeout(()=>bomb.remove(),800);
+  }
+  // 消滅設施
+  setTimeout(()=>{ destroyFacility(tr,tc); render(); },400);
+}
 function rollWindDir(){
   const dirs=['left','right','top','bottom'];
   const labels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
@@ -1857,6 +1922,7 @@ function newGame(){
     _zeroProfitTurns:0,  // 連續零收益回合數（安全網機制）
     _safetyNetUsed:0,   // 安全網觸發次數（最多4次）
     _goalReachedTurn:0,  // 本輪首次達標的回合數（0=尚未達標）
+    _heatwave:{pathHistory:[], facProfits:{}, samePathCount:0, lastPath:''}, // 大熱波追蹤
     turnLog:[],         // 本回合 log
     turnLogHistory:[]   // 最近3回合 log
   };
@@ -1876,6 +1942,8 @@ function startRound(){
     pickNextEvent();
   }
   pickActionOptions();
+  // 大熱波：每輪重置設施收益追蹤
+  if(G._heatwave) G._heatwave.facProfits={};
   // partner round start effects
   G.partners.forEach(pid=>{
     const p=PARTNERS[pid];
@@ -2501,7 +2569,8 @@ function sendEl(dir,idx){
   G.inv={facHit:0, logSet:new Set(), envyPen:false, cenHits:0, logHits:0,
     speedAct:false, ampAct:false, fxM2G:false, fxG2M:false, arbM2G:false, arbG2M:false,
     windOK:hasPartner('wind_master')&&!!G.windDir, hwCenter:false, exchBoard:false,
-    clearanceBonus:0, clearanceCells:[]};
+    clearanceBonus:0, clearanceCells:[],
+    facPath:[], facProfitMap:{}, sendDir:dir};
   const startVal=startCard.value;
   const startType=startCard.type;
   let el={value:startVal,type:startType};
@@ -3106,6 +3175,8 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       // 暴食惡魔：若匹配是因為互換，則視為互換類型進入
       if(hasPartner('gluttony')&&b.req===effType&&b.req!==el.type) el={...el,type:effType};
       G.inv.facHit=(G.inv.facHit||0)+1;
+      if(G.inv.facPath) G.inv.facPath.push(bId);
+      const _prevVal=el.value; // 大熱波：記錄轉換前數值
       if(isCenterCell(r,c)){ G.inv.cenHits=(G.inv.cenHits||0)+1; G.inv.hwCenter=true; }
       const prev={...el};
       const modKey=`${r},${c}`;
@@ -3253,6 +3324,8 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       if(G.buff.goodsBonus&&prev.type==='goods'&&nt==='money') calcParts.push(`熱銷+${G.buff.goodsBonus}`);
       const calcStr=calcParts.length?`（${calcParts.join('，')}）`:'';
       addLog(`  ${b.emoji}${b.name}: ${TLABEL[prev.type]}${prev.value}→${TLABEL[el.type]}${el.value}${calcStr}`);
+      // 大熱波：記錄設施轉換增益
+      if(G.inv.facProfitMap){ const gain=el.value-_prevVal; if(gain>0) G.inv.facProfitMap[bId]=(G.inv.facProfitMap[bId]||0)+gain; }
       updateCard(el);
       setTimeout(()=>{ updateMover(el); _next(); },350);
       return;
@@ -3408,6 +3481,9 @@ function finish(el,startVal){
     render();
     return;
   }
+  // ── 大熱波追蹤與檢查 ──
+  checkHeatwave(totalTurnProfit);
+
   G.phase='done';
   updateCard(el);
   render();
