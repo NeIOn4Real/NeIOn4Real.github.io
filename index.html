@@ -253,10 +253,10 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 }
 @keyframes hwBoom{0%{transform:translate(-50%,-50%) scale(0);opacity:1}40%{transform:translate(-50%,-50%) scale(3);opacity:1}100%{transform:translate(-50%,-50%) scale(4);opacity:0}}
 /* 疊加設施輪播 */
-.ov-rotate{font-size:24px;line-height:1;position:relative;}
+.ov-rotate{font-size:24px;line-height:1;position:relative;width:32px;height:32px;}
 .ov-rotate .ov-a,.ov-rotate .ov-b{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);animation:ovSwap 3s ease-in-out infinite;}
-.ov-rotate .ov-b{animation-delay:1.5s;opacity:0;}
-@keyframes ovSwap{0%,40%{opacity:1}45%,95%{opacity:0}100%{opacity:1}}
+.ov-rotate .ov-b{animation-delay:1.5s;animation-fill-mode:backwards;}
+@keyframes ovSwap{0%,40%{opacity:1}50%,90%{opacity:0}100%{opacity:1}}
 #heatwave-overlay .hw-text{
   color:#ff4444;font-size:22px;font-weight:900;text-align:center;
   text-shadow:0 2px 16px rgba(255,0,0,.7);
@@ -3200,12 +3200,16 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
 
       // 物流之王：執行所有疊加設施效果，再轉向
       const ovList=getOverlays(r,c);
+      let _ovUpgApplied=false;
       ovList.forEach(ovId=>{
         const ob=BLDG[ovId];
         if(!ob) return;
         if(ob.req==='any'||ob.req===el.type){
           const ov_prev={...el};
-          const ov_nv=ob.fn(el.value)+(G.bldgUpgrades?.[`${r},${c}`]||0);
+          // 升級加成只套用一次（屬於格子，非每個 overlay 各一份）
+          const ovUpg=_ovUpgApplied?0:(G.bldgUpgrades?.[`${r},${c}`]||0);
+          _ovUpgApplied=true;
+          const ov_nv=ob.fn(el.value)+ovUpg;
           const ov_nt=ob.out||el.type;
           el={value:ov_nv,type:ov_nt};
           addLog(`  🚛 疊加 ${ob.emoji}${ob.name}: ${TLABEL[ov_prev.type]}${ov_prev.value} → ${TLABEL[el.type]}${el.value}`);
@@ -5468,6 +5472,7 @@ function destroyFacility(r, c){
           G.ruinCells.add(ck);
           delete G.bldgUpgrades[ck];
           delete G.leyaPctMods[ck];
+          if(G.cellOverlay) delete G.cellOverlay[ck];
         }
         if(G.deptStoreParts) delete G.deptStoreParts[ck];
       }
@@ -5487,9 +5492,10 @@ function destroyFacility(r, c){
     addLog(`💣 設施破壞者：${BLDG[bId].name}被消滅，+50收益！`,'g');
     setTimeout(()=>profitFlyFromPartner('facility_destroyer',50),100);
   }
-  // Clear upgrades for that cell
+  // Clear upgrades and overlay for that cell
   if(G.bldgUpgrades) delete G.bldgUpgrades[`${r},${c}`];
   if(G.leyaPctMods) delete G.leyaPctMods[`${r},${c}`];
+  if(G.cellOverlay) delete G.cellOverlay[`${r},${c}`];
   // 廢墟紀念碑消滅後還原為空格，不變成廢墟
   if(bId==='ruin_monument'){
     G.grid[r][c]=null;
