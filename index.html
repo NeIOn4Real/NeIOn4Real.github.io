@@ -1431,53 +1431,19 @@ function checkSafetyNet(){
   return _safetyNetRoll;
 }
 // ── 大熱波懲罰機制 ──
-function checkHeatwave(){
-  if(TUT.active) return;
-  if(!G._heatwave) G._heatwave={facProfits:{}, samePathCount:0, lastPath:''};
-  const hw=G._heatwave;
-  // 更新設施收益追蹤
-  if(G.inv.facProfitMap) Object.entries(G.inv.facProfitMap).forEach(([k,v])=>{ hw.facProfits[k]=(hw.facProfits[k]||0)+v; });
-  // 更新路徑歷史（方向+設施序列）
-  const pathKey=(G.inv.sendDir||'')+'|'+(G.inv.facPath||[]).join(',');
-  if(pathKey===hw.lastPath) hw.samePathCount++;
-  else { hw.samePathCount=1; hw.lastPath=pathKey; }
-
-  // 條件1：連續3輪且每輪都1回合達標
-  const rh=G.roundHistory||[];
-  const cond1=rh.length>=3&&rh.slice(-3).every(r=>r.turnsUsed<=1);
-  // 條件2：本次投入經過設施<4個
-  const cond2=(G.inv.facHit||0)<4;
-  // 條件3：有設施的累積收益>當輪目標的150%
-  const threshold=G.goal*1.5;
-  const cond3=Object.values(hw.facProfits).some(v=>v>threshold);
-  // 條件4：連續5回合相同方向+相同設施+相同順序
-  const cond4=hw.samePathCount>=5;
-
-  if(!(cond1&&cond2&&cond3&&cond4)) return;
-
-  // 選擇炸毀目標：累積收益最高 + 在當前路徑上的設施
-  let target=null;
-  let bestVal=0;
-  const pathFacs=(G.inv.facPath||[]);
-  eachCell((r,c,b)=>{
-    if(!isFacility(b)) return;
-    const cumProfit=hw.facProfits[b]||0;
-    const turnProfit=G.inv.facProfitMap&&G.inv.facProfitMap[b]||0;
-    const inPath=pathFacs.includes(b);
-    const score=cumProfit+turnProfit+(inPath?50:0);
-    if(score>bestVal){ bestVal=score; target=[r,c]; }
-  });
-
-  // 觸發大熱波！重置追蹤
-  hw.facProfits={}; hw.samePathCount=0; hw.lastPath='';
-
-  if(!target) return;
-
+function triggerHeatwave(target){
   const [tr,tc]=target;
   const tBldg=BLDG[G.grid[tr][tc]];
   addLog(`🔥 大熱波：${tBldg?tBldg.emoji+tBldg.name:'設施'} (${tr+1},${tc+1}) 被炸毀！`,'b');
-
-  // 全屏爆炸特效 + 角色立繪（參照莫菲定律演出）
+  // 手牌資源削減：1% ÷ (已過輪數的一半)
+  if(G.card&&G.card.value>1){
+    const divisor=Math.max(1,Math.floor(G.round/2));
+    const newVal=Math.max(1,Math.ceil(G.card.value*0.01/divisor));
+    addLog(`🔥 大熱波：資源 ${G.card.value} → ${newVal}`,'b');
+    G.card.value=newVal;
+    updateCard(G.card);
+  }
+  // 全屏爆炸特效
   document.getElementById('main').classList.add('murphy-shaking');
   const charTray=document.getElementById('char-tray');
   if(charTray) charTray.style.display='none';
@@ -1496,6 +1462,49 @@ function checkHeatwave(){
   };
   document.body.appendChild(overlay);
   setTimeout(()=>{ if(document.getElementById('heatwave-overlay')) overlay.click(); },5000);
+}
+function findHeatwaveTarget(){
+  let target=null, bestVal=0;
+  const pathFacs=(G.inv.facPath||[]);
+  const hw=G._heatwave||{facProfits:{}};
+  eachCell((r,c,b)=>{
+    if(!isFacility(b)) return;
+    const cumProfit=hw.facProfits[b]||0;
+    const turnProfit=G.inv.facProfitMap&&G.inv.facProfitMap[b]||0;
+    const inPath=pathFacs.includes(b);
+    const score=cumProfit+turnProfit+(inPath?50:0);
+    if(score>bestVal){ bestVal=score; target=[r,c]; }
+  });
+  return target;
+}
+function checkHeatwave(){
+  if(TUT.active) return;
+  if(!G._heatwave) G._heatwave={facProfits:{}, samePathCount:0, lastPath:''};
+  const hw=G._heatwave;
+  // 更新設施收益追蹤
+  if(G.inv.facProfitMap) Object.entries(G.inv.facProfitMap).forEach(([k,v])=>{ hw.facProfits[k]=(hw.facProfits[k]||0)+v; });
+  // 更新路徑歷史（方向+設施序列）
+  const pathKey=(G.inv.sendDir||'')+'|'+(G.inv.facPath||[]).join(',');
+  if(pathKey===hw.lastPath) hw.samePathCount++;
+  else { hw.samePathCount=1; hw.lastPath=pathKey; }
+
+  // 觸發方式A：收益超過目標100倍
+  if(G.profit>=G.goal*100){
+    const t=findHeatwaveTarget();
+    if(t){ hw.facProfits={}; hw.samePathCount=0; hw.lastPath=''; triggerHeatwave(t); return; }
+  }
+
+  // 觸發方式B：4條件全滿足
+  const rh=G.roundHistory||[];
+  const cond1=rh.length>=3&&rh.slice(-3).every(r=>r.turnsUsed<=1);
+  const cond2=(G.inv.facHit||0)<4;
+  const cond3=Object.values(hw.facProfits).some(v=>v>G.goal*1.5);
+  const cond4=hw.samePathCount>=5;
+  if(!(cond1&&cond2&&cond3&&cond4)) return;
+
+  const t=findHeatwaveTarget();
+  hw.facProfits={}; hw.samePathCount=0; hw.lastPath='';
+  if(t) triggerHeatwave(t);
 }
 function rollWindDir(){
   const dirs=['left','right','top','bottom'];
@@ -6768,7 +6777,7 @@ const DEV={
       <div class="dev-row" title="將收益設為等於目標，之後結束回合即過關" onclick="G.profit=G.goal;render();"><span class="de">🏆</span><span class="dn">收益=目標（過關）</span></div>
       <div class="dev-row" title="增加10回合上限" onclick="G.maxTurns+=10;addLog('DEV：+10回合（共'+G.maxTurns+'）');render();"><span class="de">⏱️</span><span class="dn">+10 回合</span></div>
       <div class="dev-row" title="獲得1張廢墟卡（放置後變成廢墟）" onclick="addHand('ruin');renderFanHand();render();"><span class="de">🏚️</span><span class="dn">獲得廢墟卡</span></div>
-      <div class="dev-row" title="強制觸發大熱波懲罰（炸毀收益最高的設施）" onclick="G._heatwave={facProfits:{},samePathCount:0,lastPath:''};G.roundHistory=[{round:1,turnsUsed:1,goal:30,profit:100},{round:2,turnsUsed:1,goal:60,profit:200},{round:3,turnsUsed:1,goal:120,profit:400}];G.inv.facHit=1;G.inv.facPath=['shop'];G.inv.facProfitMap={shop:999};G.inv.sendDir='left';G._heatwave.samePathCount=5;G._heatwave.lastPath='left|shop';G._heatwave.facProfits={shop:G.goal*2};checkHeatwave();render();"><span class="de">🔥</span><span class="dn">觸發大熱波</span></div>
+      <div class="dev-row" title="強制觸發大熱波懲罰（炸毀收益最高的設施+削減資源）" onclick="const t=findHeatwaveTarget();if(t)triggerHeatwave(t);else addLog('DEV：沒有可炸毀的設施','b');"><span class="de">🔥</span><span class="dn">觸發大熱波</span></div>
     </div>`;
 
     panel.innerHTML=h;
