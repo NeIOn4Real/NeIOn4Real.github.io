@@ -4527,7 +4527,7 @@ function renderGrid(){
     const leyaPct=G.leyaPctMods?G.leyaPctMods[`${r},${c}`]||0:0;
     const moveSrcHi=(G.moveMode||G.freeRearrange)&&G.moveSrc&&G.moveSrc[0]===r&&G.moveSrc[1]===c?' move-src':'';
     const upgradeHi=G.upgradeMode&&G.grid[r][c]&&!isRuin?' upgrade-glow':'';
-    const rearrangeHi=G.freeRearrange&&G.grid[r][c]&&!G.moveSrc?' upgrade-glow':'';
+    const rearrangeHi=G.freeRearrange&&G.grid[r][c]&&!isRuin&&!G.moveSrc?' upgrade-glow':'';
     const routeSrcHi=G._freeMoveLogisticsSrc&&G._freeMoveLogisticsSrc[0]===r&&G._freeMoveLogisticsSrc[1]===c?' move-src':'';
     const routeTargetHi=G._freeMoveLogistics&&!G._freeMoveLogisticsSrc&&b&&b.special==='redirect'?' upgrade-glow':'';
     const evPreview=(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(`${r},${c}`))?' event-preview':'';
@@ -4537,7 +4537,7 @@ function renderGrid(){
       onmouseenter="cellHoverStart(event,${r},${c})"
       onmouseleave="cellHoverEnd()"
       onclick="onCell(${r},${c})"
-      ${G.freeRearrange&&(b||isRuin)?`draggable="true" ondragstart="onRearrangeDragStart(event,${r},${c})" ondragend="onRearrangeDragEnd(event)"`:''}
+      ${G.freeRearrange&&b?`draggable="true" ondragstart="onRearrangeDragStart(event,${r},${c})" ondragend="onRearrangeDragEnd(event)"`:''}
       ondragover="onCellDragOver(event,${r},${c});onTalentDragOverCell(event,${r},${c});onRearrangeDragOver(event,${r},${c})"
       ondragleave="onCellDragLeave(${r},${c});onTalentDragLeaveCell(${r},${c});onRearrangeDragLeave(${r},${c})"
       ondrop="onCellDrop(event,${r},${c});onTalentDropCell(event,${r},${c});onRearrangeDrop(event,${r},${c})">`;
