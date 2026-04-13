@@ -1095,11 +1095,11 @@ const PARTNERS = {
   },
   black_market: {
     id:'black_market', name:'黑市商人', emoji:'🕶️', isDemon:true,
-    pos:'每輪第一次商品→金錢×3', neg:'之後每次商品→金錢倍率-0.5（最低×1）', desc:'黑市商人',
+    pos:'每輪第一次商品→金錢×125%', neg:'之後每次商品→金錢倍率-0.5（最低×1）', desc:'黑市商人',
     // 效果在 stepWithMover 通用設施 Step 2 實作
     onRoundStart(G){
-      const st=G.partnerState.black_market||{mult:3};
-      st.mult=3; // 每輪重置
+      const st=G.partnerState.black_market||{mult:1.25};
+      st.mult=1.25; // 每輪重置
       G.partnerState.black_market=st;
     },
   },
@@ -3119,11 +3119,11 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       // ── Step 6: 合夥人設施命中效果 ──
       // 黑市商人：商品→金錢時額外倍率
       if(hasPartner('black_market')&&prev.type==='goods'&&nt==='money'){
-        const st=G.partnerState.black_market||{mult:3};
+        const st=G.partnerState.black_market||{mult:1.25};
         if(st.mult>1){
-          const bmBonus=Math.floor(nv*(st.mult-1));
+          const bmBonus=Math.ceil(nv*(st.mult-1));
           nv+=bmBonus;
-          addLog(`  🕶️ 黑市商人：商品→金錢 ×${st.mult} +${bmBonus}`,'g');
+          addLog(`  🕶️ 黑市商人：商品→金錢 ×${(st.mult*100).toFixed(0)}% +${bmBonus}`,'g');
         }
         st.mult=Math.max(1,st.mult-0.5);
         G.partnerState.black_market=st;
