@@ -1366,6 +1366,18 @@ const N=4; // base grid size
 function GN(){ return (G&&G.gridSize)||N; }
 function isFacility(bId){ return bId&&bId!=='ruin'; }
 function isShopType(bId){ return bId&&BLDG[bId]&&BLDG[bId].isShop===true; }
+const BASIC_FACILITIES=['mat_factory','factory','shop','refinery','warehouse','booster','converter'];
+const LOGISTICS_DIRS=['logistics_up','logistics_down','logistics_left','logistics_right'];
+function checkSafetyNet(){
+  // 連續3回合零收益，且觸發<4次，機率隨使用遞減：100%/75%/50%/25%
+  const z=G._zeroProfitTurns||0, used=G._safetyNetUsed||0;
+  if(z<3||used>=4) return false;
+  const chance=[1,0.75,0.5,0.25][used]||0;
+  if(Math.random()>=chance) return false;
+  G._safetyNetUsed=used+1;
+  G._zeroProfitTurns=0; // 觸發後重置
+  return true;
+}
 function rollWindDir(){
   const dirs=['left','right','top','bottom'];
   const labels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
@@ -1408,7 +1420,15 @@ const EVENTS=[
           G._landlordPenaltyPending=true;
         }
       }
-      const pool=Object.keys(BLDG).filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part').sort(()=>Math.random()-.5).slice(0,3);
+      let pool;
+      if(checkSafetyNet()){
+        // 安全網：保證1個物流中心 + 2個隨機設施
+        const logDir=LOGISTICS_DIRS[Math.floor(Math.random()*LOGISTICS_DIRS.length)];
+        const rest=Object.keys(BLDG).filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part'&&!LOGISTICS_DIRS.includes(id)).sort(()=>Math.random()-.5).slice(0,2);
+        pool=[logDir,...rest];
+      } else {
+        pool=Object.keys(BLDG).filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part').sort(()=>Math.random()-.5).slice(0,3);
+      }
       showCardChooser('🏗 設施補給',pool.map(id=>({
         emoji:BLDG[id].emoji, name:BLDG[id].name, desc:BLDG[id].desc, pos:'', neg:'',
         onclick:`cardChooserPick(()=>{evPick('${id}',null)})`
@@ -1827,6 +1847,8 @@ function newGame(){
     eventTriggerCounts:{}, // 事件觸發累計次數 {eventId: count}
     roundHistory:[],     // 每輪記錄 [{round, turnsUsed, goal, profit}]
     difficultyMult:1.0,  // 動態難度倍率（影響目標遞增）
+    _zeroProfitTurns:0,  // 連續零收益回合數（安全網機制）
+    _safetyNetUsed:0,   // 安全網觸發次數（最多4次）
     _goalReachedTurn:0,  // 本輪首次達標的回合數（0=尚未達標）
     turnLog:[],         // 本回合 log
     turnLogHistory:[]   // 最近3回合 log
@@ -3354,6 +3376,9 @@ function finish(el,startVal){
 
   // 計算本回合總收益（含所有合夥人加成）並更新顯示
   const totalTurnProfit=G.profit-profitAtStart;
+  // 追蹤連續零收益回合（安全網機制）
+  if(totalTurnProfit<=0) G._zeroProfitTurns=(G._zeroProfitTurns||0)+1;
+  else G._zeroProfitTurns=0;
   const hasBonus=totalTurnProfit!==profit;
   let profitHTML=`<span style="color:var(--green);font-size:18px;">+${totalTurnProfit}</span>`;
   if(hasBonus) profitHTML+=`<div style="font-size:9px;color:var(--mu);margin-top:2px;">投入+${profit}，加成${totalTurnProfit-profit>=0?'+':''}${totalTurnProfit-profit}</div>`;
@@ -3584,7 +3609,15 @@ function doAction(id){
   if(id==='get_partner'){
     const pool=Object.keys(PARTNERS).filter(pid=>!hasPartner(pid));
     if(!pool.length){addLog('⚠ 已招募所有合夥人','b');G.profit+=actCost;G.phase='place';render();return;}
-    const picks=pool.sort(()=>Math.random()-.5).slice(0,3);
+    // 安全網：大幅提高蕾雅/譚雅出現機率
+    let picks;
+    if(checkSafetyNet()){
+      const priority=['tanya','leya'].filter(pid=>pool.includes(pid));
+      const rest=pool.filter(pid=>!priority.includes(pid)).sort(()=>Math.random()-.5);
+      picks=[...priority,...rest].slice(0,3);
+    } else {
+      picks=pool.sort(()=>Math.random()-.5).slice(0,3);
+    }
     const refund=actCost;
     showCardChooser(
       '🤝 招募合夥人',
@@ -4016,8 +4049,6 @@ function doNext(){
 }
 
 // ── 常駐行動：購買設施 ──
-const BASIC_FACILITIES=['mat_factory','factory','shop','refinery','warehouse','booster','converter'];
-const LOGISTICS_DIRS=['logistics_up','logistics_down','logistics_left','logistics_right'];
 function getPermShopCost(){
   // 基礎cost 5 (比 buy_fac 的 4 高), scaled by round
   const base=5;
