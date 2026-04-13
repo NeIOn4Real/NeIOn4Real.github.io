@@ -838,7 +838,7 @@ const BLDG = {
   shop:       { name:'商店',   emoji:'🏪', desc:'商品→金錢 +1', req:'goods',    out:'money',    fn:v=>v+1, isShop:true },
   small_shop: { name:'小型販售商', emoji:'🛍️', desc:'視為商店。商品→金錢+1；金錢→商品→金錢+2', req:'any', out:'money', fn:v=>v, special:'small_shop', isShop:true },
   scalper:    { name:'黃牛販子', emoji:'🎫', desc:'視為商店。商品→金錢→商品(-10%)', req:'goods', out:'goods', fn:v=>v, special:'scalper', isShop:true },
-  bulk_store: { name:'量販店', emoji:'🛒', desc:'視為商店。商品→金錢(+50%)→商品', req:'goods', out:'goods', fn:v=>v, special:'bulk_store', isShop:true },
+  bulk_store: { name:'量販店', emoji:'🛒', desc:'視為商店。商品→金錢(+50%,上限10×輪數)→商品', req:'goods', out:'goods', fn:v=>v, special:'bulk_store', isShop:true },
   dept_store: { name:'百貨公司', emoji:'🏬', desc:'視為商店(2×2)。商品→×2金錢→+2%商品→金錢', req:'goods', out:'money', fn:v=>v, special:'dept_store', isShop:true, needs2x2:true },
   dept_store_part:{ name:'百貨公司', emoji:'🏬', desc:'百貨公司的一部分', req:null, out:null, fn:v=>v, special:'dept_store_part', isShop:true },
   refinery:   { name:'精煉廠', emoji:'🔩', desc:'原料→原料 +2', req:'material', out:'material', fn:v=>v+2 },
@@ -2689,9 +2689,11 @@ const FACILITY_FX={
   bulk_store(fx){
     if(fx.el.type!=='goods') return;
     const prev=fx.el.value;
-    const nv2=Math.max(1,Math.floor(prev*1.5));
+    const cap=10*G.round;
+    const bonus=Math.min(Math.floor(prev*0.5),cap);
+    const nv2=Math.max(1,prev+bonus);
     fx.el={value:nv2,type:'goods'};
-    addLog(`  🛒 量販店: 📦${prev}→💰(+50%)→📦${nv2}`);
+    addLog(`  🛒 量販店: 📦${prev}→💰(+${bonus},上限${cap})→📦${nv2}`);
     fx.hit();
   },
   dept_store(fx){
