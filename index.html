@@ -69,6 +69,10 @@ body.card-dragging .dbtn:not(.wind-blocked){
   border-color:rgba(179,58,0,.25);background:rgba(179,58,0,.05);
   z-index:70;position:relative;
 }
+/* 拖曳元素卡時淡化手牌，讓投入箭頭更明顯 */
+body.card-dragging #hand-fan-area {
+  opacity: 0.3;
+}
 /* 場風/颱風限制方向：拖曳中也保持隱藏 */
 body.card-dragging .dbtn.wind-blocked{
   opacity:0 !important;pointer-events:none !important;
@@ -551,15 +555,12 @@ body { padding-bottom: 150px; }
   transform: translateY(-6px) scale(1.01);
 }
 
-/* 合夥人頭像卡片 */
+
+/* 合夥人選擇卡頭像 */
 .sel-card-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  object-fit: cover;
-  object-position: top center;
-  margin-bottom: 6px;
-  flex-shrink: 0;
+  width:80px;height:80px;border-radius:50%;
+  object-fit:cover;object-position:top center;
+  margin-bottom:6px;flex-shrink:0;
 }
 
 @keyframes pulse-acc {
@@ -597,9 +598,71 @@ body { padding-bottom: 150px; }
 .dev-row:hover{background:rgba(255,255,255,.15);border-color:var(--acc);}
 .dev-row .de{font-size:14px;flex-shrink:0;}
 .dev-row .dn{font-size:10px;color:#ddd;flex:1;}
+
+/* ══ 標題畫面 ══ */
+#title-screen{
+  position:fixed;inset:0;z-index:10000;
+  background:var(--bg);
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(80,55,20,.03) 40px,rgba(80,55,20,.03) 41px),
+    repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(80,55,20,.03) 40px,rgba(80,55,20,.03) 41px);
+  display:flex;flex-direction:column;align-items:center;
+  overflow:hidden;animation:tsFadeIn .6s ease;
+}
+@keyframes tsFadeIn{from{opacity:0}to{opacity:1}}
+#title-screen.ts-hide{animation:tsFadeOut .4s ease forwards;pointer-events:none;}
+@keyframes tsFadeOut{to{opacity:0}}
+.ts-content{position:fixed;bottom:8vh;left:0;right:0;z-index:2;display:flex;flex-direction:column;align-items:center;}
+.ts-header{position:fixed;top:8vh;left:0;right:0;z-index:2;display:flex;flex-direction:column;align-items:center;}
+.ts-title{
+  font-size:clamp(38px,7vw,60px);font-weight:900;letter-spacing:6px;
+  color:var(--tx);text-shadow:0 2px 12px rgba(42,26,8,.08);
+}
+.ts-title span{color:var(--acc);}
+.ts-sub{
+  font-size:13px;color:var(--mu);letter-spacing:10px;margin-top:6px;
+  font-family:'DM Mono',monospace;text-transform:uppercase;
+}
+.ts-cards{
+  display:flex;gap:14px;margin-top:40px;flex-wrap:wrap;justify-content:center;
+  padding:0 20px;animation:tsSlideUp .5s ease .25s both;
+}
+@keyframes tsSlideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.ts-card{
+  width:140px;padding:22px 14px;
+  background:var(--sur);border:1.5px solid var(--br2);border-radius:14px;
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;
+  box-shadow:0 4px 14px rgba(42,26,8,.1);transition:all .2s;text-align:center;
+}
+.ts-card:hover{transform:translateY(-6px);box-shadow:0 10px 28px rgba(179,58,0,.18);border-color:var(--acc);}
+.ts-card.ts-primary{border-color:var(--acc);background:linear-gradient(145deg,#fff5ee,var(--sur));box-shadow:0 4px 16px rgba(179,58,0,.15);}
+.ts-card-emoji{font-size:30px;line-height:1;}
+.ts-card-name{font-size:13px;font-weight:700;color:var(--tx);}
+.ts-card-desc{font-size:9px;color:var(--mu);line-height:1.5;}
+.ts-card-hint{font-size:8px;color:var(--green);margin-top:2px;}
+.ts-chars{
+  position:fixed;bottom:-12%;left:50%;transform:translateX(-50%);
+  width:clamp(340px,45vw,580px);pointer-events:none;z-index:1;
+  animation:tsCharsUp .8s ease .4s both;
+}
+@keyframes tsCharsUp{from{opacity:0;transform:translateX(-50%) translateY(40px)}to{opacity:.8;transform:translateX(-50%) translateY(0)}}
+.ts-chars img{width:100%;display:block;filter:drop-shadow(0 -4px 24px rgba(42,26,8,.2));}
 </style>
 </head>
 <body>
+
+<!-- 標題畫面 -->
+<div id="title-screen">
+  <div class="ts-header">
+    <div class="ts-title">創業<span>小鎮</span></div>
+    <div class="ts-sub">VentureTown</div>
+  </div>
+  <div class="ts-chars">
+    <img src="img/C_1.png" alt="譚雅與蕾雅">
+  </div>
+  <div class="ts-content">
+    <div class="ts-cards" id="ts-cards"></div>
+  </div>
+</div>
 
 <div id="hdr">
   <div id="logo">創業<span>小鎮</span></div>
@@ -609,6 +672,11 @@ body { padding-bottom: 150px; }
     <div class="chip">收益 <span class="v" id="r-profit">0</span>/<span id="r-goal">30</span></div>
     <div id="pbar"><div id="pbar-fill" style="width:0%"></div></div>
   </div>
+  <div style="display:flex;gap:4px;margin-left:6px;">
+    <button class="chip" onclick="exportSave()" title="匯出存檔" style="cursor:pointer;padding:4px 8px;">💾</button>
+    <button class="chip" onclick="triggerImport()" title="匯入存檔" style="cursor:pointer;padding:4px 8px;">📂</button>
+  </div>
+  <input type="file" id="import-file" accept=".json" style="display:none" onchange="importSave(event)">
 </div>
 
 <div id="ev-banner">
@@ -629,7 +697,7 @@ body { padding-bottom: 150px; }
 <div id="main">
   <div class="panel">
     <div class="pt">手牌設施</div>
-    <div id="hand-list"></div>
+    <div id="hand-list" style="max-height:220px;overflow-y:auto;"></div>
     <div class="pt" style="margin-top:8px;" id="talent-section-title">人材</div>
     <div id="talent-panel" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;min-height:20px;">
       <div style="font-size:9px;color:var(--hi);padding:4px 0;">尚無人材</div>
@@ -1110,15 +1178,16 @@ const PARTNERS = {
   },
   ruin_scavenger: {
     id:'ruin_scavenger', name:'廢墟掠奪者', emoji:'💀',
-    pos:'設施消滅後原位置留下廢墟，資源通過廢墟+5', neg:'廢墟超過3格時每格-2輸出', desc:'廢墟掠奪者',
-    // 正面在 stepWithMover + destroyFacility
+    pos:'資源通過廢墟時，每個廢墟隨機+5%~23%', neg:'廢墟超過3格時每格-2%收益', desc:'廢墟掠奪者',
+    // 正面在 stepWithMover（廢墟通過時）
     onSettle(G, profit, el){
       if(profit<=0) return;
       const ruinCount=G.ruinCells?G.ruinCells.size:0;
       if(ruinCount>3){
-        const cut=ruinCount*2;
+        const pct=ruinCount*2;
+        const cut=Math.ceil(profit*pct/100);
         G.profit-=cut;
-        addLog(`💀 廢墟掠奪者：${ruinCount}廢墟（>3），-${cut}收益`,'b');
+        addLog(`💀 廢墟掠奪者：${ruinCount}廢墟（>3），-${pct}%收益 -${cut}`,'b');
         setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
       }
     },
@@ -1161,7 +1230,7 @@ const PARTNERS = {
   },
 
   tanya: {
-    id:'tanya', name:'譚雅', emoji:'👩‍💼',
+    id:'tanya', name:'譚雅', emoji:'👩‍💼', avatar:'img/T_1.png',
     pos:'每回合可以用手牌中一個設施，與隨機出現的3個設施之一交換，交換所得設施額外+1。手牌無設施時隨機獲得1張',
     neg:'無',
     desc:'譚雅',
@@ -1176,7 +1245,7 @@ const PARTNERS = {
     },
   },
   leya: {
-    id:'leya', name:'蕾雅', emoji:'👩‍🔧',
+    id:'leya', name:'蕾雅', emoji:'👩‍🔧', avatar:'img/L_1.png',
     pos:'可將手牌相同設施蓋在小鎮設施上，視為升級並額外獲得+2%（可累積）',
     neg:'無',
     desc:'蕾雅',
@@ -1262,12 +1331,20 @@ function isDemonNegDisabled(pid){
   return p&&p.name&&p.name.includes('惡魔');
 }
 
+// 需要隨設施位置交換/轉移的鍵值資料欄位
+const KEYED_DATA_FIELDS=['bldgUpgrades','leyaPctMods','cellMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay','futuresPct'];
 const TCOLOR={ money:'var(--money)', material:'var(--mat)', goods:'var(--goods)', diamond:'#5bcefa' };
 const TLABEL={ money:'💰金錢', material:'🪨原料', goods:'📦商品', diamond:'💎鑽石' };
 const N=4; // base grid size
 function GN(){ return (G&&G.gridSize)||N; }
 function isFacility(bId){ return bId&&bId!=='ruin'; }
 function isShopType(bId){ return bId&&BLDG[bId]&&BLDG[bId].isShop===true; }
+function rollWindDir(){
+  const dirs=['left','right','top','bottom'];
+  const labels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
+  G.windDir=dirs[Math.floor(Math.random()*dirs.length)];
+  addLog(`🌀 場風大師：本回合只能從 ${labels[G.windDir]} 投入，獲得×2倍率`,'w');
+}
 function eachCell(fn){ for(let r=0;r<GN();r++) for(let c=0;c<GN();c++) fn(r,c,G.grid[r][c]); }
 function findCells(pred){ const res=[]; eachCell((r,c,b)=>{ if(pred(r,c,b)) res.push([r,c]); }); return res; }
 
@@ -1359,8 +1436,7 @@ const EVENTS=[
       const ed=G.nextEventData||{};
       const d=ed.dir||['top','bottom','left','right'][Math.floor(Math.random()*4)];
       const gn=GN();
-      // 需要轉移的位置鍵值資料表
-      const keyedData=['bldgUpgrades','leyaPctMods','cellMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay','futuresPct'];
+      const keyedData=KEYED_DATA_FIELDS;
       // 計算每個設施的目標位置（廢墟不滑動，視為障礙）
       const moves={}; // 'r,c' → [nr,nc]
       const dr=d==='top'?-1:d==='bottom'?1:0;
@@ -1407,16 +1483,7 @@ const EVENTS=[
       G.ruinCells=new Set();
       for(let r=0;r<gn;r++) for(let c=0;c<gn;c++) if(G.grid[r][c]==='ruin') G.ruinCells.add(`${r},${c}`);
       // 重建百貨公司追蹤
-      G.deptStoreAnchors={}; G.deptStoreParts={};
-      for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
-        if(G.grid[r][c]==='dept_store'){
-          const ak=`${r},${c}`;
-          G.deptStoreAnchors[ak]=true;
-          [[r,c+1],[r+1,c],[r+1,c+1]].forEach(([pr,pc])=>{
-            if(pr<gn&&pc<gn&&G.grid[pr][pc]==='dept_store_part') G.deptStoreParts[`${pr},${pc}`]=ak;
-          });
-        }
-      }
+      rebuildDeptStore();
       const moveCount=Object.keys(moves).length;
       addLog(`🌍 地震：所有設施往 ${labels[d]} 滑動！（${moveCount}個設施移動）`,'b');
       showEv(ev.title,`地震！所有設施往 ${labels[d]} 方向滑動`,`<button class="eopt pri" onclick="evDone()">確認</button>`);
@@ -1572,16 +1639,7 @@ const EVENTS=[
       G.futuresPct={};
       G._futuresMoveNext=[];
       // 重建百貨公司追蹤
-      G.deptStoreAnchors={}; G.deptStoreParts={};
-      for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
-        if(G.grid[r][c]==='dept_store'){
-          const ak=`${r},${c}`;
-          G.deptStoreAnchors[ak]=true;
-          [[r,c+1],[r+1,c],[r+1,c+1]].forEach(([pr,pc])=>{
-            if(pr<gn&&pc<gn&&G.grid[pr][pc]==='dept_store_part') G.deptStoreParts[`${pr},${pc}`]=ak;
-          });
-        }
-      }
+      rebuildDeptStore();
       // 給予 2 張保證複合設施
       const _mPool=Object.keys(BLDG).filter(bid=>!COMPOUND_EXCLUDE.has(bid));
       for(let _mi=0;_mi<2;_mi++){
@@ -1762,14 +1820,12 @@ function startRound(){
   });
   // 場風大師：第一回合也需要設定方向（颱風時不覆蓋）
   if(hasPartner('wind_master')){
-    const dirs=['left','right','top','bottom'];
-    const labels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
-    G.windDir=dirs[Math.floor(Math.random()*dirs.length)];
-    addLog(`🌀 場風大師：本回合只能從 ${labels[G.windDir]} 投入，獲得×2倍率`,'w');
+    rollWindDir();
   } else if(!(G.buff&&G.buff.typhoonActive)){
     G.windDir=null;
   }
   G.phase='place';
+  autoSave();
   render();
   if(hasPartner('tanya')){
     tanyaOfferSwap();
@@ -1977,6 +2033,140 @@ function selBldg(id){
   render();
   renderFanHand();
 }
+// ══════════════════════════════════════
+// 統一放置邏輯（click / drag 共用）
+// 回傳 true=放置成功, false=無法放置（保留選取）
+// ══════════════════════════════════════
+function tryPlaceAtCell(r,c,bldgId){
+  if(!bldgId) return false;
+  const handItem=G.hand.find(h=>h.id===bldgId);
+
+  // ── 複合設施 ──
+  if(handItem&&isCompoundHand(handItem)){
+    if(!canPlaceCompound(r,c,handItem)){
+      const [r2,c2]=getCompoundSecondCell(r,c,handItem);
+      const gn=GN();
+      if(r2<0||r2>=gn||c2<0||c2>=gn) addLog('🔗 複合設施：第二格超出邊界','b');
+      else if(G.grid[r][c]) addLog('🔗 複合設施：錨點格子已有設施','b');
+      else addLog('🔗 複合設施：第二格已有設施','b');
+      return false;
+    }
+    const [r2,c2]=getCompoundSecondCell(r,c,handItem);
+    handItem.count--;
+    G.grid[r][c]=handItem.parts[0];
+    G.grid[r2][c2]=handItem.parts[1];
+    addLog(`🔗 放置複合：${BLDG[handItem.parts[0]].emoji}${BLDG[handItem.parts[0]].name} (${r+1},${c+1}) + ${BLDG[handItem.parts[1]].emoji}${BLDG[handItem.parts[1]].name} (${r2+1},${c2+1})`,'g');
+    pulse(r,c); pulse(r2,c2); render();
+    return true;
+  }
+
+  // ── 百貨公司 2×2 ──
+  if(BLDG[bldgId]&&BLDG[bldgId].needs2x2){
+    const anchor=findShop2x2(r,c);
+    if(!anchor){ addLog('🏬 百貨公司需要 2×2 的商店區域！請點擊四個商店組成的 2×2 區域','b'); return false; }
+    if(!handItem||handItem.count<=0) return false;
+    handItem.count--;
+    const [tr,tc]=anchor;
+    addLog(`🏬 百貨公司：取代 2×2 商店 (${tr+1},${tc+1})~(${tr+2},${tc+2})`,'g');
+    placeDeptStore(r,c,anchor);
+    pulse(tr,tc); render();
+    return true;
+  }
+
+  // ── 蕾雅升級 ──
+  if(G.grid[r][c]&&G.grid[r][c]===bldgId&&hasPartner('leya')){
+    if(!handItem||handItem.count<=0){ addLog('👩‍🔧 蕾雅：手牌不足','b'); return false; }
+    handItem.count--;
+    leyaUpgrade(r,c,bldgId);
+    pulse(r,c); render();
+    return true;
+  }
+
+  // ── 廢墟紀念碑（ruinOnly） ──
+  if(BLDG[bldgId]&&BLDG[bldgId].ruinOnly){
+    if(G.grid[r][c]!=='ruin'){
+      addLog(`🗿 廢墟紀念碑只能放在廢墟上！目前廢墟：${[...(G.ruinCells||[])].map(k=>{const[rr,cc]=k.split(',');return `(${+rr+1},${+cc+1})`;}).join(' ')||'無'}`,'b');
+      return false;
+    }
+    if(!handItem||handItem.count<=0) return false;
+    handItem.count--;
+    G.grid[r][c]=bldgId;
+    G.ruinCells&&G.ruinCells.delete(`${r},${c}`);
+    addLog(`放置 ${BLDG[bldgId].emoji}${BLDG[bldgId].name} (${r+1},${c+1})（取代廢墟）`);
+    pulse(r,c); render();
+    return true;
+  }
+
+  // ── 中央限定 ──
+  if(BLDG[bldgId]&&BLDG[bldgId].centerOnly&&!isCenterCell(r,c)){
+    addLog(`🚫 ${BLDG[bldgId].name}只能放在中央區域！`,'b');
+    return false;
+  }
+
+  // ── 物流之王/倉儲女王疊加 ──
+  if(G.grid[r][c]){
+    const existing=BLDG[G.grid[r][c]];
+    const canOverlay=existing&&existing.special==='redirect'&&(hasPartner('logistics_king')||hasPartner('storage_queen'))&&!G.cellOverlay[`${r},${c}`];
+    if(canOverlay){
+      if(!handItem||handItem.count<=0) return false;
+      if(hasPartner('storage_queen')&&!hasPartner('logistics_king')){
+        if(G.profit<2){ addLog('👑 倉儲女王：收益不足（需要2）','b'); return false; }
+        G.profit-=2;
+        addLog('👑 倉儲女王：疊加行動費 -2 收益','b');
+      }
+      handItem.count--;
+      G.cellOverlay[`${r},${c}`]=bldgId;
+      const who=hasPartner('logistics_king')?'🚛 物流之王':'👑 倉儲女王';
+      addLog(`${who}：${BLDG[bldgId].emoji}${BLDG[bldgId].name} 疊加在 ${existing.emoji}${existing.name} 上！`,'g');
+      pulse(r,c); render();
+      return true;
+    }
+    addLog(G.grid[r][c]==='ruin'?'該格子是廢墟，無法放置設施':'該格子已有設施','b');
+    return false;
+  }
+
+  // ── 一般放置 ──
+  if(!handItem||handItem.count<=0) return false;
+  handItem.count--;
+  G.grid[r][c]=bldgId;
+  // 期貨交易所：放置時決定本回合百分比
+  if(bldgId==='futures_market'){
+    if(!G.futuresPct) G.futuresPct={};
+    G.futuresPct[`${r},${c}`]=Math.floor(Math.random()*21)-10;
+  }
+  // Tutorial hook
+  if(TUT.active){
+    if(TUT.waitingFor==='place_mat_factory'&&bldgId==='mat_factory') TUT.onAction('place_mat_factory');
+    else if(TUT.waitingFor==='place_factory_shop'&&(bldgId==='factory'||bldgId==='shop')){
+      let hasFac=false,hasShop=false;
+      for(let ri=0;ri<GN();ri++) for(let ci=0;ci<GN();ci++){
+        if(G.grid[ri][ci]==='factory') hasFac=true;
+        if(G.grid[ri][ci]==='shop') hasShop=true;
+      }
+      if(hasFac&&hasShop) TUT.onAction('place_factory_shop');
+    }
+  }
+  // 譚雅：放置時套用額外+1升級
+  if(G._tanyaNewBldg&&G._tanyaNewBldg[bldgId]>0){
+    const key=`${r},${c}`;
+    G.bldgUpgrades[key]=(G.bldgUpgrades[key]||0)+1;
+    G._tanyaNewBldg[bldgId]--;
+    if(G._tanyaNewBldg[bldgId]<=0) delete G._tanyaNewBldg[bldgId];
+    addLog(`放置 ${BLDG[bldgId].emoji}${BLDG[bldgId].name} (${r+1},${c+1})（譚雅+1已套用）`);
+  } else {
+    addLog(`放置 ${BLDG[bldgId].emoji}${BLDG[bldgId].name} (${r+1},${c+1})`);
+  }
+  // 轉運中心：放置後選擇方向
+  if(bldgId==='transfer_hub'){
+    pulse(r,c); render();
+    showTransferHubDirPicker(r,c);
+    return true;
+  }
+  pulse(r,c);
+  render();
+  return true;
+}
+
 function onCell(r,c){
   if(G.phase!=='place')return;
 
@@ -2057,106 +2247,7 @@ function onCell(r,c){
 
   // 正常放置模式
   if(!G.sel){addLog('請先選擇手牌設施','b');return;}
-
-  // ── 複合設施放置 ──
-  const selHand=G.hand.find(h=>h.id===G.sel);
-  if(selHand&&isCompoundHand(selHand)){
-    if(!canPlaceCompound(r,c,selHand)){
-      const [r2,c2]=getCompoundSecondCell(r,c,selHand);
-      const gn=GN();
-      if(r2<0||r2>=gn||c2<0||c2>=gn) addLog('🔗 複合設施：第二格超出邊界','b');
-      else if(G.grid[r][c]) addLog('🔗 複合設施：錨點格子已有設施','b');
-      else addLog('🔗 複合設施：第二格已有設施','b');
-      return;
-    }
-    const [r2,c2]=getCompoundSecondCell(r,c,selHand);
-    selHand.count--;
-    G.grid[r][c]=selHand.parts[0];
-    G.grid[r2][c2]=selHand.parts[1];
-    addLog(`🔗 放置複合：${BLDG[selHand.parts[0]].emoji}${BLDG[selHand.parts[0]].name} (${r+1},${c+1}) + ${BLDG[selHand.parts[1]].emoji}${BLDG[selHand.parts[1]].name} (${r2+1},${c2+1})`,'g');
-    G.sel=null;
-    pulse(r,c); pulse(r2,c2); render();
-    return;
-  }
-
-  // 廢墟紀念碑：只能放在廢墟格
-  if(G.sel&&BLDG[G.sel]&&BLDG[G.sel].ruinOnly){
-    if(G.grid[r][c]!=='ruin'){
-      addLog(`🗿 廢墟紀念碑只能放在廢墟上！目前廢墟：${[...(G.ruinCells||[])].map(k=>{const[rr,cc]=k.split(',');return `(${+rr+1},${+cc+1})`;}).join(' ')||'無'}`,'b');
-      return;
-    }
-    // 清除廢墟，允許放置
-    G.grid[r][c]=null;
-    G.ruinCells&&G.ruinCells.delete(`${r},${c}`);
-  }
-  // 百貨公司：需要 2×2 商店
-  if(G.sel&&BLDG[G.sel]&&BLDG[G.sel].needs2x2){
-    const anchor=findShop2x2(r,c);
-    if(!anchor){
-      addLog(`🏬 百貨公司需要 2×2 的商店區域！請點擊四個商店組成的 2×2 區域`,'b');
-      return;
-    }
-    const e2=G.hand.find(h=>h.id===G.sel);
-    if(!e2||e2.count<=0) return;
-    e2.count--;
-    const [tr,tc]=anchor;
-    addLog(`🏬 百貨公司：取代 2×2 商店 (${tr+1},${tc+1})~(${tr+2},${tc+2})`,'g');
-    placeDeptStore(r,c,anchor);
-    G.sel=null; pulse(tr,tc); render(); return;
-  }
-  // 蕾雅：相同設施點擊同類設施格 → 視為升級 + 額外+2%
-  if(G.sel&&G.grid[r][c]&&G.grid[r][c]===G.sel&&hasPartner('leya')){
-    const e2=G.hand.find(h=>h.id===G.sel);
-    if(!e2||e2.count<=0){ addLog('👩‍🔧 蕾雅：手牌不足','b'); return; }
-    e2.count--;
-    leyaUpgrade(r,c,G.sel);
-    G.sel=null; pulse(r,c); render(); return;
-  }
-  // 中央限定設施
-  if(G.sel&&BLDG[G.sel]&&BLDG[G.sel].centerOnly&&!isCenterCell(r,c)){
-    addLog(`🚫 ${BLDG[G.sel].name}只能放在中央區域！`,'b');
-    return;
-  }
-  // 物流之王/倉儲女王：允許疊在物流中心上
-  if(G.grid[r][c]){
-    const existing=BLDG[G.grid[r][c]];
-    const canOverlay=existing&&existing.special==='redirect'&&(hasPartner('logistics_king')||hasPartner('storage_queen'))&&!G.cellOverlay[`${r},${c}`];
-    if(canOverlay){
-      const e2=G.hand.find(h=>h.id===G.sel);
-      if(!e2||e2.count<=0) return;
-      // 倉儲女王負面：疊加行動費+2收益
-      if(hasPartner('storage_queen')&&!hasPartner('logistics_king')){
-        if(G.profit<2){ addLog('👑 倉儲女王：收益不足（需要2）','b'); return; }
-        G.profit-=2;
-        addLog(`👑 倉儲女王：疊加行動費 -2 收益`,'b');
-      }
-      e2.count--;
-      G.cellOverlay[`${r},${c}`]=G.sel;
-      const who=hasPartner('logistics_king')?'🚛 物流之王':'👑 倉儲女王';
-      addLog(`${who}：${BLDG[G.sel].emoji}${BLDG[G.sel].name} 疊加在 ${existing.emoji}${existing.name} 上！`,'g');
-      G.sel=null; pulse(r,c); render(); return;
-    }
-    addLog(G.grid[r][c]==='ruin'?'該格子是廢墟，無法放置設施':'該格子已有設施','b');return;
-  }
-  const e=G.hand.find(h=>h.id===G.sel);
-  if(!e||e.count<=0)return;
-  e.count--;
-  G.grid[r][c]=G.sel;
-  // 期貨交易所：放置時決定本回合百分比
-  if(G.sel==='futures_market'){
-    if(!G.futuresPct) G.futuresPct={};
-    G.futuresPct[`${r},${c}`]=Math.floor(Math.random()*21)-10;
-  }
-  addLog(`放置 ${BLDG[G.sel].emoji}${BLDG[G.sel].name} (${r+1},${c+1})`);
-  // 轉運中心：放置後選擇方向
-  if(G.sel==='transfer_hub'){
-    G.sel=null; pulse(r,c); render();
-    showTransferHubDirPicker(r,c);
-    return;
-  }
-  G.sel=null;
-  pulse(r,c);
-  render();
+  if(tryPlaceAtCell(r,c,G.sel)) G.sel=null;
 }
 
 // ══════════════════════════════════════
@@ -2286,103 +2377,8 @@ function onCellDrop(e,r,c){
   _clearBldgPreview();
   document.querySelectorAll('.cell').forEach(el=>{el.classList.remove('drag-target');el.style.outline='';el.style.boxShadow='';});
   if(!bldgDragging) return;
-
-  // ── 百貨公司拖放 ──
-  if(bldgDragging==='dept_store'){
-    const anchor=findShop2x2(r,c);
-    if(!anchor){ addLog('🏬 需要 2×2 商店區域','b'); bldgDragging=null; return; }
-    const h=G.hand.find(h=>h.id==='dept_store');
-    if(!h||h.count<=0){ bldgDragging=null; return; }
-    h.count--;
-    const [tr,tc]=anchor;
-    addLog(`🏬 百貨公司：取代 2×2 商店 (${tr+1},${tc+1})~(${tr+2},${tc+2})`,'g');
-    placeDeptStore(r,c,anchor);
-    bldgDragging=null;
-    pulse(tr,tc); render(); return;
-  }
-
-  // ── 複合設施拖放 ──
-  const compH=G.hand.find(h=>h.id===bldgDragging&&h.compound);
-  if(compH){
-    if(!canPlaceCompound(r,c,compH)){ addLog('🔗 複合設施：無法放置在此位置','b'); bldgDragging=null; return; }
-    const [r2,c2]=getCompoundSecondCell(r,c,compH);
-    compH.count--;
-    G.grid[r][c]=compH.parts[0];
-    G.grid[r2][c2]=compH.parts[1];
-    addLog(`🔗 放置複合：${BLDG[compH.parts[0]].emoji}${BLDG[compH.parts[0]].name} (${r+1},${c+1}) + ${BLDG[compH.parts[1]].emoji}${BLDG[compH.parts[1]].name} (${r2+1},${c2+1})`,'g');
-    bldgDragging=null;
-    pulse(r,c); pulse(r2,c2); render(); return;
-  }
-
-  // 蕾雅：相同設施拖到小鎮格子 → 視為升級 + 額外+2%
-  if(G.grid[r][c]===bldgDragging && hasPartner('leya')){
-    const h=G.hand.find(h=>h.id===bldgDragging);
-    if(!h||h.count<=0){ addLog('👩‍🔧 蕾雅：手牌不足','b'); bldgDragging=null; return; }
-    h.count--;
-    leyaUpgrade(r,c,bldgDragging);
-    bldgDragging=null;
-    pulse(r,c); render(); return;
-  }
-
-  // 廢墟紀念碑：拖曳放置到廢墟格
-  if(bldgDragging==='ruin_monument'&&G.grid[r][c]==='ruin'){
-    const h=G.hand.find(h=>h.id===bldgDragging);
-    if(!h||h.count<=0){ bldgDragging=null; return; }
-    h.count--;
-    G.grid[r][c]='ruin_monument';
-    G.ruinCells&&G.ruinCells.delete(`${r},${c}`);
-    addLog(`放置 ${BLDG.ruin_monument.emoji}${BLDG.ruin_monument.name} (${r+1},${c+1})（取代廢墟）`);
-    bldgDragging=null;
-    pulse(r,c); render(); return;
-  }
-  // 中央限定設施
-  if(BLDG[bldgDragging]&&BLDG[bldgDragging].centerOnly&&!isCenterCell(r,c)){
-    addLog(`🚫 ${BLDG[bldgDragging].name}只能放在中央區域！`,'b');
-    bldgDragging=null; return;
-  }
-  if(G.grid[r][c]) return;
-  const h=G.hand.find(h=>h.id===bldgDragging);
-  if(!h||h.count<=0) return;
-  h.count--;
-  G.grid[r][c]=bldgDragging;
-  // 期貨交易所：放置時決定本回合百分比
-  if(bldgDragging==='futures_market'){
-    if(!G.futuresPct) G.futuresPct={};
-    G.futuresPct[`${r},${c}`]=Math.floor(Math.random()*21)-10;
-  }
-  // Tutorial hook
-  if(TUT.active){
-    if(TUT.waitingFor==='place_mat_factory' && bldgDragging==='mat_factory') TUT.onAction('place_mat_factory');
-    else if(TUT.waitingFor==='place_factory_shop' && (bldgDragging==='factory'||bldgDragging==='shop')){
-      // check if both placed
-      let hasFac=false,hasShop=false;
-      for(let ri=0;ri<GN();ri++) for(let ci=0;ci<GN();ci++){
-        if(G.grid[ri][ci]==='factory') hasFac=true;
-        if(G.grid[ri][ci]==='shop') hasShop=true;
-      }
-      if(hasFac&&hasShop) TUT.onAction('place_factory_shop');
-    }
-  }
-  // 譚雅：放置時套用額外+1升級
-  if(G._tanyaNewBldg && G._tanyaNewBldg[bldgDragging] > 0){
-    const key=`${r},${c}`;
-    G.bldgUpgrades[key]=(G.bldgUpgrades[key]||0)+1;
-    G._tanyaNewBldg[bldgDragging]--;
-    if(G._tanyaNewBldg[bldgDragging]<=0) delete G._tanyaNewBldg[bldgDragging];
-    addLog(`放置 ${BLDG[bldgDragging].emoji}${BLDG[bldgDragging].name} (${r+1},${c+1})（譚雅+1已套用）`);
-  } else {
-    addLog(`放置 ${BLDG[bldgDragging].emoji}${BLDG[bldgDragging].name} (${r+1},${c+1})`);
-  }
-  // 轉運中心：放置後選擇方向
-  if(bldgDragging==='transfer_hub'){
-    bldgDragging=null;
-    pulse(r,c); render();
-    showTransferHubDirPicker(r,c);
-    return;
-  }
+  tryPlaceAtCell(r,c,bldgDragging);
   bldgDragging=null;
-  pulse(r,c);
-  render();
 }
 
 // ══════════════════════════════════════
@@ -2871,11 +2867,16 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
   const _hit=(delay=350)=>{G.inv.facHit=(G.inv.facHit||0)+1;pulse(r,c);updateCard(el);updateMover(el);_next(delay);};
   // ── 廢墟：資源直接通過，不產生任何交互 ──
   if(bId==='ruin'){
-    // 廢墟掠奪者：廢墟格+5
+    // 廢墟掠奪者：每個廢墟隨機 +5%~23%
     if(hasPartner('ruin_scavenger')){
-      el={...el,value:el.value+5};
-      addLog(`  💀 廢墟掠奪者：廢墟格+5→${el.value}`,'g');
-      updateCard(el); updateMover(el);
+      const ruinCount=G.ruinCells?G.ruinCells.size:0;
+      if(ruinCount>0){
+        const pct=Math.floor(Math.random()*19)+5; // 5~23
+        const bonus=Math.max(1,Math.ceil(el.value*ruinCount*pct/100));
+        el={...el,value:el.value+bonus};
+        addLog(`  💀 廢墟掠奪者：${ruinCount}廢墟×${pct}%→+${bonus}（${el.value}）`,'g');
+        updateCard(el); updateMover(el);
+      }
     }
     _next(300); return;
   }
@@ -3383,6 +3384,7 @@ function finish(el,startVal){
 
       const diffPct=Math.round((G.difficultyMult-1)*100);
       const diffLabel=diffPct>0?` 📈難度+${diffPct}%`:diffPct<0?` 📉難度${diffPct}%`:'';
+      autoSave();
       showModal('win',`第 ${oldRound} 輪過關！（${turnsUsed}回合達標）\n達成目標 ${oldGoal}\n\n第 ${G.round} 輪新目標：${G.goal}${diffLabel}`);
     },600);
   }
@@ -3566,7 +3568,7 @@ function doAction(id){
   }
   if(id==='upgrade'){
     const filled=[];
-    for(let r=0;r<N;r++) for(let cc=0;cc<N;cc++) if(isFacility(G.grid[r][cc])) filled.push([r,cc]);
+    for(let r=0;r<GN();r++) for(let cc=0;cc<GN();cc++) if(isFacility(G.grid[r][cc])) filled.push([r,cc]);
     if(!filled.length){addLog('⚠ 沒有可提升的設施','b');G.profit+=act.cost;G.phase='place';render();return;}
     G.upgradeMode=true;
     G.phase='place';
@@ -3615,12 +3617,7 @@ function recruitPartner(pid){
   addLog(`🤝 招募了 ${PARTNERS[pid].emoji}${PARTNERS[pid].name}！`,'g');
   if(pid==='envy') addHand('envy_factory');
   // 場風大師：招募後立即設定本回合方向
-  if(pid==='wind_master'&&!G.windDir){
-    const dirs=['left','right','top','bottom'];
-    const labels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
-    G.windDir=dirs[Math.floor(Math.random()*dirs.length)];
-    addLog(`🌀 場風大師：本回合只能從 ${labels[G.windDir]} 投入，獲得×2倍率`,'w');
-  }
+  if(pid==='wind_master'&&!G.windDir) rollWindDir();
   G.actionOptions=[];
   closeActionOverlay();
   renderPartners();
@@ -3881,7 +3878,7 @@ function startTurn(){
         G.grid[r][c]=null; G.grid[nr][nc]='futures_market';
         // 轉移附帶資料
         const ok=`${r},${c}`, nk=`${nr},${nc}`;
-        ['bldgUpgrades','leyaPctMods','cellMods','bombTimers','cellOverlay','tempShedMoves','logisticsVault','futuresPct'].forEach(dk=>{
+        KEYED_DATA_FIELDS.forEach(dk=>{
           if(G[dk]&&G[dk][ok]!==undefined){ G[dk][nk]=G[dk][ok]; delete G[dk][ok]; }
         });
         // 轉移並重新抽選百分比
@@ -3910,14 +3907,12 @@ function startTurn(){
   }
   // 場風大師：每回合重新抽方向（颱風時不覆蓋）
   if(hasPartner('wind_master')){
-    const dirs=['left','right','top','bottom'];
-    const labels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
-    G.windDir=dirs[Math.floor(Math.random()*dirs.length)];
-    addLog(`🌀 場風大師：本回合只能從 ${labels[G.windDir]} 投入，獲得×2倍率`,'w');
+    rollWindDir();
   } else if(!(G.buff&&G.buff.typhoonActive)){
     G.windDir=null;
   }
   addLog(`── 回合 ${G.turn}/${G.maxTurns} ──`);
+  autoSave();
   render();
   // 人材發光提示
   if((G.talentCards||0)>0){
@@ -4043,7 +4038,7 @@ function onMBtn(){
   if(modalMode==='win'){
     startRound();
   } else {
-    G=newGame(); showStarterPartnerSelection();
+    clearAutoSave(); G=newGame(); SM.goto('title');
   }
 }
 
@@ -4128,9 +4123,8 @@ function renderPartners(){
     const isYongqing=pid==='yongqing_house';
     const yqClickable=isYongqing&&G.phase==='place'&&!G._yongqingSellMode;
     const clickable=(isDemo&&charges>0)||expertClickable||yqClickable;
-    const avatarSrc = PARTNER_AVATARS && PARTNER_AVATARS[pid];
-    const emojiHtml = avatarSrc
-      ? `<img src="${avatarSrc}" class="jc-avatar" alt="${p.name}">`
+    const emojiHtml = p.avatar
+      ? `<img src="${p.avatar}" class="jc-avatar" alt="${p.name}">`
       : `<div class="jc-emoji">${p.emoji}</div>`;
     return `<div class="joker-card${isDemon}" style="z-index:${i+1};${clickable?'cursor:pointer;':''}"
       data-tip="${tip}"
@@ -4385,7 +4379,7 @@ function renderHand(){
       const b1=BLDG[h.parts[0]],b2=BLDG[h.parts[1]];
       if(!b1||!b2) return '';
       const compTip=`${b1.emoji} ${b1.name}\\n${b1.desc}\\n基礎輸出: +${b1.fn(1)-1}\\n\\n🔗 ${h.dirLabel}\\n\\n${b2.emoji} ${b2.name}\\n${b2.desc}\\n基礎輸出: +${b2.fn(1)-1}`;
-      return `<div class="hi${sel?' sel':''}${!canSel?' off':''}" style="border-color:var(--blue);overflow:hidden;"
+      return `<div class="hi${sel?' sel':''}${!canSel?' off':''}" style="border-color:var(--blue);"
         draggable="${canSel?'true':'false'}"
         ondragstart="onBldgDragStart(event,'${h.id}')"
         ondragend="onBldgDragEnd(event)"
@@ -4393,7 +4387,7 @@ function renderHand(){
         onmouseleave="hideTooltip()"
         onclick="selBldg('${h.id}')">
         <div class="hi-em">${b1.emoji}🔗${b2.emoji}</div>
-        <div style="flex:1;min-width:0;overflow:hidden;"><div class="hi-nm" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${b1.name}${h.dirLabel}${b2.name}</div><div class="hi-ds" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${b1.desc} ＋ ${b2.desc}</div></div>
+        <div style="flex:1;min-width:0;"><div class="hi-nm" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${b1.name}${h.dirLabel}${b2.name}</div></div>
       </div>`;
     }
     const b=BLDG[h.id];
@@ -4489,9 +4483,9 @@ function makeSelCard(emoji,name,desc,pos,neg,onclick,extraClass='',pid='',hoverF
   if(pos) tipParts.push('✓ '+pos);
   if(neg&&neg!=='無') tipParts.push('✕ '+neg);
   const tipAttr=tipParts.join('\n').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  const avatarSrc = PARTNER_AVATARS && PARTNER_AVATARS[pid];
-  const emojiHtml = avatarSrc
-    ? `<img src="${avatarSrc}" class="sel-card-avatar" alt="${name}">`
+  const pDef=pid&&PARTNERS[pid];
+  const emojiHtml = pDef&&pDef.avatar
+    ? `<img src="${pDef.avatar}" class="sel-card-avatar" alt="${name}">`
     : `<div class="sel-card-emoji">${emoji}</div>`;
   const hoverCall = hoverFn || `DM.onPartnerHover(this.querySelector('.sel-card-name').textContent); DM.onBldgHover(Object.keys(BLDG).find(k=>BLDG[k].name===this.querySelector('.sel-card-name').textContent)||'');`;
   return `<div class="sel-card ${extraClass}" onclick="${onclick}"
@@ -4690,7 +4684,7 @@ function renderFanHand() {
         type: 'compound', id: h.id,
         emoji: b1.emoji, emoji2: b2.emoji,
         name: `${b1.name}${h.dirLabel}${b2.name}`,
-        desc: `${b1.desc} ＋ ${b2.desc}`,
+        desc: `${b1.desc}\n${b2.desc}`,
         dirLabel: h.dirLabel,
         selected: G.sel === h.id,
         disabled: !canSel,
@@ -5174,7 +5168,7 @@ function destroyFacility(r, c){
       G.profit+=50;
       addLog(`💣 設施破壞者：百貨公司被消滅，+50收益！`,'g');
     }
-    if(hasPartner('ruin_scavenger')) addLog(`💀 廢墟掠奪者：百貨公司廢墟+5`,'g');
+    if(hasPartner('ruin_scavenger')) addLog(`💀 廢墟掠奪者：百貨公司成為廢墟`,'g');
     renderFanHand(); render(); return;
   }
   // 設施破壞者：+50收益
@@ -5196,7 +5190,7 @@ function destroyFacility(r, c){
     if(!G.ruinCells) G.ruinCells=new Set();
     G.ruinCells.add(`${r},${c}`);
     // 廢墟掠奪者
-    if(hasPartner('ruin_scavenger')) addLog(`💀 廢墟掠奪者：(${r+1},${c+1})成為廢墟，資源通過+5`,'g');
+    if(hasPartner('ruin_scavenger')) addLog(`💀 廢墟掠奪者：(${r+1},${c+1})成為廢墟`,'g');
   }
   renderFanHand();
   render();
@@ -5209,37 +5203,8 @@ function swapCellData(r1,c1,r2,c2){
   const tmp=G.grid[r2][c2];
   G.grid[r2][c2]=G.grid[r1][c1];
   G.grid[r1][c1]=tmp;
-  // bldgUpgrades
-  const u1=G.bldgUpgrades[k1], u2=G.bldgUpgrades[k2];
-  if(u1||u2){ G.bldgUpgrades[k1]=u2; G.bldgUpgrades[k2]=u1; }
-  if(!G.bldgUpgrades[k1]) delete G.bldgUpgrades[k1];
-  if(!G.bldgUpgrades[k2]) delete G.bldgUpgrades[k2];
-  // leyaPctMods
-  const l1=G.leyaPctMods[k1], l2=G.leyaPctMods[k2];
-  if(l1||l2){ G.leyaPctMods[k1]=l2; G.leyaPctMods[k2]=l1; }
-  if(!G.leyaPctMods[k1]) delete G.leyaPctMods[k1];
-  if(!G.leyaPctMods[k2]) delete G.leyaPctMods[k2];
-  // cellMods（人材加成、地皮炒家等跟隨設施移動）
-  const m1=G.cellMods[k1], m2=G.cellMods[k2];
-  if(m1||m2){ G.cellMods[k1]=m2; G.cellMods[k2]=m1; }
-  if(!G.cellMods[k1]) delete G.cellMods[k1];
-  if(!G.cellMods[k2]) delete G.cellMods[k2];
-  // bombTimers
-  if(G.bombTimers){
-    const bt1=G.bombTimers[k1], bt2=G.bombTimers[k2];
-    if(bt1!==undefined||bt2!==undefined){ G.bombTimers[k1]=bt2; G.bombTimers[k2]=bt1; }
-    if(G.bombTimers[k1]===undefined) delete G.bombTimers[k1];
-    if(G.bombTimers[k2]===undefined) delete G.bombTimers[k2];
-  }
-  // cellOverlay（物流之王/倉儲女王疊加設施）
-  if(G.cellOverlay){
-    const ov1=G.cellOverlay[k1], ov2=G.cellOverlay[k2];
-    if(ov1||ov2){ G.cellOverlay[k1]=ov2; G.cellOverlay[k2]=ov1; }
-    if(!G.cellOverlay[k1]) delete G.cellOverlay[k1];
-    if(!G.cellOverlay[k2]) delete G.cellOverlay[k2];
-  }
-  // tempShedMoves / logisticsVault
-  ['tempShedMoves','logisticsVault','futuresPct'].forEach(dk=>{
+  // 交換所有位置鍵值資料
+  KEYED_DATA_FIELDS.forEach(dk=>{
     if(!G[dk]) return;
     const v1=G[dk][k1], v2=G[dk][k2];
     if(v1!==undefined||v2!==undefined){ G[dk][k1]=v2; G[dk][k2]=v1; }
@@ -5675,12 +5640,6 @@ const DM = {
 // 向後相容舊呼叫
 function tryDialogue(key){ DM.trigger(key); }
 function showBubble(text, dur){ DM.show(text, dur); }
-
-// 合夥人頭像
-const PARTNER_AVATARS = {
-  'leya':  'data:image/png;base64,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',
-  'tanya': 'data:image/png;base64,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',
-};
 
 // ── 譚雅：每回合開始顯示交換選單 ──
 function tanyaOfferSwap(){
@@ -6139,38 +6098,231 @@ const TUT = {
   },
 };
 
-// ── 教學詢問畫面 ──
-function showTutorialPrompt(){
-  const el = document.getElementById('card-chooser');
-  document.getElementById('card-chooser-title').textContent = '🎮 歡迎來到創業小鎮！';
-  document.getElementById('card-chooser-cards').innerHTML = `
-    <div class="sel-card" onclick="startTutorial()" style="cursor:pointer;min-width:160px;">
-      <div class="sel-card-emoji">📖</div>
-      <div class="sel-card-name">進行教學</div>
-      <div class="sel-card-desc">譚雅與蕾雅帶你一步步了解遊戲</div>
-      <div class="sel-card-pos">✓ 推薦新玩家</div>
-    </div>
-    <div class="sel-card" onclick="skipTutorial()" style="cursor:pointer;min-width:160px;">
-      <div class="sel-card-emoji">⚔️</div>
-      <div class="sel-card-name">跳過教學</div>
-      <div class="sel-card-desc">直接開始正式遊戲</div>
-      <div class="sel-card-pos">✓ 已熟悉遊戲規則</div>
-    </div>
-  `;
-  const skipBtn = document.getElementById('card-chooser-skip');
-  if(skipBtn) skipBtn.style.display = 'none';
-  el.style.display = 'flex';
+// ══════════════════════════════════════
+// 存檔 / 讀檔系統
+// ══════════════════════════════════════
+const SAVE_KEY='VentureTown_Save';
+const SAVE_VERSION=1;
+
+function serializeGame(){
+  return {
+    v:SAVE_VERSION,
+    ts:new Date().toISOString(),
+    g:JSON.parse(JSON.stringify(G,(_,v)=>v instanceof Set?{_s:[...v]}:v)),
+    cs:_compoundSeq,
+  };
+}
+function deserializeGame(save){
+  if(!save||save.v!==SAVE_VERSION) return false;
+  const data=save.g;
+  // 驗證必要欄位
+  if(!data||typeof data.round!=='number'||!Array.isArray(data.hand)||!Array.isArray(data.grid)||!Array.isArray(data.partners)) return false;
+  // 還原 Set
+  function reviveSets(o){
+    for(const k in o){
+      if(o[k]&&typeof o[k]==='object'){
+        if(Array.isArray(o[k])) continue;
+        if(o[k]._s){ o[k]=new Set(o[k]._s); }
+        else reviveSets(o[k]);
+      }
+    }
+  }
+  reviveSets(data);
+  // 驗證設施/合夥人 ID 存在性（防止版本不相容崩潰）
+  const gn=data.gridSize||4;
+  for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+    const b=data.grid[r]&&data.grid[r][c];
+    if(b&&b!=='ruin'&&!BLDG[b]) data.grid[r][c]=null;
+  }
+  data.partners=data.partners.filter(pid=>PARTNERS[pid]);
+  data.hand=data.hand.filter(h=>{
+    if(h.compound) return h.parts&&h.parts.every(p=>BLDG[p]);
+    return BLDG[h.id];
+  });
+  // 清除指向無效設施的位置鍵值
+  KEYED_DATA_FIELDS.forEach(dk=>{
+    if(!data[dk]||typeof data[dk]!=='object') return;
+    for(const k in data[dk]){
+      const [r,c]=k.split(',').map(Number);
+      if(!data.grid[r]||!data.grid[r][c]) delete data[dk][k];
+    }
+  });
+  if(data.cellOverlay){
+    for(const k in data.cellOverlay){ if(!BLDG[data.cellOverlay[k]]) delete data.cellOverlay[k]; }
+  }
+  // 清除不應持久化的臨時狀態（每回合重置 / UI 模式 / 快照）
+  data.inv={};
+  data.sel=null;
+  data.phase='place';
+  data.buff={};
+  data.elementExtraUses=0;
+  data.actionOptions=[];
+  data.turnFacMoved=0;
+  data.moveMode=false; data.moveSrc=null;
+  data.upgradeMode=false;
+  data.freeRearrange=false;
+  data._futuresMoveNext=[];
+  delete data._freeMoveLogistics; delete data._freeMoveLogisticsSrc;
+  delete data._demoExpertMode; delete data._yongqingSellMode; delete data._yongqingSellUsed;
+  delete data._demolitionRearrange; delete data._laborMinisterUsed;
+  delete data._gridSnapshot; delete data._upgradesSnapshot; delete data._leyaSnapshot; delete data._cellModsSnapshot;
+  delete data._talentUsedOnElement; delete data._hrUsedThisTurn;
+  delete data._tanyaSwapPending; delete data._tanyaSwapPool;
+  G=data;
+  if(save.cs!==undefined) _compoundSeq=save.cs;
+  // 重建事件預告資料
+  if(G.nextEvent) G.nextEventData=precomputeEventData(G.nextEvent);
+  return true;
+}
+function autoSave(){
+  if(TUT.active) return;
+  try{ localStorage.setItem(SAVE_KEY,JSON.stringify(serializeGame())); }
+  catch(e){ console.warn('Auto-save failed:',e); }
+}
+function autoLoad(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    return deserializeGame(JSON.parse(raw));
+  }catch(e){ console.warn('Auto-load failed:',e); return false; }
+}
+function clearAutoSave(){ localStorage.removeItem(SAVE_KEY); }
+
+function exportSave(){
+  const save=serializeGame();
+  const blob=new Blob([JSON.stringify(save)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`VentureTown_R${G.round}_T${G.turn}_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  addLog('💾 存檔已匯出','g');
+}
+function triggerImport(){ document.getElementById('import-file').click(); }
+function importSave(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const save=JSON.parse(ev.target.result);
+      if(deserializeGame(save)){
+        if(SM.current!=='gameplay'){
+          SM.goto('gameplay',{mode:'import'});
+        } else {
+          hideEv(); closeCardChooser(); closeActionOverlay();
+          document.getElementById('modal').classList.remove('show');
+          if(G.phase!=='place') G.phase='place';
+          addLog('📂 存檔已匯入','g');
+          render();
+        }
+      } else { alert('存檔格式不正確或版本不相容'); }
+    }catch(err){ alert('無法讀取存檔：'+err.message); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
 }
 
-function startTutorial(){
-  closeCardChooser();
-  TUT.start();
-}
+// ══════════════════════════════════════
+// 場景管理器 (Scene Manager)
+// ══════════════════════════════════════
+const SM={
+  current:null,
+  defs:{},
+  define(name,def){ this.defs[name]=def; },
+  goto(name,opts){
+    const prev=this.current;
+    if(prev&&this.defs[prev]&&this.defs[prev].exit) this.defs[prev].exit();
+    this.current=name;
+    if(this.defs[name]&&this.defs[name].enter) this.defs[name].enter(opts||{});
+  }
+};
 
-function skipTutorial(){
-  closeCardChooser();
-  showStarterPartnerSelection();
-}
+// ── 場景：標題畫面 ──
+SM.define('title',{
+  _exitTimer:null,
+  enter(){
+    clearTimeout(this._exitTimer);
+    const ts=document.getElementById('title-screen');
+    ts.classList.remove('ts-hide');
+    ts.style.display='flex';
+    // 偵測自動存檔
+    let hasSave=false, saveInfo='';
+    try{
+      const raw=localStorage.getItem(SAVE_KEY);
+      if(raw){
+        const s=JSON.parse(raw);
+        if(s&&s.v===SAVE_VERSION&&s.g){
+          hasSave=true;
+          const g=s.g;
+          const ts=s.ts?new Date(s.ts).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+          saveInfo=`第${g.round}輪 回合${g.turn}/${g.maxTurns}<br>收益 ${g.profit}/${g.goal}${ts?`<br><span style="color:var(--mu);font-size:8px;">${ts}</span>`:''}`;
+        }
+      }
+    }catch(e){}
+    // 建立選單卡片
+    let h='';
+    if(hasSave){
+      h+=`<div class="ts-card ts-primary" onclick="SM.goto('gameplay',{mode:'resume'})">
+        <div class="ts-card-emoji">▶️</div>
+        <div class="ts-card-name">繼續遊戲</div>
+        <div class="ts-card-desc">${saveInfo}</div>
+        <div class="ts-card-hint">從上次進度繼續</div>
+      </div>`;
+    }
+    h+=`<div class="ts-card" onclick="SM.goto('gameplay',{mode:'tutorial'})">
+      <div class="ts-card-emoji">📖</div>
+      <div class="ts-card-name">新手教學</div>
+      <div class="ts-card-desc">譚雅與蕾雅帶你<br>了解遊戲規則</div>
+    </div>`;
+    h+=`<div class="ts-card" onclick="SM.goto('gameplay',{mode:'new'})">
+      <div class="ts-card-emoji">⚔️</div>
+      <div class="ts-card-name">開始遊戲</div>
+      <div class="ts-card-desc">跳過教學<br>直接開始冒險</div>
+    </div>`;
+    h+=`<div class="ts-card" onclick="triggerImport()">
+      <div class="ts-card-emoji">📂</div>
+      <div class="ts-card-name">讀取存檔</div>
+      <div class="ts-card-desc">從檔案匯入<br>遊戲進度</div>
+    </div>`;
+    document.getElementById('ts-cards').innerHTML=h;
+  },
+  exit(){
+    const ts=document.getElementById('title-screen');
+    ts.classList.add('ts-hide');
+    this._exitTimer=setTimeout(()=>{ ts.style.display='none'; },400);
+  }
+});
+
+// ── 場景：遊戲主畫面 ──
+SM.define('gameplay',{
+  enter(opts){
+    if(opts.mode==='tutorial'){
+      G=newGame();
+      TUT.start();
+    } else if(opts.mode==='resume'){
+      if(!autoLoad()){ SM.goto('title'); return; }
+      if(G.phase!=='place') G.phase='place';
+      render();
+    } else if(opts.mode==='new'){
+      clearAutoSave();
+      G=newGame();
+      showStarterPartnerSelection();
+    } else if(opts.mode==='import'){
+      if(G.phase!=='place') G.phase='place';
+      addLog('📂 存檔已匯入','g');
+      render();
+    }
+  },
+  exit(){
+    // 關閉所有遊戲中的 overlay
+    hideEv(); closeCardChooser(); closeActionOverlay();
+    document.getElementById('modal').classList.remove('show');
+  }
+});
 
 // ══════════════════════════════════════
 // 開發者測試模式
@@ -6306,8 +6458,7 @@ document.getElementById('logo').addEventListener('click',()=>DEV.push('L'));
 
 // BOOT
 G=newGame();
-// Show tutorial prompt first
-showTutorialPrompt();
+SM.goto('title');
 </script>
 
 <div id="char-bubble"></div>
