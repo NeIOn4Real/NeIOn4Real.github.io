@@ -1387,9 +1387,9 @@ function checkSafetyNet(){
   return _safetyNetRoll;
 }
 // ── 大熱波懲罰機制 ──
-function checkHeatwave(turnProfit){
+function checkHeatwave(){
   if(TUT.active) return;
-  if(!G._heatwave) G._heatwave={pathHistory:[], facProfits:{}, samePathCount:0, lastPath:''};
+  if(!G._heatwave) G._heatwave={facProfits:{}, samePathCount:0, lastPath:''};
   const hw=G._heatwave;
   // 更新設施收益追蹤
   if(G.inv.facProfitMap) Object.entries(G.inv.facProfitMap).forEach(([k,v])=>{ hw.facProfits[k]=(hw.facProfits[k]||0)+v; });
@@ -1411,22 +1411,22 @@ function checkHeatwave(turnProfit){
 
   if(!(cond1&&cond2&&cond3&&cond4)) return;
 
-  // 觸發大熱波！重置追蹤
-  hw.facProfits={}; hw.samePathCount=0; hw.lastPath='';
-
-  // 選擇炸毀目標：收益最高的設施 或 重複路徑上的設施
-  let target=null, targetKey='';
-  // 優先：收益最高的設施（在場上的）
+  // 選擇炸毀目標：累積收益最高 + 在當前路徑上的設施
+  let target=null;
   let bestVal=0;
   const pathFacs=(G.inv.facPath||[]);
   eachCell((r,c,b)=>{
     if(!isFacility(b)) return;
-    // 計算設施效率：在路徑中出現且有收益
-    const profitContrib=G.inv.facProfitMap&&G.inv.facProfitMap[b]||0;
+    const cumProfit=hw.facProfits[b]||0;
+    const turnProfit=G.inv.facProfitMap&&G.inv.facProfitMap[b]||0;
     const inPath=pathFacs.includes(b);
-    const score=profitContrib+(inPath?50:0);
-    if(score>bestVal){ bestVal=score; target=[r,c]; targetKey=`${r},${c}`; }
+    const score=cumProfit+turnProfit+(inPath?50:0);
+    if(score>bestVal){ bestVal=score; target=[r,c]; }
   });
+
+  // 觸發大熱波！重置追蹤
+  hw.facProfits={}; hw.samePathCount=0; hw.lastPath='';
+
   if(!target) return;
 
   // 炸彈特效 + 對話
@@ -1922,7 +1922,7 @@ function newGame(){
     _zeroProfitTurns:0,  // 連續零收益回合數（安全網機制）
     _safetyNetUsed:0,   // 安全網觸發次數（最多4次）
     _goalReachedTurn:0,  // 本輪首次達標的回合數（0=尚未達標）
-    _heatwave:{pathHistory:[], facProfits:{}, samePathCount:0, lastPath:''}, // 大熱波追蹤
+    _heatwave:{facProfits:{}, samePathCount:0, lastPath:''}, // 大熱波追蹤
     turnLog:[],         // 本回合 log
     turnLogHistory:[]   // 最近3回合 log
   };
@@ -3005,7 +3005,13 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       setTimeout(()=>stepWithMover(path,el,i+1,startVal,mover,updateMover),delay);
     }
   };
-  const _hit=(delay=350)=>{G.inv.facHit=(G.inv.facHit||0)+1;pulse(r,c);updateCard(el);updateMover(el);_next(delay);};
+  const _prevValFx=el.value; // 大熱波：FACILITY_FX 用
+  const _hit=(delay=350)=>{
+    G.inv.facHit=(G.inv.facHit||0)+1;
+    if(G.inv.facPath) G.inv.facPath.push(bId);
+    if(G.inv.facProfitMap){const gain=el.value-_prevValFx;if(gain>0) G.inv.facProfitMap[bId]=(G.inv.facProfitMap[bId]||0)+gain;}
+    pulse(r,c);updateCard(el);updateMover(el);_next(delay);
+  };
   // ── 廢墟：資源直接通過，不產生任何交互 ──
   if(bId==='ruin'){
     // 廢墟掠奪者：每個廢墟隨機 +5%~23%
@@ -3482,7 +3488,7 @@ function finish(el,startVal){
     return;
   }
   // ── 大熱波追蹤與檢查 ──
-  checkHeatwave(totalTurnProfit);
+  checkHeatwave();
 
   G.phase='done';
   updateCard(el);
@@ -6626,7 +6632,8 @@ const DEV={
       <div class="dev-row" title="直接跳到本輪的最後一個回合" onclick="G.turn=G.maxTurns-1;render();"><span class="de">⏩</span><span class="dn">跳到最後回合</span></div>
       <div class="dev-row" title="將收益設為等於目標，之後結束回合即過關" onclick="G.profit=G.goal;render();"><span class="de">🏆</span><span class="dn">收益=目標（過關）</span></div>
       <div class="dev-row" title="增加10回合上限" onclick="G.maxTurns+=10;addLog('DEV：+10回合（共'+G.maxTurns+'）');render();"><span class="de">⏱️</span><span class="dn">+10 回合</span></div>
-      <div class="dev-row" title="獲得1張廢墟紀念碑" onclick="addHand('ruin_monument');renderFanHand();render();"><span class="de">🗿</span><span class="dn">獲得廢墟紀念碑</span></div>
+      <div class="dev-row" title="獲得1張廢墟卡（放置後變成廢墟）" onclick="addHand('ruin');renderFanHand();render();"><span class="de">🏚️</span><span class="dn">獲得廢墟卡</span></div>
+      <div class="dev-row" title="強制觸發大熱波懲罰（炸毀收益最高的設施）" onclick="G._heatwave={facProfits:{},samePathCount:0,lastPath:''};G.roundHistory=[{round:1,turnsUsed:1,goal:30,profit:100},{round:2,turnsUsed:1,goal:60,profit:200},{round:3,turnsUsed:1,goal:120,profit:400}];G.inv.facHit=1;G.inv.facPath=['shop'];G.inv.facProfitMap={shop:999};G.inv.sendDir='left';G._heatwave.samePathCount=5;G._heatwave.lastPath='left|shop';G._heatwave.facProfits={shop:G.goal*2};checkHeatwave();render();"><span class="de">🔥</span><span class="dn">觸發大熱波</span></div>
     </div>`;
 
     panel.innerHTML=h;
