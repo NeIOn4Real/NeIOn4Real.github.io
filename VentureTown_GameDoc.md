@@ -872,6 +872,22 @@ E:\VT\
 - 拖曳預覽支援雙向疊加（金色邊框）
 - 轉運中心蓋在設施上時觸發方向選擇器
 
+#### 疊加設施渲染
+- **單層疊加**：設施 emoji 為主，物流方向箭頭常駐右下角
+- **雙層疊加（倉儲女王）**：兩設施 emoji 輪播（3 秒循環），物流箭頭常駐右下角
+- **懸停提示**：顯示底層物流 + 所有疊加設施的名稱與描述
+- `getOverlays(r,c)` / `setOverlays(r,c,arr)`：統一處理 string/array 格式
+- `countAllShops()`：計算 grid + overlay 所有商店數量
+- `hasAdjacentShop()`、`countAdjacentFacilities()`：檢查 overlay 設施
+- `destroyFacility()`：清理 cellOverlay（一般設施 + 百貨公司）
+- Overlay 升級加成只套用一次（不隨 overlay 數量倍增）
+
+#### Bug 修復（續）
+- **拆遷隊重複進入**：排列模式中再次點擊拆遷隊會覆蓋快照，取消後設施消失。加入 `G.freeRearrange` 防護
+- **壟斷者商店計數遺漏 overlay**：改用 `countAllShops()` 計算含 overlay 的商店數
+- **貿易特區相鄰商店遺漏 overlay**：`hasAdjacentShop()` 加入 overlay 檢查
+- **環境感應站相鄰設施遺漏 overlay**：`countAdjacentFacilities()` 加入 overlay 計數
+
 #### 開發者面板
 - **🔥 觸發大熱波**：強制觸發懲罰事件
 - **🏚️ 獲得廢墟卡**：取代原本的廢墟紀念碑按鈕
