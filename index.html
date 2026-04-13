@@ -164,7 +164,6 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 @keyframes fup{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-44px)}}
 /* ── 元素卡牌 ── */
 
-@keyframes cardPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 
 .cell.move-src{outline:3px solid var(--acc);box-shadow:0 0 10px rgba(179,58,0,.3);z-index:2;}
 .cell.ruin-cell{background:repeating-linear-gradient(45deg,var(--bg2),var(--bg2) 4px,rgba(120,100,80,.12) 4px,rgba(120,100,80,.12) 8px);border-color:rgba(120,100,80,.4);}
@@ -196,7 +195,7 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   0%{opacity:0;transform:scale(.5) translateY(0);}
   20%{opacity:1;transform:scale(1.2) translateY(-20px);}
   80%{opacity:1;}
-  100%{opacity:0;transform:scale(.6) translateY(-120px) translateX(var(--tx,0px));}
+  100%{opacity:0;transform:scale(.6) translateY(-120px) translateX(var(--fly-x,0px));}
 }
 /* 莫菲定律全屏特效 */
 @keyframes murphyShake{
@@ -1157,7 +1156,7 @@ const PARTNERS = {
     id:'chaos_architect', name:'混沌建築師', emoji:'🌀',
     pos:'每回合開始隨機移動一個設施到空格', neg:'設施被隨機移動時，玩家失去-5%收益', desc:'混沌建築師',
     onTurnStart(G){
-      const filled=findCells((r,c,b)=>isFacility(b));
+      const filled=findFacilityCells();
       const empties=findCells((r,c,b)=>!b||b==='ruin');
       if(filled.length&&empties.length){
         const [fr,fc]=filled[Math.floor(Math.random()*filled.length)];
@@ -1347,6 +1346,23 @@ function rollWindDir(){
 }
 function eachCell(fn){ for(let r=0;r<GN();r++) for(let c=0;c<GN();c++) fn(r,c,G.grid[r][c]); }
 function findCells(pred){ const res=[]; eachCell((r,c,b)=>{ if(pred(r,c,b)) res.push([r,c]); }); return res; }
+function findFacilityCells(){ return findCells((r,c,b)=>isFacility(b)); }
+function saveGridSnapshot(){
+  G._gridSnapshot=G.grid.map(r=>[...r]);
+  G._upgradesSnapshot=JSON.parse(JSON.stringify(G.bldgUpgrades||{}));
+  G._leyaSnapshot=JSON.parse(JSON.stringify(G.leyaPctMods||{}));
+  G._cellModsSnapshot=JSON.parse(JSON.stringify(G.cellMods||{}));
+}
+function restoreGridSnapshot(){
+  if(!G._gridSnapshot) return;
+  G.grid=G._gridSnapshot; G.bldgUpgrades=G._upgradesSnapshot||{};
+  G.leyaPctMods=G._leyaSnapshot||{}; G.cellMods=G._cellModsSnapshot||{};
+  deleteGridSnapshot();
+}
+function deleteGridSnapshot(){
+  delete G._gridSnapshot; delete G._upgradesSnapshot;
+  delete G._leyaSnapshot; delete G._cellModsSnapshot;
+}
 
 // ══════════════════════════════════════
 // 事件池
@@ -1732,7 +1748,6 @@ function flash2x2Cells(r,c,val){
 // ══════════════════════════════════════
 // 狀態
 // ══════════════════════════════════════
-const EVENT_TURNS=[5,10];
 const EVENT_INTERVAL=3; // 每 3 回合一次（第 3、6、9 回合）
 
 let G;
@@ -1759,7 +1774,6 @@ function newGame(){
     upgradeMode:false,   // 提升設施模式
     freeRearrange:false, // 自由重新排列設施模式
     demolitionCharges:0,  // 拆遷隊可用次數
-    partnerPool:[],      // 合夥人招募池（含未選起始合夥人）
     _tanyaNewBldg:{},    // 譚雅加成待套用
     gridSize:4,           // 地圖大小（大地主可擴到5）
     windDir:null,         // 場風大師本回合指定方向
@@ -1786,7 +1800,6 @@ function newGame(){
     roundHistory:[],     // 每輪記錄 [{round, turnsUsed, goal, profit}]
     difficultyMult:1.0,  // 動態難度倍率（影響目標遞增）
     _goalReachedTurn:0,  // 本輪首次達標的回合數（0=尚未達標）
-    logs:[],
     turnLog:[],         // 本回合 log
     turnLogHistory:[]   // 最近3回合 log
   };
@@ -2011,12 +2024,6 @@ function evPick(id,fromEl){
   closeActionOverlay();
   G.actionOptions=[];
   startTurn();
-}
-function applyBuff(key,val){
-  G.buff[key]=val;
-  const msgs={matOutMult:'📈 本回合原料輸出 ×2',goodsBonus:'🛒 本回合商品→金錢 +2'};
-  addLog(msgs[key]||'效果已套用','w');
-  evDone();
 }
 
 // ══════════════════════════════════════
@@ -2401,10 +2408,9 @@ function sendEl(dir,idx){
     return;
   }
   // 場風大師：只能從指定方向投入
-  if(hasPartner('wind_master')){
-    const wd=getWindDir();
-    if(wd && dir!==wd){
-      addLog(`🌀 場風大師：本回合只能從 ${wd} 方向投入！`,'b');
+  if(hasPartner('wind_master')&&G.windDir){
+    if(dir!==G.windDir){
+      addLog(`🌀 場風大師：本回合只能從 ${G.windDir} 方向投入！`,'b');
       return;
     }
   }
@@ -3313,7 +3319,7 @@ function finish(el,startVal){
   fly.style.left=profitRect.left+'px';
   fly.style.top=profitRect.top+'px';
   const dx=targetRect.left-profitRect.left;
-  fly.style.setProperty('--tx',dx+'px');
+  fly.style.setProperty('--fly-x',dx+'px');
   document.body.appendChild(fly);
   setTimeout(()=>fly.remove(),1300);
 
@@ -3541,10 +3547,7 @@ function doAction(id){
   }
   if(id==='move_fac'){
     // 進入自由排列模式（無論是否有拆遷隊都一樣）
-    G._gridSnapshot=G.grid.map(r=>[...r]);
-    G._upgradesSnapshot=JSON.parse(JSON.stringify(G.bldgUpgrades||{}));
-    G._leyaSnapshot=JSON.parse(JSON.stringify(G.leyaPctMods||{}));
-    G._cellModsSnapshot=JSON.parse(JSON.stringify(G.cellMods||{}));
+    saveGridSnapshot();
     G.freeRearrange=true; G.moveMode=false; G.moveSrc=null;
     addLog('🔧 自由排列模式：拖曳設施到想要的位置，完成後點「確認排列」');
     G.phase='place'; render(); return;
@@ -3692,16 +3695,7 @@ function onRearrangeDrop(e,r,c){
 
 function cancelRearrange(){
   // 還原到進入排列模式前的狀態
-  if(G._gridSnapshot){
-    G.grid=G._gridSnapshot;
-    G.bldgUpgrades=G._upgradesSnapshot||{};
-    G.leyaPctMods=G._leyaSnapshot||{};
-    G.cellMods=G._cellModsSnapshot||{};
-    delete G._gridSnapshot;
-    delete G._upgradesSnapshot;
-    delete G._leyaSnapshot;
-    delete G._cellModsSnapshot;
-  }
+  restoreGridSnapshot();
   G.freeRearrange=false; G.moveSrc=null;
   G._demolitionRearrange=false;
   addLog('↩ 取消排列，設施已還原');
@@ -3716,10 +3710,7 @@ function confirmRearrange(){
   G._demolitionRearrange = false;
   // 莫菲定律：重排後重置未移動計數
   if(G._murphyTrack) G._murphyTrack.noMove=0;
-  delete G._gridSnapshot;
-  delete G._upgradesSnapshot;
-  delete G._leyaSnapshot;
-  delete G._cellModsSnapshot;
+  deleteGridSnapshot();
   G.freeRearrange=false; G.moveSrc=null;
   addLog('✅ 設施排列已確定','g');
   render();
@@ -4271,11 +4262,10 @@ function renderGrid(){
     const rearrangeHi=G.freeRearrange&&G.grid[r][c]&&!isRuin&&!G.moveSrc?' upgrade-glow':'';
     const routeSrcHi=G._freeMoveLogisticsSrc&&G._freeMoveLogisticsSrc[0]===r&&G._freeMoveLogisticsSrc[1]===c?' move-src':'';
     const routeTargetHi=G._freeMoveLogistics&&!G._freeMoveLogisticsSrc&&b&&b.special==='redirect'?' upgrade-glow':'';
-    const centerHi=isCenterCell(r,c)?' center-cell':'';
     const evPreview=(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(`${r},${c}`))?' event-preview':'';
     const sellHi=(G._yongqingSellMode&&b)?' sell-shake':'';
     const isCenter=isCenterCell(r,c);
-    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${centerHi}${evPreview}${sellHi}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
+    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${evPreview}${sellHi}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
       onmouseenter="cellHoverStart(event,${r},${c})"
       onmouseleave="cellHoverEnd()"
       onclick="onCell(${r},${c})"
@@ -4447,12 +4437,6 @@ function pulse(r,c){
   if(!el)return;
   el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse');
   setTimeout(()=>el.classList.remove('pulse'),450);
-}
-function fdelta(text,color,x,y){
-  const d=document.createElement('div');
-  d.className='delta';d.textContent=text;
-  d.style.cssText=`left:${x}px;top:${y}px;color:${color};`;
-  document.body.appendChild(d);setTimeout(()=>d.remove(),950);
 }
 
 // ══════════════════════════════════════
@@ -4737,16 +4721,12 @@ function renderFanHand() {
     const angle = frac * maxAngle * 2;
     const sinkY = Math.abs(frac) * 14;
     const zi    = card.selected ? 50 : i + 1;
-    const tx    = 0; // flex handles horizontal spacing
 
     const selBorder = card.selected ? 'border-color:var(--acc) !important;' : '';
     const dimStyle  = '';
     const typeClass = card.type === 'event' ? ' event-card' :
                       card.type === 'element' ? ' el-card-fan' :
                       card.type === 'talent' ? ' talent-card' : '';
-
-    // Back face HTML — unified pattern, no content
-    const backHTML = `<div class="fc-back-mark">🏙</div>`;
 
     // Front face HTML
     let frontHTML = '';
@@ -4827,7 +4807,7 @@ function profitFlyFrom(srcEl, amount){
   if(amount<0) fly.style.color='var(--red)';
   fly.style.left=(src.left+src.width/2)+'px';
   fly.style.top=(src.top+src.height/2)+'px';
-  fly.style.setProperty('--tx',(dst.left-src.left-src.width/2)+'px');
+  fly.style.setProperty('--fly-x',(dst.left-src.left-src.width/2)+'px');
   document.body.appendChild(fly);
   setTimeout(()=>fly.remove(),1300);
 }
@@ -4847,41 +4827,6 @@ function profitFlyFromCell(r, c, amount){
   profitFlyFrom(cellEl, amount);
 }
 
-function demolitionChargeFly(){
-  const row=document.getElementById('partner-row');
-  if(!row) return;
-  const cards=row.querySelectorAll('.joker-card');
-  let dCard=null;
-  G.partners.forEach((pid,i)=>{ if(pid==='demolition') dCard=cards[i]; });
-  if(!dCard) return;
-
-  const dst=dCard.getBoundingClientRect();
-  const fly=document.createElement('div');
-  fly.className='profit-fly';
-  fly.textContent='+1';
-  fly.style.cssText=`left:${window.innerWidth/2}px;top:${window.innerHeight/2}px;color:var(--money);font-size:18px;`;
-  fly.style.setProperty('--tx',(dst.left-window.innerWidth/2+dst.width/2)+'px');
-  // custom animation: fly toward card (downward if card is above center)
-  fly.style.animation='none';
-  document.body.appendChild(fly);
-
-  const startY=window.innerHeight/2;
-  const endY=dst.top+dst.height/2;
-  const startX=window.innerWidth/2;
-  const endX=dst.left+dst.width/2;
-
-  fly.animate([
-    {opacity:1,transform:`translate(0,0) scale(1)`},
-    {opacity:1,transform:`translate(${endX-startX}px,${endY-startY}px) scale(0.7)`},
-    {opacity:0,transform:`translate(${endX-startX}px,${endY-startY}px) scale(0.3)`}
-  ],{duration:600,easing:'cubic-bezier(.4,0,.2,1)'}).onfinish=()=>{
-    fly.remove();
-    // pulse demolition card
-    if(dCard){ dCard.style.transform='translateY(-14px) scale(1.18)'; setTimeout(()=>dCard.style.transform='',350); }
-    renderPartners();
-  };
-}
-
 function useDemolition(){
   if(TUT.active && TUT.waitingFor==='use_demolition'){
     TUT.waitingFor = 'confirm_rearrange'; // 等待玩家點擊確認排列
@@ -4889,10 +4834,7 @@ function useDemolition(){
   if(!hasPartner('demolition')) return;
   if((G.demolitionCharges||0)<=0){ addLog('🔨 拆遷隊次數不足','b'); return; }
   if(G.phase!=='place'){ addLog('🔨 只能在放置階段使用','b'); return; }
-  G._gridSnapshot=G.grid.map(r=>[...r]);
-  G._upgradesSnapshot=JSON.parse(JSON.stringify(G.bldgUpgrades||{}));
-  G._leyaSnapshot=JSON.parse(JSON.stringify(G.leyaPctMods||{}));
-  G._cellModsSnapshot=JSON.parse(JSON.stringify(G.cellMods||{}));
+  saveGridSnapshot();
   G.freeRearrange=true; G.moveMode=false; G.moveSrc=null;
   G._demolitionRearrange = true; // 標記為拆遷隊啟動的重排
   addLog('🔨 拆遷隊啟動！拖曳設施到想要的位置，完成後點「確認排列」');
@@ -4983,17 +4925,6 @@ function expandGrid(grid, newSize){
     for(let cc=0;cc<Math.min(grid[r].length,newSize);cc++)
       newGrid[r][cc]=grid[r][cc];
   return newGrid;
-}
-
-function getWindDir(){
-  const dirs=['left','right','top','bottom'];
-  const labels={left:'←左',right:'→右',top:'↑上',bottom:'↓下'};
-  if(!hasPartner('wind_master')) return null;
-  if(!G.windDir){
-    G.windDir=dirs[Math.floor(Math.random()*4)];
-    addLog(`🌀 場風大師：本回合只能從 ${labels[G.windDir]} 投入`,'w');
-  }
-  return G.windDir;
 }
 
 // ══ 人材拖曳系統 ══
@@ -5331,8 +5262,6 @@ function pickStarterPartner(pid){
   // 未選到的兩位加入合夥人招募池
   const starters=['demolition','tanya','leya'];
   starters.filter(s=>s!==pid).forEach(s=>{
-    if(!G.partnerPool) G.partnerPool=[];
-    if(!G.partnerPool.includes(s)) G.partnerPool.unshift(s); // 加到最前面提高機率
     addLog(`🤝 ${PARTNERS[s].emoji}${PARTNERS[s].name} 進入合夥人招募池`,'w');
   });
   document.getElementById('card-chooser').style.display='none';
@@ -5639,7 +5568,6 @@ const DM = {
 
 // 向後相容舊呼叫
 function tryDialogue(key){ DM.trigger(key); }
-function showBubble(text, dur){ DM.show(text, dur); }
 
 // ── 譚雅：每回合開始顯示交換選單 ──
 function tanyaOfferSwap(){
@@ -5661,7 +5589,7 @@ function tanyaOfferSwap(){
 function showTanyaHandPick(pool){
   const el = document.getElementById('card-chooser');
   document.getElementById('card-chooser-title').textContent = '👩‍💼 譚雅：選擇要交換出去的手牌設施';
-  const handOptions = G.hand.filter(h=>h.count>0);
+  const handOptions = G.hand.filter(h=>h.count>0&&!h.compound);
   document.getElementById('card-chooser-cards').innerHTML = handOptions.map(h=>
     makeSelCard(BLDG[h.id].emoji, BLDG[h.id].name, BLDG[h.id].desc, '', '',
       `tanyaSelectGive('${h.id}')`, '', '', '')
