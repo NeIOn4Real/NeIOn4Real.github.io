@@ -3971,6 +3971,7 @@ function startTurn(){
   else G._murphyTrack.noMove=0;
   G.turnFacMoved = 0; // 動態加強器用：本回合設施移動計數（重置放在檢查之後）
   _safetyNetRoll = false; // 重置安全網判定
+  G._permShopUsed = false; // 重置商店使用
   // 合夥人每回合開始效果
   G.partners.forEach(pid=>{
     const p=PARTNERS[pid];
@@ -4235,6 +4236,7 @@ function isPermShopFree(){
 }
 function doPermShop(){
   if(G.phase!=='place'&&G.phase!=='done') return;
+  if(G._permShopUsed) return;
   // 基礎設施池 + 1 隨機物流方向
   let pool=[...BASIC_FACILITIES];
   pool.push(LOGISTICS_DIRS[Math.floor(Math.random()*LOGISTICS_DIRS.length)]);
@@ -4248,19 +4250,21 @@ function doPermShop(){
     if(nonBasic.length) pool.push(nonBasic[Math.floor(Math.random()*nonBasic.length)]);
   }
   const shuffled=[...new Set(pool)].sort(()=>Math.random()-.5).slice(0,3);
-  const free=isPermShopFree();
-  const cost=free?0:getPermShopCost();
+  const hasFree=isPermShopFree();
+  const freeIdx=hasFree?Math.floor(Math.random()*shuffled.length):-1;
+  const cost=getPermShopCost();
   const prevPhase=G.phase;
   showCardChooser(
-    `🏗 商店${free?' （免費）':''}`,
-    shuffled.map(bid=>{
-      const c=free?0:cost;
+    `🏗 商店${hasFree?' （含免費）':''}`,
+    shuffled.map((bid,i)=>{
+      const isFree=i===freeIdx;
+      const c=isFree?0:cost;
       const afford=G.profit>=c;
       return {
         emoji:BLDG[bid].emoji, name:BLDG[bid].name,
-        desc:BLDG[bid].desc+(afford?'':'\n⚠ 收益不足'),
-        pos:free?'免費':'-'+c+' 收益', neg:'',
-        onclick:afford?`cardChooserPick(()=>{G.profit-=${c};addHandMaybeCompound('${bid}');addLog('🏗 購買了 ${BLDG[bid].emoji}${BLDG[bid].name}','g');G.phase='${prevPhase}';render();})`:'',
+        desc:BLDG[bid].desc+(isFree?' 🎁 免費！':(afford?'':'\n⚠ 收益不足')),
+        pos:isFree?'🎁 免費':'-'+c+' 收益', neg:'',
+        onclick:afford?`cardChooserPick(()=>{G.profit-=${c};G._permShopUsed=true;addHandMaybeCompound('${bid}');addLog('🏗 購買了 ${BLDG[bid].emoji}${BLDG[bid].name}${isFree?" （免費）":""}','g');G.phase='${prevPhase}';render();})`:'',
       };
     }),
     ()=>{ G.phase=prevPhase; render(); } // 取消
@@ -4286,8 +4290,12 @@ function updatePermBtns(){
   const convBtn=document.getElementById('btn-perm-convert');
   if(!shopBtn||!convBtn) return;
   const inGame=G.phase==='place'||G.phase==='done';
-  // 商店：place/done 階段可用
-  shopBtn.classList.toggle('perm-disabled',!inGame||TUT.active);
+  // 商店：place/done 階段可用，且本回合未使用
+  const shopUsed=G._permShopUsed||false;
+  const shopOk=inGame&&!TUT.active&&!shopUsed;
+  shopBtn.classList.toggle('perm-disabled',!shopOk);
+  // 有免費設施時發光提示
+  shopBtn.classList.toggle('btn-glow',shopOk&&isPermShopFree());
   // 轉換器：只有輸出非金錢時才亮
   const canConv=inGame&&G.card&&G.card.type!=='money'&&!TUT.active;
   convBtn.classList.toggle('perm-disabled',!canConv);
@@ -4828,10 +4836,8 @@ function showCardChooser(title, cards, onSkip){
   document.getElementById('card-chooser-cards').innerHTML=cards.map(card=>
     makeSelCard(card.emoji,card.name,card.desc,card.pos,card.neg,card.onclick,'',card.pid||'')
   ).join('');
-  document.getElementById('card-chooser-skip').onclick=()=>{
-    closeCardChooser();
-    if(_cardChooserSkipFn) _cardChooserSkipFn();
-  };
+  const skipBtn=document.getElementById('card-chooser-skip');
+  if(skipBtn){ skipBtn.style.display=''; skipBtn.onclick=()=>{ closeCardChooser(); if(_cardChooserSkipFn) _cardChooserSkipFn(); }; }
   el.style.display='flex';
 }
 function closeCardChooser(){
@@ -6508,6 +6514,7 @@ function deserializeGame(save){
   delete data._gridSnapshot; delete data._keyedSnapshot; delete data._ruinCellsSnapshot;
   delete data._talentUsedOnElement; delete data._hrUsedThisTurn;
   delete data._tanyaSwapPending; delete data._tanyaSwapPool;
+  delete data._permShopUsed;
   G=data;
   if(save.cs!==undefined) _compoundSeq=save.cs;
   // 重建事件預告資料
