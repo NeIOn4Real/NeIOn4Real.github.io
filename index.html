@@ -4351,8 +4351,11 @@ function showTransferHubDirPicker(r,c){
   });
   panel.onclick=(e)=>e.stopPropagation();
   document.body.appendChild(panel);
-  // 點擊外部或 ESC 關閉（保留 transfer_hub 原樣，預設 dir:right）
-  const _closePicker=()=>{ if(panel.parentNode) panel.remove(); document.removeEventListener('keydown',_escPicker); };
+  // 點擊外部或 ESC 關閉：套用預設方向(右)
+  const _closePicker=()=>{
+    if(panel.parentNode){ panel.remove(); if(G.grid[r][c]==='transfer_hub'){ G.grid[r][c]='logistics_right'; render(); } }
+    document.removeEventListener('keydown',_escPicker);
+  };
   const _escPicker=(e)=>{ if(e.key==='Escape') _closePicker(); };
   setTimeout(()=>document.addEventListener('click',_closePicker,{once:true}),50);
   document.addEventListener('keydown',_escPicker);
@@ -4404,7 +4407,7 @@ function renderGrid(){
     const leyaPct=G.leyaPctMods?G.leyaPctMods[`${r},${c}`]||0:0;
     const moveSrcHi=(G.moveMode||G.freeRearrange)&&G.moveSrc&&G.moveSrc[0]===r&&G.moveSrc[1]===c?' move-src':'';
     const upgradeHi=G.upgradeMode&&G.grid[r][c]&&!isRuin?' upgrade-glow':'';
-    const rearrangeHi=G.freeRearrange&&G.grid[r][c]&&!isRuin&&!G.moveSrc?' upgrade-glow':'';
+    const rearrangeHi=G.freeRearrange&&G.grid[r][c]&&!G.moveSrc?' upgrade-glow':'';
     const routeSrcHi=G._freeMoveLogisticsSrc&&G._freeMoveLogisticsSrc[0]===r&&G._freeMoveLogisticsSrc[1]===c?' move-src':'';
     const routeTargetHi=G._freeMoveLogistics&&!G._freeMoveLogisticsSrc&&b&&b.special==='redirect'?' upgrade-glow':'';
     const evPreview=(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(`${r},${c}`))?' event-preview':'';
@@ -4414,7 +4417,7 @@ function renderGrid(){
       onmouseenter="cellHoverStart(event,${r},${c})"
       onmouseleave="cellHoverEnd()"
       onclick="onCell(${r},${c})"
-      ${G.freeRearrange&&b?`draggable="true" ondragstart="onRearrangeDragStart(event,${r},${c})" ondragend="onRearrangeDragEnd(event)"`:''}
+      ${G.freeRearrange&&(b||isRuin)?`draggable="true" ondragstart="onRearrangeDragStart(event,${r},${c})" ondragend="onRearrangeDragEnd(event)"`:''}
       ondragover="onCellDragOver(event,${r},${c});onTalentDragOverCell(event,${r},${c});onRearrangeDragOver(event,${r},${c})"
       ondragleave="onCellDragLeave(${r},${c});onTalentDragLeaveCell(${r},${c});onRearrangeDragLeave(${r},${c})"
       ondrop="onCellDrop(event,${r},${c});onTalentDropCell(event,${r},${c});onRearrangeDrop(event,${r},${c})">`;
@@ -5325,6 +5328,11 @@ function swapCellData(r1,c1,r2,c2){
     if(G[dk][k1]===undefined) delete G[dk][k1];
     if(G[dk][k2]===undefined) delete G[dk][k2];
   });
+  // 同步廢墟追蹤
+  if(G.ruinCells){
+    if(G.grid[r1][c1]==='ruin') G.ruinCells.add(k1); else G.ruinCells.delete(k1);
+    if(G.grid[r2][c2]==='ruin') G.ruinCells.add(k2); else G.ruinCells.delete(k2);
+  }
   // 百貨公司映射可能因交換而錯亂，重建
   rebuildDeptStore();
 }
