@@ -2523,12 +2523,15 @@ function onCellDragOver(e,r,c){
   const isLeyaUpgrade = G.grid[r][c]===bldgDragging && hasPartner('leya');
   // 廢墟紀念碑：允許拖到廢墟格
   const isRuinPlace = bldgDragging==='ruin_monument' && G.grid[r][c]==='ruin';
-  if(G.grid[r][c] && !isLeyaUpgrade && !isRuinPlace) return;
+  // 物流之王/倉儲女王：允許疊加到物流中心
+  const existB=G.grid[r][c]&&BLDG[G.grid[r][c]];
+  const isOverlay = existB&&existB.special==='redirect'&&(hasPartner('logistics_king')||hasPartner('storage_queen'))&&!G.cellOverlay[`${r},${c}`];
+  if(G.grid[r][c] && !isLeyaUpgrade && !isRuinPlace && !isOverlay) return;
   e.preventDefault();
   _clearBldgPreview();
   const cellEl=document.querySelector(`[data-r="${r}"][data-c="${c}"]`);
   if(cellEl) cellEl.classList.add('drag-over-cell');
-  if(isLeyaUpgrade && cellEl){
+  if((isLeyaUpgrade||isOverlay) && cellEl){
     cellEl.style.outline='3px solid var(--money)';
     cellEl.style.boxShadow='0 0 12px rgba(176,96,0,.45)';
   } else {
