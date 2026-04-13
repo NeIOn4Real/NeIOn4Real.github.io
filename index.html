@@ -1194,7 +1194,7 @@ const PARTNERS = {
     pos:'每3個商店，商品→金錢時+5%', neg:'少於3商店時每少一個-10%收益', desc:'壟斷者',
     onSettle(G, profit, el){
       if(profit<=0) return;
-      const shopCount=findCells((r,c,b)=>isShopType(b)).length;
+      const shopCount=countAllShops();
       if(shopCount<3){
         const missing=3-shopCount;
         const cut=Math.floor(profit*missing*0.1);
@@ -3356,7 +3356,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       }
       // 壟斷者正面：每3個商店+5%
       if(hasPartner('monopolist')&&prev.type==='goods'&&nt==='money'){
-        let _sc=findCells((r,c,b)=>isShopType(b)).length;
+        let _sc=countAllShops();
         const _tiers=Math.floor(_sc/3);
         if(_tiers>0){ const _bonus=Math.ceil(nv*_tiers*0.05); nv+=_bonus; addLog(`  🎩 壟斷者：${_sc}商店（${_tiers}×3），+${_tiers*5}% +${_bonus}`,'g'); }
       }
@@ -5552,6 +5552,11 @@ function rebuildDeptStore(){
 }
 
 // ── 相鄰設施計數（百貨公司視為一個整體） ──
+function countAllShops(){
+  let count=findCells((r,c,b)=>isShopType(b)).length;
+  eachCell((r,c)=>{ getOverlays(r,c).forEach(ovId=>{ if(isShopType(ovId)) count++; }); });
+  return count;
+}
 function countAdjacentFacilities(r,c){
   const gn=GN();
   const adj=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
@@ -5568,15 +5573,21 @@ function countAdjacentFacilities(r,c){
       seen.add(anchor);
     }
     count++;
+    // 疊加設施也計入
+    getOverlays(ar,ac).forEach(()=>count++);
   });
   return count;
 }
 
-// ── 相鄰是否有商店（百貨公司視為一個整體） ──
+// ── 相鄰是否有商店（百貨公司視為一個整體，含疊加設施） ──
 function hasAdjacentShop(r,c){
   const gn=GN();
   const adj=[[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
-  return adj.some(([ar,ac])=>ar>=0&&ar<gn&&ac>=0&&ac<gn&&isShopType(G.grid[ar][ac]));
+  return adj.some(([ar,ac])=>{
+    if(ar<0||ar>=gn||ac<0||ac>=gn) return false;
+    if(isShopType(G.grid[ar][ac])) return true;
+    return getOverlays(ar,ac).some(ovId=>isShopType(ovId));
+  });
 }
 
 // ── 交換後附帶效果（臨時工棚/拆遷補償局/地皮炒家） ──
