@@ -343,6 +343,22 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   white-space:pre-wrap;
 }
 #tooltip.show{opacity:1;}
+/* 複合設施懸浮預覽 */
+#compound-preview-float{
+  position:fixed;z-index:9998;pointer-events:none;
+  display:none;gap:8px;
+}
+#compound-preview-float.show{display:flex;}
+.cpf-card{
+  width:120px;background:var(--sur);border:1.5px solid var(--br2);
+  border-radius:12px;padding:10px 8px;
+  box-shadow:0 4px 16px rgba(42,26,8,.18);
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.cpf-card .cpf-emoji{font-size:28px;line-height:1;}
+.cpf-card .cpf-name{font-size:11px;font-weight:700;color:var(--tx);text-align:center;}
+.cpf-card .cpf-desc{font-size:9px;color:var(--mu);text-align:center;line-height:1.4;}
+.cpf-dir{display:flex;align-items:center;font-size:16px;color:var(--mu);font-weight:700;}
 
 /* 選擇卡片（設施/合夥人） */
 .sel-card{
@@ -730,6 +746,7 @@ body { padding-bottom: 150px; }
 
 <!-- ACTION CHOOSER MODAL -->
 <div id="tooltip"></div>
+<div id="compound-preview-float"></div>
 <div id="action-chooser" style="display:none;position:fixed;inset:0;z-index:90;align-items:center;justify-content:center;flex-direction:column;gap:14px;">
   <!-- 透明遮罩擋住後層操作 -->
   <div style="position:absolute;inset:0;pointer-events:auto;"></div>
@@ -2300,6 +2317,7 @@ function onBldgDragStart(e,id){
   if(G.phase!=='place'){e.preventDefault();return;}
   const h=G.hand.find(h=>h.id===id);
   if(!h||h.count<=0){e.preventDefault();return;}
+  hideCompoundPreview();
   bldgDragging=id;
   e.dataTransfer.effectAllowed='move';
   e.dataTransfer.setData('text/plain','bldg:'+id);
@@ -4629,16 +4647,53 @@ function fanCardClick(i) {
   }
 }
 
+function showCompoundPreview(el, card){
+  const cpf=document.getElementById('compound-preview-float');
+  if(!cpf) return;
+  const h=G.hand.find(h=>h.id===card.id&&h.compound);
+  if(!h) return;
+  const b1=BLDG[h.parts[0]], b2=BLDG[h.parts[1]];
+  if(!b1||!b2) return;
+  const isVert=h.dirLabel==='↑'||h.dirLabel==='↓';
+  const reversed=h.dirLabel==='↑'||h.dirLabel==='←';
+  const first=reversed?b2:b1, second=reversed?b1:b2;
+  const dirSymbol=h.dirLabel;
+  const makeCard=b=>`<div class="cpf-card">
+    <div class="cpf-emoji">${b.emoji}</div>
+    <div class="cpf-name">${b.name}</div>
+    <div class="cpf-desc">${b.desc}</div>
+  </div>`;
+  cpf.style.flexDirection=isVert?'column':'row';
+  cpf.style.alignItems='center';
+  cpf.innerHTML=makeCard(first)+`<div class="cpf-dir">${dirSymbol}</div>`+makeCard(second);
+  cpf.classList.add('show');
+  // position above the card
+  const rect=el.getBoundingClientRect();
+  const pw=isVert?136:280, ph=isVert?280:160;
+  let x=rect.left+rect.width/2-pw/2;
+  let y=rect.top-ph-12;
+  if(x<4) x=4; if(x+pw>window.innerWidth-4) x=window.innerWidth-4-pw;
+  if(y<4) y=rect.bottom+8;
+  cpf.style.left=x+'px'; cpf.style.top=y+'px';
+}
+function hideCompoundPreview(){
+  const cpf=document.getElementById('compound-preview-float');
+  if(cpf) cpf.classList.remove('show');
+}
+
 function fanCardHover(i, entering, evt) {
   const el = document.getElementById('fancard-' + i);
   if (!el) return;
   if (entering) {
     el.style.zIndex = 200;
-    if (evt) tipFromAttr(evt, el);
-    // trigger dialogue for building cards
     const area = document.getElementById('hand-fan-area');
-    if (area && area._cards) {
-      const card = area._cards[i];
+    const card = area && area._cards ? area._cards[i] : null;
+    if (card && card.type === 'compound') {
+      hideTooltip();
+      showCompoundPreview(el, card);
+    } else {
+      hideCompoundPreview();
+      if (evt) tipFromAttr(evt, el);
       if (card) {
         if (card.type === 'bldg') DM.onBldgHover(card.id);
         else if (card.type === 'element') tryDialogue('bldg_hover_元素卡');
@@ -4649,6 +4704,7 @@ function fanCardHover(i, entering, evt) {
     const zi = area && area._cards ? (i + 1) : 1;
     el.style.zIndex = String(zi);
     hideTooltip();
+    hideCompoundPreview();
   }
 }
 
