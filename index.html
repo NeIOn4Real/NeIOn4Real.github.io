@@ -2270,10 +2270,13 @@ function tryPlaceAtCell(r,c,bldgId){
   }
 
   // ── 物流之王/倉儲女王疊加 ──
-  if(G.grid[r][c]){
+  if(G.grid[r][c]&&(hasPartner('logistics_king')||hasPartner('storage_queen'))&&!G.cellOverlay[`${r},${c}`]){
     const existing=BLDG[G.grid[r][c]];
-    const canOverlay=existing&&existing.special==='redirect'&&(hasPartner('logistics_king')||hasPartner('storage_queen'))&&!G.cellOverlay[`${r},${c}`];
-    if(canOverlay){
+    const placing=BLDG[bldgId];
+    // 設施蓋在物流上，或物流蓋在設施上
+    const facOnLog=existing&&existing.special==='redirect'&&placing&&placing.special!=='redirect';
+    const logOnFac=existing&&existing.special!=='redirect'&&placing&&placing.special==='redirect'&&isFacility(G.grid[r][c]);
+    if(facOnLog||logOnFac){
       if(!handItem||handItem.count<=0) return false;
       if(hasPartner('storage_queen')&&!hasPartner('logistics_king')){
         if(G.profit<2){ addLog('👑 倉儲女王：收益不足（需要2）','b'); return false; }
@@ -2281,12 +2284,23 @@ function tryPlaceAtCell(r,c,bldgId){
         addLog('👑 倉儲女王：疊加行動費 -2 收益','b');
       }
       handItem.count--;
-      G.cellOverlay[`${r},${c}`]=bldgId;
+      if(facOnLog){
+        // 設施疊在物流上：物流為底，設施為 overlay
+        G.cellOverlay[`${r},${c}`]=bldgId;
+      } else {
+        // 物流蓋在設施上：物流變底，原設施變 overlay
+        G.cellOverlay[`${r},${c}`]=G.grid[r][c];
+        G.grid[r][c]=bldgId;
+      }
       const who=hasPartner('logistics_king')?'🚛 物流之王':'👑 倉儲女王';
-      addLog(`${who}：${BLDG[bldgId].emoji}${BLDG[bldgId].name} 疊加在 ${existing.emoji}${existing.name} 上！`,'g');
+      addLog(`${who}：${BLDG[bldgId].emoji}${BLDG[bldgId].name} 與 ${existing.emoji}${existing.name} 疊加！`,'g');
+      // 轉運中心放置時選擇方向
+      if(bldgId==='transfer_hub') showTransferHubDirPicker(r,c);
       pulse(r,c); render();
       return true;
     }
+  }
+  if(G.grid[r][c]){
     addLog(G.grid[r][c]==='ruin'?'該格子是廢墟，無法放置設施':'該格子已有設施','b');
     return false;
   }
@@ -2523,9 +2537,14 @@ function onCellDragOver(e,r,c){
   const isLeyaUpgrade = G.grid[r][c]===bldgDragging && hasPartner('leya');
   // 廢墟紀念碑：允許拖到廢墟格
   const isRuinPlace = bldgDragging==='ruin_monument' && G.grid[r][c]==='ruin';
-  // 物流之王/倉儲女王：允許疊加到物流中心
+  // 物流之王/倉儲女王：允許雙向疊加
   const existB=G.grid[r][c]&&BLDG[G.grid[r][c]];
-  const isOverlay = existB&&existB.special==='redirect'&&(hasPartner('logistics_king')||hasPartner('storage_queen'))&&!G.cellOverlay[`${r},${c}`];
+  const placingB=BLDG[bldgDragging];
+  const hasOverlayPartner=hasPartner('logistics_king')||hasPartner('storage_queen');
+  const isOverlay = hasOverlayPartner&&existB&&!G.cellOverlay[`${r},${c}`]&&(
+    (existB.special==='redirect'&&placingB&&placingB.special!=='redirect')||
+    (existB.special!=='redirect'&&placingB&&placingB.special==='redirect'&&isFacility(G.grid[r][c]))
+  );
   if(G.grid[r][c] && !isLeyaUpgrade && !isRuinPlace && !isOverlay) return;
   e.preventDefault();
   _clearBldgPreview();
