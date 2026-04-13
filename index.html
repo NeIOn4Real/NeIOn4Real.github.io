@@ -252,6 +252,11 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   animation:hwBoom .8s ease-out forwards;z-index:2;
 }
 @keyframes hwBoom{0%{transform:translate(-50%,-50%) scale(0);opacity:1}40%{transform:translate(-50%,-50%) scale(3);opacity:1}100%{transform:translate(-50%,-50%) scale(4);opacity:0}}
+/* 疊加設施輪播 */
+.ov-rotate{font-size:24px;line-height:1;position:relative;}
+.ov-rotate .ov-a,.ov-rotate .ov-b{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);animation:ovSwap 3s ease-in-out infinite;}
+.ov-rotate .ov-b{animation-delay:1.5s;opacity:0;}
+@keyframes ovSwap{0%,40%{opacity:1}45%,95%{opacity:0}100%{opacity:1}}
 #heatwave-overlay .hw-text{
   color:#ff4444;font-size:22px;font-weight:900;text-align:center;
   text-shadow:0 2px 16px rgba(255,0,0,.7);
@@ -1400,6 +1405,17 @@ const TLABEL={ money:'💰金錢', material:'🪨原料', goods:'📦商品', di
 const N=4; // base grid size
 function GN(){ return (G&&G.gridSize)||N; }
 function isFacility(bId){ return bId&&bId!=='ruin'; }
+function getOverlays(r,c){
+  const v=G.cellOverlay&&G.cellOverlay[`${r},${c}`];
+  if(!v) return [];
+  return Array.isArray(v)?v:[v];
+}
+function setOverlays(r,c,arr){
+  const k=`${r},${c}`;
+  if(!arr||arr.length===0) delete G.cellOverlay[k];
+  else if(arr.length===1) G.cellOverlay[k]=arr[0];
+  else G.cellOverlay[k]=arr;
+}
 function isShopType(bId){ return bId&&BLDG[bId]&&BLDG[bId].isShop===true; }
 const BASIC_FACILITIES=['mat_factory','factory','shop','refinery','warehouse','booster','converter'];
 const LOGISTICS_DIRS=['logistics_up','logistics_down','logistics_left','logistics_right'];
@@ -2270,12 +2286,14 @@ function tryPlaceAtCell(r,c,bldgId){
   }
 
   // ── 物流之王/倉儲女王疊加 ──
-  if(G.grid[r][c]&&(hasPartner('logistics_king')||hasPartner('storage_queen'))&&!G.cellOverlay[`${r},${c}`]){
+  if(G.grid[r][c]&&(hasPartner('logistics_king')||hasPartner('storage_queen'))){
     const existing=BLDG[G.grid[r][c]];
     const placing=BLDG[bldgId];
+    const ovs=getOverlays(r,c);
+    const maxOv=hasPartner('storage_queen')?2:1;
     // 設施蓋在物流上，或物流蓋在設施上
-    const facOnLog=existing&&existing.special==='redirect'&&placing&&placing.special!=='redirect';
-    const logOnFac=existing&&existing.special!=='redirect'&&placing&&placing.special==='redirect'&&isFacility(G.grid[r][c]);
+    const facOnLog=existing&&existing.special==='redirect'&&placing&&placing.special!=='redirect'&&ovs.length<maxOv;
+    const logOnFac=existing&&existing.special!=='redirect'&&placing&&placing.special==='redirect'&&isFacility(G.grid[r][c])&&ovs.length===0;
     if(facOnLog||logOnFac){
       if(!handItem||handItem.count<=0) return false;
       if(hasPartner('storage_queen')&&!hasPartner('logistics_king')){
@@ -2285,11 +2303,11 @@ function tryPlaceAtCell(r,c,bldgId){
       }
       handItem.count--;
       if(facOnLog){
-        // 設施疊在物流上：物流為底，設施為 overlay
-        G.cellOverlay[`${r},${c}`]=bldgId;
+        ovs.push(bldgId);
+        setOverlays(r,c,ovs);
       } else {
         // 物流蓋在設施上：物流變底，原設施變 overlay
-        G.cellOverlay[`${r},${c}`]=G.grid[r][c];
+        setOverlays(r,c,[G.grid[r][c]]);
         G.grid[r][c]=bldgId;
       }
       const who=hasPartner('logistics_king')?'🚛 物流之王':'👑 倉儲女王';
@@ -2541,9 +2559,10 @@ function onCellDragOver(e,r,c){
   const existB=G.grid[r][c]&&BLDG[G.grid[r][c]];
   const placingB=BLDG[bldgDragging];
   const hasOverlayPartner=hasPartner('logistics_king')||hasPartner('storage_queen');
-  const isOverlay = hasOverlayPartner&&existB&&!G.cellOverlay[`${r},${c}`]&&(
-    (existB.special==='redirect'&&placingB&&placingB.special!=='redirect')||
-    (existB.special!=='redirect'&&placingB&&placingB.special==='redirect'&&isFacility(G.grid[r][c]))
+  const _ovs=getOverlays(r,c), _maxOv=hasPartner('storage_queen')?2:1;
+  const isOverlay = hasOverlayPartner&&existB&&(
+    (existB.special==='redirect'&&placingB&&placingB.special!=='redirect'&&_ovs.length<_maxOv)||
+    (existB.special!=='redirect'&&placingB&&placingB.special==='redirect'&&isFacility(G.grid[r][c])&&_ovs.length===0)
   );
   if(G.grid[r][c] && !isLeyaUpgrade && !isRuinPlace && !isOverlay) return;
   e.preventDefault();
@@ -3179,21 +3198,21 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
         newPath.push([nr,nc]);
       }
 
-      // 物流之王：先執行疊加設施效果，再轉向
-      const overlayId=G.cellOverlay&&G.cellOverlay[`${r},${c}`];
-      if(overlayId&&BLDG[overlayId]){
-        const ob=BLDG[overlayId];
-        const effType2=el.type;
-        if(ob.req==='any'||ob.req===effType2){
+      // 物流之王：執行所有疊加設施效果，再轉向
+      const ovList=getOverlays(r,c);
+      ovList.forEach(ovId=>{
+        const ob=BLDG[ovId];
+        if(!ob) return;
+        if(ob.req==='any'||ob.req===el.type){
           const ov_prev={...el};
           const ov_nv=ob.fn(el.value)+(G.bldgUpgrades?.[`${r},${c}`]||0);
           const ov_nt=ob.out||el.type;
           el={value:ov_nv,type:ov_nt};
-          addLog(`  🚛 物流之王疊加 ${ob.emoji}${ob.name}: ${TLABEL[ov_prev.type]}${ov_prev.value} → ${TLABEL[el.type]}${el.value}`);
+          addLog(`  🚛 疊加 ${ob.emoji}${ob.name}: ${TLABEL[ov_prev.type]}${ov_prev.value} → ${TLABEL[el.type]}${el.value}`);
           updateCard(el);
           setTimeout(()=>updateMover(el),100);
         }
-      }
+      });
       setTimeout(()=>{
         if(newPath.length===0){
           mover.style.display='none';
@@ -4573,16 +4592,23 @@ function renderGrid(){
       const totalMod=modVal;
       const baseBonus=(b.fn(1)-1)+(G.bldgUpgrades?.[`${r},${c}`]||0);
       if(b.special==='redirect'){
-        const ovKey=`${r},${c}`;
-        const ovId=G.cellOverlay&&G.cellOverlay[ovKey];
-        const ovB=ovId&&BLDG[ovId];
-        if(ovB){
-          // 疊加顯示：設施 emoji + 右下角物流箭頭
+        const ovs=getOverlays(r,c);
+        if(ovs.length===1&&BLDG[ovs[0]]){
+          // 1 疊加：設施 emoji + 右下角物流箭頭
+          const ov=BLDG[ovs[0]];
           h+=`<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
-            <div class="cemoji">${ovB.emoji}</div>
+            <div class="cemoji">${ov.emoji}</div>
             <div style="position:absolute;bottom:1px;right:2px;font-size:14px;line-height:1;opacity:.8;">${b.emoji}</div>
           </div>`;
-          h+=`<div class="cname" style="font-size:7px;">${ovB.name}</div>`;
+          h+=`<div class="cname" style="font-size:7px;">${ov.name}</div>`;
+        } else if(ovs.length>=2&&BLDG[ovs[0]]&&BLDG[ovs[1]]){
+          // 2 疊加：兩設施 emoji 輪播 + 右下角物流箭頭
+          const ov1=BLDG[ovs[0]], ov2=BLDG[ovs[1]];
+          h+=`<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+            <div class="ov-rotate"><span class="ov-a">${ov1.emoji}</span><span class="ov-b">${ov2.emoji}</span></div>
+            <div style="position:absolute;bottom:1px;right:2px;font-size:14px;line-height:1;opacity:.8;">${b.emoji}</div>
+          </div>`;
+          h+=`<div class="cname" style="font-size:7px;">${ov1.name}+${ov2.name}</div>`;
         } else {
           h+=`<div style="font-size:32px;line-height:1;">${b.emoji}</div>`;
         }
@@ -4832,10 +4858,11 @@ function cellHoverStart(e,r,c){
   _cellHoverEvt=e;
   const bId=G.grid[r][c];
   if(bId&&BLDG[bId]){
-    const ovId=G.cellOverlay&&G.cellOverlay[`${r},${c}`];
-    const ovB=ovId&&BLDG[ovId];
-    if(ovB){
-      showTooltip(e, BLDG[bId].name+'\n'+(BLDG[bId].desc||'')+'\n── 疊加 ──\n'+ovB.name+'\n'+(ovB.desc||''));
+    const ovs=getOverlays(r,c);
+    if(ovs.length>0){
+      let tip=BLDG[bId].name+'\n'+(BLDG[bId].desc||'');
+      ovs.forEach(ovId=>{ const ob=BLDG[ovId]; if(ob) tip+='\n── 疊加 ──\n'+ob.name+'\n'+(ob.desc||''); });
+      showTooltip(e, tip);
     } else {
       tipBldg(e,bId);
     }
@@ -4883,14 +4910,15 @@ function showCellDetailTip(e,r,c){
     lines.push(`💣 爆炸倒數: ${G.bombTimers[k]} 回合`);
   }
   // 疊加設施
-  if(G.cellOverlay&&G.cellOverlay[k]){
-    const ov=BLDG[G.cellOverlay[k]];
+  const _ovs=getOverlays(r,c);
+  _ovs.forEach(ovId=>{
+    const ov=BLDG[ovId];
     if(ov){
       lines.push(`── 疊加設施 ──`);
       lines.push(`<b>${ov.emoji} ${ov.name}</b>`);
       lines.push(ov.desc||'');
     }
-  }
+  });
   // 事件預告
   if(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(k)){
     lines.push(`⚠ 預告: ${G.nextEvent.title}`);
@@ -6438,7 +6466,11 @@ function deserializeGame(save){
     }
   });
   if(data.cellOverlay){
-    for(const k in data.cellOverlay){ if(!BLDG[data.cellOverlay[k]]) delete data.cellOverlay[k]; }
+    for(const k in data.cellOverlay){
+      const v=data.cellOverlay[k];
+      if(Array.isArray(v)){ data.cellOverlay[k]=v.filter(id=>BLDG[id]); if(data.cellOverlay[k].length===0) delete data.cellOverlay[k]; }
+      else if(!BLDG[v]) delete data.cellOverlay[k];
+    }
   }
   // 清除不應持久化的臨時狀態（每回合重置 / UI 模式 / 快照）
   data.inv={};
