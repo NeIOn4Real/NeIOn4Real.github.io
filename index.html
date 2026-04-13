@@ -4573,7 +4573,19 @@ function renderGrid(){
       const totalMod=modVal;
       const baseBonus=(b.fn(1)-1)+(G.bldgUpgrades?.[`${r},${c}`]||0);
       if(b.special==='redirect'){
-        h+=`<div style="font-size:32px;line-height:1;">${b.emoji}</div>`;
+        const ovKey=`${r},${c}`;
+        const ovId=G.cellOverlay&&G.cellOverlay[ovKey];
+        const ovB=ovId&&BLDG[ovId];
+        if(ovB){
+          // 疊加顯示：設施 emoji + 右下角物流箭頭
+          h+=`<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
+            <div class="cemoji">${ovB.emoji}</div>
+            <div style="position:absolute;bottom:1px;right:2px;font-size:14px;line-height:1;opacity:.8;">${b.emoji}</div>
+          </div>`;
+          h+=`<div class="cname" style="font-size:7px;">${ovB.name}</div>`;
+        } else {
+          h+=`<div style="font-size:32px;line-height:1;">${b.emoji}</div>`;
+        }
         if(baseBonus>0) h+=`<div style="font-size:8px;font-weight:700;color:var(--money);">+${baseBonus}</div>`;
       } else if(bId==='dept_store'){
         // 百貨公司錨點：渲染 2×2 整體方塊
@@ -4820,7 +4832,13 @@ function cellHoverStart(e,r,c){
   _cellHoverEvt=e;
   const bId=G.grid[r][c];
   if(bId&&BLDG[bId]){
-    tipBldg(e,bId);
+    const ovId=G.cellOverlay&&G.cellOverlay[`${r},${c}`];
+    const ovB=ovId&&BLDG[ovId];
+    if(ovB){
+      showTooltip(e, BLDG[bId].name+'\n'+(BLDG[bId].desc||'')+'\n── 疊加 ──\n'+ovB.name+'\n'+(ovB.desc||''));
+    } else {
+      tipBldg(e,bId);
+    }
   }
   // 1秒後顯示詳細加成面板
   _cellHoverTimer=setTimeout(()=>showCellDetailTip(e,r,c),1000);
@@ -4867,7 +4885,11 @@ function showCellDetailTip(e,r,c){
   // 疊加設施
   if(G.cellOverlay&&G.cellOverlay[k]){
     const ov=BLDG[G.cellOverlay[k]];
-    if(ov) lines.push(`🚛 疊加: ${ov.emoji} ${ov.name}`);
+    if(ov){
+      lines.push(`── 疊加設施 ──`);
+      lines.push(`<b>${ov.emoji} ${ov.name}</b>`);
+      lines.push(ov.desc||'');
+    }
   }
   // 事件預告
   if(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(k)){
