@@ -3149,8 +3149,9 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       cellEl?.classList.add('transform-flash');
       setTimeout(()=>cellEl?.classList.remove('transform-flash'),400);
 
-      // upgrade bonus (for redirect cell itself, not overlay)
-      const upgradeBonus=G.bldgUpgrades?.[`${r},${c}`]||0;
+      // upgrade bonus (有 overlay 時升級屬於 overlay 設施，redirect 不重複計算)
+      const _hasOverlay=G.cellOverlay&&G.cellOverlay[`${r},${c}`];
+      const upgradeBonus=_hasOverlay?0:(G.bldgUpgrades?.[`${r},${c}`]||0);
       if(upgradeBonus>0){
         el={...el,value:el.value+upgradeBonus};
         addLog(`  ${b.emoji}${b.name}: 轉向 + 升級加成 +${upgradeBonus} → ${el.value}`);
