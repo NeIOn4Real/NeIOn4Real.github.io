@@ -866,7 +866,7 @@ const BLDG = {
   env_sensor:     { name:'環境感應站',   emoji:'📊', desc:'周圍4格每有一個設施+1', req:'any', out:null, fn:v=>v, special:'env_sensor' },
 
   // ── 貿易流設施 ──
-  trade_port:     { name:'外貿港口',     emoji:'⚓', desc:'商品>10時+10%，>20時+20%（每10一階）', req:'goods', out:'goods', fn:v=>v, special:'trade_port' },
+  trade_port:     { name:'外貿港口',     emoji:'⚓', desc:'商品數量每10個+1%', req:'goods', out:'goods', fn:v=>v, special:'trade_port' },
   exchange_board: { name:'匯率波動板',   emoji:'📈', desc:'不參與投入路徑；每次投入結算時，隨機對最終收益加成或衰減±3~15%', req:'any', out:null, fn:v=>v, special:'exchange_board' },
   futures_market: { name:'期貨交易所',   emoji:'🏛', desc:'資源通過時隨機±10%，下回合移動到隨機空格', req:'any', out:null, fn:v=>v, special:'futures_market' },
   trade_zone:     { name:'貿易特區',     emoji:'🌏', desc:'周圍4格有商店時輸出×1.5', req:'any', out:null, fn:v=>v, special:'trade_zone' },
@@ -2950,9 +2950,9 @@ const FACILITY_FX={
     const tiers=Math.floor(fx.el.value/10);
     if(tiers>0){
       const tp_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
-      const tp_add=Math.floor(fx.el.value*tiers*0.1)+tp_upg;
+      const tp_add=Math.max(1,Math.ceil(fx.el.value*tiers*0.01))+tp_upg;
       fx.el={...fx.el,value:fx.el.value+tp_add};
-      addLog(`  ⚓ 外貿港口: +${tp_add}（${tiers}階×10%${tp_upg>0?`，升級+${tp_upg}`:''}）`,'g');
+      addLog(`  ⚓ 外貿港口: +${tp_add}（${tiers}階×1%${tp_upg>0?`，升級+${tp_upg}`:''}）`,'g');
     }
     fx.hit();
   },
