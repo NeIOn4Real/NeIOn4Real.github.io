@@ -3413,13 +3413,13 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
     mover.style.top=(rect.top+2)+'px';
   }
 
+  const bId=G.grid[r][c];
+
   // 高亮當前格（跳過百貨公司格子避免 overlay 閃爍）
   if(stepWithMover._prevActive) stepWithMover._prevActive.classList.remove('active-path');
   const _isDeptCell=bId==='dept_store'||bId==='dept_store_part';
   if(cellEl&&!_isDeptCell) cellEl.classList.add('active-path');
   stepWithMover._prevActive=_isDeptCell?null:cellEl;
-
-  const bId=G.grid[r][c];
   // 速遞站：經過空格或廢墟時消耗 flag（效果浪費）
   if((!bId||bId==='ruin')&&G.inv.speedAct) G.inv.speedAct=false;
   // ── 共用尾碼 helper ──
