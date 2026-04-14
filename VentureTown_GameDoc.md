@@ -946,6 +946,35 @@ E:\VT\
 - **`deserializeGame()`**：讀取 `save.mega`，還原 `_megaFacilities` 並同步到 `MEGA_KEY` localStorage
 - **開發者面板 tooltip**：移除「遊戲結束」描述
 
+#### 後續修正：詞條系統 + 巨型設施模擬修復 + UI 重構
+
+##### 詞條（Tag）加權系統
+- 新增 `TAGS` 映射表：為所有設施與合夥人定義分類標籤（`basic`/`shop`/`hr`/`logistics`/`trade`/`demolish`/`demon`/`boost`/`production`/`unique`）
+- 新增 `getPlayerTagCounts()`：統計玩家持有的詞條數量（格子+手牌+合夥人）
+- 新增 `tagWeightFor(id, tagCounts)`：根據匹配詞條計算候選項權重（每匹配 +12%）
+- 新增 `weightedPickN(pool, n, tagCounts)`：加權隨機抽取不重複項目
+- 影響 5 處隨機選取：設施補給事件、購買設施行動、招募合夥人行動、常駐商店、譚雅交換
+
+##### 巨型設施模擬修復
+- **收益計算修正**：非金錢輸入值換算為金錢等值後再比較（`inputMoney = floor(value×0.6)`）
+- **特殊設施模擬**：新增 `MEGA_SIM_FX` 調度表，為 13 種 `fn:v=>v` 的特殊設施提供簡化模擬邏輯
+  - 商店系：small_shop/scalper/bulk_store/dept_store
+  - 物流系：spiral_hub/terminal/env_sensor/trade_zone
+  - 貿易系：trade_port/clearance/futures_market/trade_hub/tech_lab
+- **額外收益**：`bonusProfit` 支援清倉拍賣場等非標準收益來源
+
+##### 巨型設施地圖 UI 重構
+- **三欄式佈局**（沿用正式遊戲）：左欄手牌列表、中欄 4×4 格子（90px 放大版）、右欄收益記錄
+- **扇形手牌區**：底部顯示巨型設施卡牌 + 資源卡（💵1），可拖曳
+- **拖曳系統**：拖曳巨型設施卡 → 空格子放置；拖曳資源卡 → 方向箭頭投入
+- **方向箭頭**：常駐可見（覆寫 `.dbtn` 的 `opacity:0`），支援點擊和拖曳兩種投入方式
+- **卡牌圖示改版**：使用起點→終點設施 emoji（如 ⛏️→🏪），取代資源類型圖示（💰→📦）
+  - 新增 `startEmoji`/`endEmoji` 欄位於 `createMegaFacilityFromRun()`
+  - 新增 `megaIcons(m)` 輔助函數（相容舊資料 fallback）
+- **檢視內新增移除按鈕**：進入巨型設施內部檢視後可直接從地圖移除
+- **記錄清除按鈕**：右欄記錄面板可清除投入記錄
+- **開發者面板不關閉**：進入巨型地圖或工業化模式時不再關閉開發者選單
+
 ### Session 9（2026-04-13）— 平衡調整 + 架構精簡 + UI 改善
 
 #### 平衡調整

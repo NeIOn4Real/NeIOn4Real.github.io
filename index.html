@@ -699,35 +699,32 @@ body { padding-bottom: 150px; }
 #mega-overlay.show{display:flex;}
 #mega-hdr{
   width:100%;padding:10px 20px;display:flex;align-items:center;gap:12px;
-  background:var(--sur);border-bottom:2px solid var(--br2);
+  background:var(--sur);border-bottom:2px solid var(--br2);flex-shrink:0;
 }
 #mega-hdr .mega-title{font-size:16px;font-weight:900;color:var(--tx);letter-spacing:2px;}
 #mega-hdr .mega-sub{font-size:11px;color:var(--mu);margin-left:8px;}
 #mega-hdr button{margin-left:auto;padding:6px 14px;border-radius:8px;border:1.5px solid var(--br2);
   background:var(--sur);color:var(--tx);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}
 #mega-hdr button:hover{border-color:var(--acc);background:rgba(179,58,0,.08);}
-#mega-body{display:flex;gap:20px;padding:20px;align-items:flex-start;justify-content:center;flex-wrap:wrap;}
+#mega-main{display:flex;gap:16px;padding:16px;align-items:flex-start;justify-content:center;flex:1;overflow:auto;}
+#mega-left-panel{width:155px;flex-shrink:0;}
+#mega-right-panel{width:200px;flex-shrink:0;}
 #mega-grid-area{display:flex;flex-direction:column;align-items:center;gap:6px;}
 #mega-grid{display:grid;gap:3px;}
-.mega-cell{
-  width:90px;height:90px;background:var(--sur);border:1.5px solid var(--br2);border-radius:10px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  cursor:pointer;transition:all .15s;position:relative;overflow:visible;
-  font-size:10px;text-align:center;gap:2px;
+#mega-fan-area{
+  position:fixed;bottom:0;left:0;right:0;height:200px;
+  display:flex;justify-content:center;align-items:flex-end;
+  padding-bottom:10px;pointer-events:none;z-index:8100;
 }
-.mega-cell:hover{border-color:var(--acc);box-shadow:0 2px 10px rgba(179,58,0,.12);}
-.mega-cell.filled{background:linear-gradient(145deg,#fff5ee,var(--sur));}
-.mega-cell .mega-flow{font-size:20px;line-height:1;}
-.mega-cell .mega-name{font-size:8px;color:var(--mu);line-height:1.2;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.mega-cell .mega-round{font-size:7px;color:var(--blue);margin-top:1px;}
-/* 巨型設施懸停按鈕 */
-.mega-inspect-btn{
-  display:none;position:absolute;bottom:-28px;left:50%;transform:translateX(-50%);
-  padding:3px 10px;border-radius:6px;background:var(--acc);color:#fff;
-  font-size:9px;font-weight:700;cursor:pointer;white-space:nowrap;z-index:10;
-  border:none;box-shadow:0 2px 8px rgba(179,58,0,.3);
-}
-.mega-cell:hover .mega-inspect-btn{display:block;}
+#mega-fan-area>*{pointer-events:auto;}
+/* 巨型地圖格子：放大版 + 箭頭常駐可見 */
+#mega-grid-area{--cell:90px;}
+#mega-grid-area .dbtn{width:90px;height:28px;opacity:1;pointer-events:auto;color:var(--acc);
+  border-color:rgba(179,58,0,.15);background:rgba(179,58,0,.03);}
+#mega-grid-area .dbtn.side{width:28px;height:90px;}
+#mega-grid-area .dbtn:hover{border-color:var(--acc);background:rgba(179,58,0,.12);}
+.mega-cell.filled{background:linear-gradient(145deg,#fff5ee,var(--sur));cursor:pointer;}
+.mega-cell.drag-over{border-color:var(--acc);box-shadow:0 0 0 3px rgba(179,58,0,.2);}
 /* 巨型設施內部檢視 overlay */
 #mega-inspect-overlay{
   display:none;position:fixed;inset:0;z-index:8500;
@@ -750,29 +747,8 @@ body { padding-bottom: 150px; }
 #mega-inspect-box .mib-close{margin-top:12px;padding:6px 18px;border-radius:8px;border:1.5px solid var(--br2);
   background:var(--sur);color:var(--tx);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}
 #mega-inspect-box .mib-close:hover{border-color:var(--acc);}
-/* 巨型地圖資源投入按鈕 */
-.mega-dbtn{
-  width:90px;height:24px;border:none;border-radius:4px;cursor:pointer;font-size:14px;
-  background:rgba(179,58,0,.06);color:var(--acc);transition:all .12s;font-family:inherit;
-}
-.mega-dbtn:hover{background:rgba(179,58,0,.15);}
-.mega-dbtn.side{width:24px;height:90px;}
-/* 巨型地圖收益面板 */
-#mega-panel{
-  background:var(--sur);border:1.5px solid var(--br2);border-radius:12px;padding:14px;
-  min-width:180px;
-}
-#mega-panel .mp-title{font-size:11px;font-weight:700;color:var(--tx);margin-bottom:8px;}
-#mega-panel .mp-profit{font-size:20px;font-weight:900;color:var(--money);}
-#mega-panel .mp-log{font-size:9px;color:var(--mu);line-height:1.5;max-height:300px;overflow-y:auto;margin-top:8px;}
-/* 巨型地圖資源卡 */
-#mega-card{
-  background:var(--sur);border:1.5px solid var(--br2);border-radius:12px;padding:14px;
-  min-width:140px;display:flex;flex-direction:column;align-items:center;gap:6px;
-}
-#mega-card .mc-emoji{font-size:28px;}
-#mega-card .mc-val{font-size:18px;font-weight:900;}
-#mega-card .mc-type{font-size:9px;color:var(--mu);}
+/* 巨型地圖方向箭頭沿用 .dbtn，額外標記 */
+.mega-dbtn.drag-over{background:rgba(179,58,0,.25);}
 
 /* ══ 標題畫面 ══ */
 #title-screen{
@@ -1588,6 +1564,111 @@ function setOverlays(r,c,arr){
 function isShopType(bId){ return bId&&BLDG[bId]&&BLDG[bId].isShop===true; }
 const BASIC_FACILITIES=['mat_factory','factory','shop','refinery','warehouse','booster','converter'];
 const LOGISTICS_DIRS=['logistics_up','logistics_down','logistics_left','logistics_right'];
+
+// ── 詞條（Tag）系統 ──
+// 設施與合夥人共用的分類標籤，用於加權隨機選取
+const TAGS={
+  // 基礎設施
+  mat_factory:['basic','production'], factory:['basic','production'], shop:['basic','shop'],
+  refinery:['basic','production'], warehouse:['basic','production'],
+  booster:['basic','boost'], converter:['basic','boost'],
+  // 商店系
+  small_shop:['shop'], scalper:['shop'], bulk_store:['shop'],
+  dept_store:['shop'], dept_store_part:['shop'],
+  // 人力流設施
+  talent_training:['hr'], labor_convert:['hr'], talent_storage:['hr'],
+  talent_market:['hr'], overtime:['hr'], talent_bank:['hr'],
+  dispatch_hq:['hr'], strike_board:['hr'], cafeteria:['hr'], staffing:['hr'],
+  // 物流流設施
+  spiral_hub:['logistics'], terminal:['logistics'], logistics_amp:['logistics','boost'],
+  transfer_hub:['logistics'], speed_station:['logistics'], logistics_vault:['logistics'],
+  env_sensor:['logistics'],
+  logistics_up:['logistics'], logistics_down:['logistics'],
+  logistics_left:['logistics'], logistics_right:['logistics'],
+  // 貿易流設施
+  trade_port:['trade'], exchange_board:['trade'], futures_market:['trade'],
+  trade_zone:['trade','shop'], clearance:['trade'], import_tax:['trade'],
+  free_market:['trade'], trade_hub:['trade'], tech_lab:['production','boost'],
+  tax_office:['trade'],
+  // 拆遷流設施
+  bomb_device:['demolish'], demolish_fab:['demolish'], temp_shed:['demolish'],
+  magnet_plate:['demolish'], ruin_monument:['demolish'], demolish_bureau:['demolish'],
+  dynamic_amp:['demolish','boost'], unstable_base:['demolish'],
+  // 特殊設施
+  envy_factory:['demon'],
+  // ── 合夥人 ──
+  // 惡魔系
+  poverty_god:['demon'], gluttony:['demon'], sloth:['demon'], lust:['demon'],
+  wrath:['demon'], envy:['demon'], greed:['demon'], pride:['demon'],
+  black_market:['trade','demon'], demolition_expert:['demolish','demon'],
+  // 基礎合夥人
+  ore_merchant:['basic','production'], shop_owner:['basic','shop'], factory_owner:['basic','production'],
+  // 人力流合夥人
+  labor_broker:['hr'], union_chief:['hr'], labor_minister:['hr'], hr_director:['hr'],
+  // 物流流合夥人
+  transport_tycoon:['logistics'], storage_queen:['logistics'],
+  route_planner:['logistics'], express_master:['logistics'],
+  // 貿易流合夥人
+  forex_trader:['trade'], arbitrageur:['trade'], monopolist:['trade','shop'],
+  // 拆遷流合夥人
+  land_speculator:['demolish'], chaos_architect:['demolish'], ruin_scavenger:['demolish'],
+  // 獨特合夥人
+  tanya:['unique'], leya:['unique'], logistics_king:['logistics','unique'],
+  mayor:['unique'], highway_star:['unique'], facility_destroyer:['demolish','unique'],
+  wind_master:['unique'], landlord:['unique'],
+  demolition:['demolish','unique'], uncrowned_king:['demolish','unique'],
+  yongqing_house:['unique'],
+};
+const TAG_WEIGHT=0.12; // 每個匹配詞條加 12% 權重
+
+// 計算玩家當前擁有的詞條計數
+function getPlayerTagCounts(){
+  const tc={};
+  const _add=id=>{ if(TAGS[id]) TAGS[id].forEach(t=>tc[t]=(tc[t]||0)+1); };
+  // 小鎮設施
+  const gn=GN();
+  for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+    const b=G.grid[r]&&G.grid[r][c];
+    if(b&&b!=='ruin') _add(b);
+  }
+  // 手牌
+  G.hand.forEach(h=>{
+    if(h.compound){ h.parts.forEach(p=>_add(p)); }
+    else { for(let i=0;i<h.count;i++) _add(h.id); }
+  });
+  // 合夥人
+  G.partners.forEach(pid=>_add(pid));
+  return tc;
+}
+
+// 根據詞條計算候選項權重
+function tagWeightFor(id, tagCounts){
+  const tags=TAGS[id];
+  if(!tags) return 1;
+  let w=1;
+  tags.forEach(t=>{ if(tagCounts[t]) w+=tagCounts[t]*TAG_WEIGHT; });
+  return w;
+}
+
+// 加權隨機抽取 n 個不重複項目
+function weightedPickN(pool, n, tagCounts){
+  if(!tagCounts) tagCounts=getPlayerTagCounts();
+  const items=pool.map(id=>({id, w:tagWeightFor(id, tagCounts)}));
+  const result=[];
+  while(result.length<n&&items.length>0){
+    const total=items.reduce((s,x)=>s+x.w,0);
+    let r=Math.random()*total;
+    let idx=0;
+    for(let i=0;i<items.length;i++){
+      r-=items[i].w;
+      if(r<=0){idx=i;break;}
+    }
+    result.push(items[idx].id);
+    items.splice(idx,1);
+  }
+  return result;
+}
+
 let _safetyNetRoll=false; // 本回合安全網是否已判定
 function checkSafetyNet(){
   // 每回合只判定一次，多處呼叫共用結果
@@ -1719,13 +1800,14 @@ const EVENTS=[
         }
       }
       let pool;
+      const _tc=getPlayerTagCounts();
       if(checkSafetyNet()){
         // 安全網：保證1個物流中心 + 2個隨機設施
         const logDir=LOGISTICS_DIRS[Math.floor(Math.random()*LOGISTICS_DIRS.length)];
-        const rest=Object.keys(BLDG).filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part'&&!LOGISTICS_DIRS.includes(id)).sort(()=>Math.random()-.5).slice(0,2);
+        const rest=weightedPickN(Object.keys(BLDG).filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part'&&!LOGISTICS_DIRS.includes(id)),2,_tc);
         pool=[logDir,...rest];
       } else {
-        pool=Object.keys(BLDG).filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part').sort(()=>Math.random()-.5).slice(0,3);
+        pool=weightedPickN(Object.keys(BLDG).filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part'),3,_tc);
       }
       showCardChooser('🏗 設施補給',pool.map(id=>({
         emoji:BLDG[id].emoji, name:BLDG[id].name, desc:BLDG[id].desc, pos:'', neg:'',
@@ -3636,9 +3718,8 @@ function finish(el,startVal){
     const outputType=el.type;
     // 建立巨型設施（使用實際路徑）
     const mega=createMegaFacilityFromRun(entryR,entryC,dir,cellPath,'money',outputType,profit);
-    const inE=TLABEL_MEGA[mega.inputType]||'?';
-    const outE=TLABEL_MEGA[mega.outputType]||'?';
-    addLog(`🏭 工業化完成！${inE}→${outE}，模擬收益 +${profit}`,'g');
+    const _mi=megaIcons(mega);
+    addLog(`🏭 工業化完成！${_mi.flow}，模擬收益 +${profit}`,'g');
     G.phase='done';
     render();
     return;
@@ -3918,7 +3999,7 @@ function doAction(id){
   G.profit-=actCost;
 
   if(id==='buy_fac'){
-    const pool=Object.keys(BLDG).filter(bid=>bid!=='envy_factory'&&bid!=='ruin'&&bid!=='dept_store_part').sort(()=>Math.random()-.5).slice(0,3);
+    const pool=weightedPickN(Object.keys(BLDG).filter(bid=>bid!=='envy_factory'&&bid!=='ruin'&&bid!=='dept_store_part'),3);
     const refund=actCost;
     showCardChooser(
       '🏗 選擇一個設施加入手牌',
@@ -3948,10 +4029,10 @@ function doAction(id){
     let picks;
     if(checkSafetyNet()){
       const priority=['tanya','leya'].filter(pid=>pool.includes(pid));
-      const rest=pool.filter(pid=>!priority.includes(pid)).sort(()=>Math.random()-.5);
+      const rest=weightedPickN(pool.filter(pid=>!priority.includes(pid)),3-priority.length);
       picks=[...priority,...rest].slice(0,3);
     } else {
-      picks=pool.sort(()=>Math.random()-.5).slice(0,3);
+      picks=weightedPickN(pool,3);
     }
     const refund=actCost;
     showCardChooser(
@@ -4388,9 +4469,9 @@ function doPermShop(){
       id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part'&&id!=='dept_store'&&
       !BLDG[id].centerOnly&&!BLDG[id].ruinOnly
     );
-    if(nonBasic.length) pool.push(nonBasic[Math.floor(Math.random()*nonBasic.length)]);
+    if(nonBasic.length) pool.push(weightedPickN(nonBasic,1)[0]);
   }
-  const shuffled=[...new Set(pool)].sort(()=>Math.random()-.5).slice(0,3);
+  const shuffled=weightedPickN([...new Set(pool)],3);
   const hasFree=isPermShopFree();
   const freeIdx=hasFree?Math.floor(Math.random()*shuffled.length):-1;
   const cost=getPermShopCost();
@@ -6119,11 +6200,11 @@ function tanyaOfferSwap(){
   if(!hasPartner('tanya')) return;
   const handOptions = G.hand.filter(h=>h.count>0&&!h.compound);
   if(handOptions.length === 0){ addLog('👩‍💼 譚雅：手牌無設施可交換，跳過','w'); return; }
-  // 隨機抽3個設施
-  const pool = Object.keys(BLDG)
-    .filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part')
-    .sort(()=>Math.random()-.5)
-    .slice(0,3);
+  // 加權隨機抽3個設施（詞條系統）
+  const pool = weightedPickN(
+    Object.keys(BLDG).filter(id=>id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part'),
+    3
+  );
   G._tanyaSwapPool = pool;
   G._tanyaSwapPending = true;
 
@@ -6868,6 +6949,17 @@ function createMegaFacilityFromRun(entryR, entryC, entryDir, cellPath, inputType
     gridCopy[r]=[];
     for(let c=0;c<gn;c++) gridCopy[r][c]=G.grid[r][c];
   }
+  // 找出路徑上第一個和最後一個設施的 emoji
+  let startEmoji='🏭', endEmoji='🏭';
+  for(const[pr,pc] of cellPath){
+    const bid=gridCopy[pr]&&gridCopy[pr][pc];
+    if(bid&&bid!=='ruin'&&BLDG[bid]){startEmoji=BLDG[bid].emoji;break;}
+  }
+  for(let i=cellPath.length-1;i>=0;i--){
+    const[pr,pc]=cellPath[i];
+    const bid=gridCopy[pr]&&gridCopy[pr][pc];
+    if(bid&&bid!=='ruin'&&BLDG[bid]){endEmoji=BLDG[bid].emoji;break;}
+  }
   const mega={
     id:'mega_'+Date.now()+'_'+Math.floor(Math.random()*1000),
     grid:gridCopy,
@@ -6883,6 +6975,8 @@ function createMegaFacilityFromRun(entryR, entryC, entryDir, cellPath, inputType
     entryDir,
     inputType,
     outputType,
+    startEmoji,
+    endEmoji,
     simProfit,
     round:G.round,
     timestamp:new Date().toISOString()
@@ -6892,10 +6986,64 @@ function createMegaFacilityFromRun(entryR, entryC, entryDir, cellPath, inputType
   return mega;
 }
 
+// 巨型設施模擬用特殊設施效果（簡化版，不依賴 DOM/G 狀態）
+const MEGA_SIM_FX={
+  small_shop(sim){
+    if(sim.type==='goods'){sim.value+=1;sim.type='money';}
+    else if(sim.type==='money'){sim.value+=2;}
+  },
+  scalper(sim){
+    if(sim.type==='goods'){const m=sim.value+1;sim.value=Math.max(1,Math.ceil(m*0.9));} // goods→money+1→goods(-10%)
+  },
+  bulk_store(sim,mega){
+    if(sim.type==='goods'){const cap=10*(mega.round||1);sim.value+=Math.min(Math.floor(sim.value*0.5),cap);}
+  },
+  dept_store(sim){
+    if(sim.type==='goods'){sim.value=Math.floor(sim.value*2);sim.type='money';}
+  },
+  spiral_hub(sim,mega,ctx){sim.value+=2;}, // 簡化：每次通過+2
+  terminal(sim,mega,ctx){sim.value+=ctx.facHit*2;},
+  env_sensor(sim,mega,ctx){
+    // 計算快照中相鄰設施數
+    const[r,c]=ctx.cell;const gn=mega.gridSize;let adj=0;
+    [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([ar,ac])=>{
+      if(ar>=0&&ar<gn&&ac>=0&&ac<gn){const bid=mega.grid[ar]&&mega.grid[ar][ac];if(bid&&bid!=='ruin'&&BLDG[bid]) adj++;}
+    });
+    sim.value+=adj;
+  },
+  trade_zone(sim,mega,ctx){
+    // 計算快照中相鄰商店數
+    const[r,c]=ctx.cell;const gn=mega.gridSize;let hasShop=false;
+    [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([ar,ac])=>{
+      if(ar>=0&&ar<gn&&ac>=0&&ac<gn){const bid=mega.grid[ar]&&mega.grid[ar][ac];if(bid&&BLDG[bid]&&BLDG[bid].isShop) hasShop=true;}
+    });
+    if(hasShop) sim.value=Math.ceil(sim.value*1.5);
+  },
+  trade_port(sim){
+    if(sim.type==='goods'){const pct=Math.floor(sim.value/10);if(pct>0) sim.value+=Math.max(1,Math.ceil(sim.value*pct/100));}
+  },
+  clearance(sim,mega,ctx){
+    if(sim.type==='goods'){ctx.bonusProfit+=(sim.value*4);sim.value=1;}
+  },
+  futures_market(sim){
+    const pct=(Math.random()<0.5?-1:1)*(Math.floor(Math.random()*10)+1);
+    const adj=Math.max(1,Math.ceil(Math.abs(sim.value*pct/100)))*Math.sign(pct);
+    sim.value=Math.max(1,sim.value+adj);
+  },
+  trade_hub(sim){
+    if(sim.type==='money'){const bonus=Math.max(1,Math.ceil(sim.value*0.01));sim.value+=bonus;sim.type='material';}
+    else if(sim.type==='goods'){const bonus=Math.max(1,Math.ceil(sim.value*0.01));sim.value+=bonus;sim.type='money';}
+  },
+  tech_lab(sim){
+    if(sim.type==='goods'){sim.value=Math.floor(sim.value*1.02);}
+  },
+};
+
 // 模擬資源通過巨型設施（同步快速計算，無動畫）
 function simulateMegaFacility(mega, el){
   let sim={value:el.value, type:el.type};
   let facHit=0;
+  let bonusProfit=0;
   const logs=[];
   for(const[r,c] of mega.path){
     const bId=mega.grid[r]&&mega.grid[r][c];
@@ -6908,8 +7056,17 @@ function simulateMegaFacility(mega, el){
     if(b.req!=='any'&&b.req!==sim.type) continue;
     const prevVal=sim.value;
     const prevType=sim.type;
-    // 套用設施效果
-    if(b.fn) sim.value=b.fn(sim.value);
+    const ctx={facHit, cell:[r,c], bonusProfit};
+    // 優先使用特殊效果模擬
+    if(b.special&&MEGA_SIM_FX[b.special]){
+      MEGA_SIM_FX[b.special](sim, mega, ctx);
+      bonusProfit=ctx.bonusProfit;
+    } else {
+      // 套用基礎 fn
+      if(b.fn) sim.value=b.fn(sim.value);
+      // 轉換類型
+      if(b.out) sim.type=b.out;
+    }
     // 加成：bldgUpgrades
     const upKey=`${r},${c}`;
     const upBonus=mega.bldgUpgrades[upKey]||0;
@@ -6923,8 +7080,6 @@ function simulateMegaFacility(mega, el){
     // 加成：cellPctMods
     const cellPct=mega.cellPctMods[upKey]||0;
     if(cellPct!==0) sim.value=Math.max(1,Math.ceil(sim.value*(1+cellPct/100)));
-    // 轉換類型
-    if(b.out) sim.type=b.out;
     facHit++;
     logs.push(`  ${b.emoji} ${b.name}: ${TLABEL[prevType]||prevType}${prevVal}→${TLABEL[sim.type]||sim.type}${sim.value}`);
   }
@@ -6932,37 +7087,110 @@ function simulateMegaFacility(mega, el){
   if(sim.type==='diamond') sim={value:sim.value,type:'money'};
   // 非金錢打折
   const finalMoney=sim.type==='money'?sim.value:Math.floor(sim.value*0.6);
-  return {el:sim, finalMoney, facHit, logs};
+  return {el:sim, finalMoney, facHit, logs, bonusProfit};
 }
 
 const TLABEL_MEGA={money:'💰',material:'🪨',goods:'📦',diamond:'💎'};
+// 取得巨型設施顯示圖示（相容舊資料）
+function megaIcons(m){
+  const s=m.startEmoji||(TLABEL_MEGA[m.inputType]||'🏭');
+  const e=m.endEmoji||(TLABEL_MEGA[m.outputType]||'🏭');
+  return {start:s, end:e, flow:s+'→'+e};
+}
 
+let _megaDragging=null; // 正在拖曳的巨型設施 ID
 const MEGA={
-  // 開啟巨型地圖
   open(){
     loadMegaFacilities();
     _megaGrid=Array(4).fill(null).map(()=>Array(4).fill(null));
     _megaProfit=0;
     _megaLog=[];
+    _megaDragging=null;
     document.getElementById('mega-overlay').classList.add('show');
     MEGA.render();
   },
   close(){
     document.getElementById('mega-overlay').classList.remove('show');
   },
-  // 新增巨型設施到地圖
+  // ── 格子放置（拖曳） ──
   placeMega(r,c,megaId){
-    const mega=_megaFacilities.find(m=>m.id===megaId);
-    if(!mega) return;
+    if(!megaId) return;
     _megaGrid[r][c]=megaId;
     MEGA.render();
   },
-  // 移除巨型設施
   removeMega(r,c){
     _megaGrid[r][c]=null;
     MEGA.render();
   },
-  // 投入資源
+  // 格子上已有設施 → 點擊進入檢視
+  onCellClick(r,c){
+    const megaId=_megaGrid[r][c];
+    if(megaId) MEGA.inspect(megaId);
+  },
+  // ── 拖曳：巨型設施卡 → 格子 ──
+  onMegaDragStart(e,megaId){
+    _megaDragging=megaId;
+    e.dataTransfer.setData('text/plain',megaId);
+    e.dataTransfer.effectAllowed='move';
+    // 隱藏預設拖曳圖像
+    const cv=document.createElement('canvas');cv.width=1;cv.height=1;
+    e.dataTransfer.setDragImage(cv,0,0);
+    // 空格加高亮
+    document.querySelectorAll('.mega-cell:not(.filled)').forEach(c=>c.classList.add('upgrade-glow'));
+  },
+  onMegaDragEnd(e){
+    _megaDragging=null;
+    document.querySelectorAll('.mega-cell').forEach(c=>{c.classList.remove('upgrade-glow');c.classList.remove('drag-over');});
+  },
+  onCellDragOver(e,r,c){
+    if(!_megaDragging) return;
+    if(_megaGrid[r][c]) return; // 已有設施
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+  },
+  onCellDragLeave(e,r,c){
+    e.currentTarget.classList.remove('drag-over');
+  },
+  onCellDrop(e,r,c){
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if(!_megaDragging) return;
+    if(_megaGrid[r][c]) return;
+    MEGA.placeMega(r,c,_megaDragging);
+    _megaDragging=null;
+  },
+  // ── 拖曳：資源卡 → 方向箭頭 ──
+  _elDragging:false,
+  onElDragStart(e){
+    MEGA._elDragging=true;
+    e.dataTransfer.setData('text/plain','mega-element');
+    e.dataTransfer.effectAllowed='move';
+    const cv=document.createElement('canvas');cv.width=1;cv.height=1;
+    e.dataTransfer.setDragImage(cv,0,0);
+    document.body.classList.add('card-dragging');
+    document.querySelectorAll('#mega-grid-area .mega-dbtn').forEach(b=>b.classList.add('wind-active'));
+  },
+  onElDragEnd(e){
+    MEGA._elDragging=false;
+    document.body.classList.remove('card-dragging');
+    document.querySelectorAll('#mega-grid-area .mega-dbtn').forEach(b=>{b.classList.remove('wind-active');b.classList.remove('drag-over');});
+  },
+  onDirDragOver(e,btn){
+    if(!MEGA._elDragging) return;
+    e.preventDefault();
+    btn.classList.add('drag-over');
+  },
+  onDirDragLeave(btn){
+    btn.classList.remove('drag-over');
+  },
+  onDirDrop(e,dir,idx){
+    e.preventDefault();
+    if(!MEGA._elDragging) return;
+    MEGA._elDragging=false;
+    document.querySelectorAll('.mega-dbtn').forEach(b=>{b.classList.remove('wind-active');b.classList.remove('drag-over');});
+    MEGA.sendMega(dir,idx);
+  },
+  // ── 投入資源 ──
   sendMega(dir,idx){
     const path=[];
     for(let i=0;i<4;i++){
@@ -6971,8 +7199,7 @@ const MEGA={
       if(dir==='top')   path.push([i,idx]);
       if(dir==='bottom')path.push([3-i,idx]);
     }
-    const startVal=1;
-    let el={value:startVal, type:'money'};
+    let el={value:1, type:'money'};
     const dname={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'}[dir];
     _megaLog.push(`▶ 從${dname}第${idx+1}格投入 💰 1`);
     let totalProfit=0;
@@ -6981,14 +7208,17 @@ const MEGA={
       if(!megaId) continue;
       const mega=_megaFacilities.find(m=>m.id===megaId);
       if(!mega) continue;
-      _megaLog.push(`🏭 進入巨型設施 [${r},${c}]：${TLABEL_MEGA[mega.inputType]||'?'}→${TLABEL_MEGA[mega.outputType]||'?'}`);
+      _megaLog.push(`🏭 進入巨型設施 [${r},${c}]：${megaIcons(mega).flow}`);
       const result=simulateMegaFacility(mega, el);
       result.logs.forEach(l=>_megaLog.push(l));
-      // 各自結算收益
-      const profit=Math.max(0,result.finalMoney-el.value);
+      const inputMoney=el.type==='money'?el.value:Math.floor(el.value*0.6);
+      let profit=Math.max(0,result.finalMoney-inputMoney);
+      if(result.bonusProfit>0){
+        profit+=result.bonusProfit;
+        _megaLog.push(`  🏷️ 額外收益：+${result.bonusProfit}`);
+      }
       totalProfit+=profit;
-      _megaLog.push(`  💰 此設施收益：+${profit}（入${el.value}→出${result.finalMoney}）`);
-      // 輸出作為下一個設施的輸入
+      _megaLog.push(`  💰 此設施收益：+${profit}（入${inputMoney}→出${result.finalMoney}）`);
       el=result.el;
     }
     _megaProfit+=totalProfit;
@@ -6996,49 +7226,80 @@ const MEGA={
     _megaLog.push('─'.repeat(30));
     MEGA.render();
   },
-  // 渲染巨型地圖
+  // ── 渲染 ──
   render(){
+    // 手牌列表（左側面板）
+    const handList=document.getElementById('mega-hand-list');
+    if(handList){
+      // 計算哪些設施已在地圖上（同一設施可重複放置）
+      const placedIds=new Set();
+      for(let r=0;r<4;r++) for(let c=0;c<4;c++) if(_megaGrid[r][c]) placedIds.add(_megaGrid[r][c]);
+      let hh='';
+      _megaFacilities.forEach(m=>{
+        const mi=megaIcons(m);
+        hh+=`<div class="hc" style="cursor:grab;${placedIds.has(m.id)?'opacity:.4;':''}"
+          draggable="true"
+          ondragstart="MEGA.onMegaDragStart(event,'${m.id}')"
+          ondragend="MEGA.onMegaDragEnd(event)"
+          onclick="MEGA.inspect('${m.id}')">
+          <span class="he">${mi.flow}</span>
+          <span class="hn">R${m.round} ${m.gridSize}×${m.gridSize}${m.simProfit!==undefined?' +'+m.simProfit:''}</span>
+        </div>`;
+      });
+      if(_megaFacilities.length===0) hh=`<div style="font-size:9px;color:var(--mu);padding:4px 0;">尚無巨型設施</div>`;
+      handList.innerHTML=hh;
+    }
+    // 格子區域
     const area=document.getElementById('mega-grid-area');
     let h='';
     // 上方箭頭
-    h+=`<div style="display:flex;gap:3px;justify-content:center;"><div style="width:24px"></div>`;
-    for(let ci=0;ci<4;ci++) h+=`<button class="mega-dbtn" onclick="MEGA.sendMega('top',${ci})">↓</button>`;
-    h+=`<div style="width:24px"></div></div>`;
+    h+=`<div class="drow"><div style="width:28px"></div>`;
+    for(let ci=0;ci<4;ci++) h+=`<button class="dbtn mega-dbtn"
+      onclick="MEGA.sendMega('top',${ci})"
+      ondragover="MEGA.onDirDragOver(event,this)" ondragleave="MEGA.onDirDragLeave(this)"
+      ondrop="MEGA.onDirDrop(event,'top',${ci})">↓</button>`;
+    h+=`<div style="width:28px"></div></div>`;
     // 中間
-    h+=`<div style="display:flex;gap:3px;">`;
-    // 左側箭頭
-    h+=`<div style="display:flex;flex-direction:column;gap:3px;">`;
-    for(let ri=0;ri<4;ri++) h+=`<button class="mega-dbtn side" onclick="MEGA.sendMega('left',${ri})">→</button>`;
+    h+=`<div class="dcol-wrap"><div class="dside">`;
+    for(let ri=0;ri<4;ri++) h+=`<button class="dbtn side mega-dbtn"
+      onclick="MEGA.sendMega('left',${ri})"
+      ondragover="MEGA.onDirDragOver(event,this)" ondragleave="MEGA.onDirDragLeave(this)"
+      ondrop="MEGA.onDirDrop(event,'left',${ri})">→</button>`;
     h+=`</div>`;
-    // 格子
-    h+=`<div id="mega-grid" style="grid-template-columns:repeat(4,90px);">`;
+    h+=`<div id="mega-grid" style="grid-template-columns:repeat(4,var(--cell))">`;
     for(let r=0;r<4;r++) for(let c=0;c<4;c++){
       const megaId=_megaGrid[r][c];
       const mega=megaId?_megaFacilities.find(m=>m.id===megaId):null;
+      h+=`<div class="cell mega-cell${mega?' filled':''}" data-mr="${r}" data-mc="${c}"
+        onclick="MEGA.onCellClick(${r},${c})"
+        ondragover="MEGA.onCellDragOver(event,${r},${c})"
+        ondragleave="MEGA.onCellDragLeave(event,${r},${c})"
+        ondrop="MEGA.onCellDrop(event,${r},${c})">`;
       if(mega){
-        const inE=TLABEL_MEGA[mega.inputType]||'?';
-        const outE=TLABEL_MEGA[mega.outputType]||'?';
-        h+=`<div class="mega-cell filled" data-mr="${r}" data-mc="${c}">
-          <div class="mega-flow">${inE}→${outE}</div>
-          <div class="mega-name">R${mega.round} ${mega.gridSize}×${mega.gridSize}</div>
-          <div class="mega-round">${mega.path.length}格路徑${mega.simProfit!==undefined?' | +'+mega.simProfit:''}</div>
-          <button class="mega-inspect-btn" onclick="event.stopPropagation();MEGA.inspect('${mega.id}')">🔍 進入巨型設施</button>
-        </div>`;
-      } else {
-        h+=`<div class="mega-cell" data-mr="${r}" data-mc="${c}" onclick="MEGA.showPlacePicker(${r},${c})"></div>`;
+        const mi=megaIcons(mega);
+        h+=`<div style="font-size:28px;line-height:1;">${mi.start}<span style="font-size:14px;vertical-align:middle;">→</span>${mi.end}</div>`;
+        h+=`<div class="cname">R${mega.round}</div>`;
+        if(mega.simProfit!==undefined) h+=`<div style="font-size:8px;color:var(--money);">+${mega.simProfit}</div>`;
       }
+      h+=`</div>`;
     }
     h+=`</div>`;
     // 右側箭頭
-    h+=`<div style="display:flex;flex-direction:column;gap:3px;">`;
-    for(let ri=0;ri<4;ri++) h+=`<button class="mega-dbtn side" onclick="MEGA.sendMega('right',${ri})">←</button>`;
+    h+=`<div class="dside">`;
+    for(let ri=0;ri<4;ri++) h+=`<button class="dbtn side mega-dbtn"
+      onclick="MEGA.sendMega('right',${ri})"
+      ondragover="MEGA.onDirDragOver(event,this)" ondragleave="MEGA.onDirDragLeave(this)"
+      ondrop="MEGA.onDirDrop(event,'right',${ri})">←</button>`;
     h+=`</div></div>`;
     // 下方箭頭
-    h+=`<div style="display:flex;gap:3px;justify-content:center;"><div style="width:24px"></div>`;
-    for(let ci=0;ci<4;ci++) h+=`<button class="mega-dbtn" onclick="MEGA.sendMega('bottom',${ci})">↑</button>`;
-    h+=`<div style="width:24px"></div></div>`;
+    h+=`<div class="drow"><div style="width:28px"></div>`;
+    for(let ci=0;ci<4;ci++) h+=`<button class="dbtn mega-dbtn"
+      onclick="MEGA.sendMega('bottom',${ci})"
+      ondragover="MEGA.onDirDragOver(event,this)" ondragleave="MEGA.onDirDragLeave(this)"
+      ondrop="MEGA.onDirDrop(event,'bottom',${ci})">↑</button>`;
+    h+=`<div style="width:28px"></div></div>`;
     area.innerHTML=h;
-    // 更新收益面板
+    // 收益面板
     document.getElementById('mega-profit').textContent=_megaProfit;
     document.getElementById('mega-log').innerHTML=_megaLog.map(l=>{
       if(l.startsWith('▶')) return `<div style="color:var(--acc);font-weight:700;margin-top:4px;">${l}</div>`;
@@ -7047,102 +7308,106 @@ const MEGA={
       if(l.startsWith('─')) return `<hr style="border:none;border-top:1px solid var(--br2);margin:4px 0;">`;
       return `<div>${l}</div>`;
     }).join('');
-    // 捲到底
     const logEl=document.getElementById('mega-log');
     logEl.scrollTop=logEl.scrollHeight;
-    // 更新卡片
-    document.getElementById('mega-card-val').textContent='1';
-    document.getElementById('mega-card-type').textContent='金錢';
+    // 扇形手牌（底部：資源卡 + 已放置的設施可拖回）
+    MEGA.renderFan();
   },
-  // 放置巨型設施選擇器
-  showPlacePicker(r,c){
-    loadMegaFacilities();
-    if(_megaFacilities.length===0){
-      alert('尚未建立任何巨型設施！\n請在開發者模式中使用「工業化」按鈕建立。');
-      return;
-    }
-    let h=`<div style="position:fixed;inset:0;z-index:8200;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)this.remove()">
-      <div style="background:var(--bg);border-radius:16px;padding:20px;max-width:450px;width:90vw;max-height:70vh;overflow-y:auto;">
-      <div style="font-size:14px;font-weight:900;color:var(--tx);margin-bottom:10px;">選擇巨型設施放置到 [${r},${c}]</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;">`;
+  // 底部扇形卡牌（巨型設施手牌 + 資源卡）
+  renderFan(){
+    const area=document.getElementById('mega-fan-area');
+    if(!area) return;
+    const cards=[];
+    // 巨型設施卡牌
     _megaFacilities.forEach(m=>{
-      const inE=TLABEL_MEGA[m.inputType]||'?';
-      const outE=TLABEL_MEGA[m.outputType]||'?';
-      const ts=new Date(m.timestamp).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-      h+=`<div style="width:100px;padding:10px;background:var(--sur);border:1.5px solid var(--br2);border-radius:10px;
-        cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:all .12s;text-align:center;"
-        onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--br2)'"
-        onclick="MEGA.placeMega(${r},${c},'${m.id}');this.closest('[style*=fixed]').remove();">
-        <div style="font-size:18px;">${inE}→${outE}</div>
-        <div style="font-size:8px;color:var(--mu);">R${m.round} ${m.gridSize}×${m.gridSize}</div>
-        ${m.simProfit!==undefined?`<div style="font-size:8px;color:var(--green);font-weight:700;">+${m.simProfit}</div>`:''}
-        <div style="font-size:7px;color:var(--blue);">${ts}</div>
-      </div>`;
+      const mi=megaIcons(m);
+      cards.push({type:'mega',id:m.id,startE:mi.start,endE:mi.end,round:m.round,gridSize:m.gridSize,simProfit:m.simProfit});
     });
-    h+=`</div>
-      <div style="margin-top:12px;text-align:center;">
-        <button onclick="this.closest('[style*=fixed]').remove()" style="padding:6px 16px;border-radius:8px;border:1.5px solid var(--br2);background:var(--sur);color:var(--tx);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;">取消</button>
-      </div>
-      </div></div>`;
-    document.body.insertAdjacentHTML('beforeend',h);
+    // 資源卡（最右）
+    cards.push({type:'element'});
+    const total=cards.length;
+    const maxAngle=Math.min(25,total*4);
+    area.innerHTML=cards.map((card,i)=>{
+      const frac=total>1?(i/(total-1))-0.5:0;
+      const angle=frac*maxAngle*2;
+      const sinkY=Math.abs(frac)*14;
+      const zi=i+1;
+      if(card.type==='element'){
+        return `<div class="fan-card el-card-fan" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};"
+          draggable="true"
+          ondragstart="MEGA.onElDragStart(event)"
+          ondragend="MEGA.onElDragEnd(event)">
+          <div class="fc-emoji">💵</div>
+          <div class="fc-val">1</div>
+          <div class="fc-type">💰金錢</div>
+          <div class="fc-buff-desc fc-buff-idle">拖曳到箭頭投入</div>
+        </div>`;
+      }
+      // 巨型設施卡
+      return `<div class="fan-card" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};cursor:grab;"
+        draggable="true"
+        ondragstart="MEGA.onMegaDragStart(event,'${card.id}')"
+        ondragend="MEGA.onMegaDragEnd(event)"
+        onclick="MEGA.inspect('${card.id}')">
+        <div class="fc-emoji" style="font-size:22px;">${card.startE}<span style="font-size:12px;">→</span>${card.endE}</div>
+        <div class="fc-name">巨型設施</div>
+        <div class="fc-desc">R${card.round} ${card.gridSize}×${card.gridSize}${card.simProfit!==undefined?'\n+'+card.simProfit+' 收益':''}</div>
+      </div>`;
+    }).join('');
   },
-  // 檢視巨型設施內部
+  // ── 檢視巨型設施內部 ──
   inspect(megaId){
     const mega=_megaFacilities.find(m=>m.id===megaId);
     if(!mega) return;
     const box=document.getElementById('mega-inspect-box');
     const gn=mega.gridSize;
-    const inE=TLABEL_MEGA[mega.inputType]||'?';
-    const outE=TLABEL_MEGA[mega.outputType]||'?';
+    const mi=megaIcons(mega);
     const pathSet=new Set(mega.path.map(p=>`${p[0]},${p[1]}`));
     const entryKey=`${mega.entryCell[0]},${mega.entryCell[1]}`;
     const dirLabels={left:'← 左側',right:'→ 右側',top:'↑ 上方',bottom:'↓ 下方'};
-    let h=`<div class="mib-title">${inE}→${outE} 巨型設施 <span style="font-size:10px;font-weight:400;color:var(--mu);">R${mega.round} | ${gn}×${gn}</span></div>`;
-    h+=`<div style="font-size:9px;color:var(--mu);margin-bottom:8px;">投入起點：[${mega.entryCell[0]},${mega.entryCell[1]}] 方向：${dirLabels[mega.entryDir]||mega.entryDir}${mega.simProfit!==undefined?` | 模擬收益：+${mega.simProfit}`:''}</div>`;
-    h+=`<div class="mib-grid" style="grid-template-columns:repeat(${gn},56px);">`;
+    let ih=`<div class="mib-title">${mi.flow} 巨型設施 <span style="font-size:10px;font-weight:400;color:var(--mu);">R${mega.round} | ${gn}×${gn}</span></div>`;
+    ih+=`<div style="font-size:9px;color:var(--mu);margin-bottom:8px;">投入起點：[${mega.entryCell[0]},${mega.entryCell[1]}] 方向：${dirLabels[mega.entryDir]||mega.entryDir}${mega.simProfit!==undefined?` | 模擬收益：+${mega.simProfit}`:''}</div>`;
+    ih+=`<div class="mib-grid" style="grid-template-columns:repeat(${gn},56px);">`;
     for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
       const bId=mega.grid[r]&&mega.grid[r][c];
       const b=(bId&&bId!=='ruin')?BLDG[bId]:null;
       const key=`${r},${c}`;
       const isEntry=key===entryKey;
       const isPath=pathSet.has(key);
-      const cls='mib-cell'+(isEntry?' mib-entry':'')+(isPath?' mib-path':'');
-      h+=`<div class="${cls}">`;
-      if(bId==='ruin'){
-        h+=`<div style="opacity:.45;">🏚️</div><div style="opacity:.45;">廢墟</div>`;
-      } else if(b){
-        h+=`<div style="font-size:18px;">${b.emoji}</div><div>${b.name}</div>`;
+      ih+=`<div class="mib-cell${isEntry?' mib-entry':''}${isPath?' mib-path':''}">`;
+      if(bId==='ruin') ih+=`<div style="opacity:.45;">🏚️</div><div style="opacity:.45;">廢墟</div>`;
+      else if(b){
+        ih+=`<div style="font-size:18px;">${b.emoji}</div><div>${b.name}</div>`;
         const upBonus=mega.bldgUpgrades[key]||0;
-        if(upBonus>0) h+=`<div style="color:var(--money);font-size:7px;">+${upBonus}</div>`;
+        if(upBonus>0) ih+=`<div style="color:var(--money);font-size:7px;">+${upBonus}</div>`;
       }
-      h+=`</div>`;
+      ih+=`</div>`;
     }
-    h+=`</div>`;
-    // 合夥人列表
+    ih+=`</div>`;
     if(mega.partners.length>0){
-      h+=`<div class="mib-info"><strong>合夥人：</strong>`;
-      mega.partners.forEach(pid=>{
-        const p=PARTNERS[pid];
-        if(p) h+=`${p.emoji}${p.name} `;
-      });
-      h+=`</div>`;
+      ih+=`<div class="mib-info"><strong>合夥人：</strong>`;
+      mega.partners.forEach(pid=>{const p=PARTNERS[pid];if(p) ih+=`${p.emoji}${p.name} `;});
+      ih+=`</div>`;
     }
-    h+=`<div style="text-align:center;"><button class="mib-close" onclick="MEGA.closeInspect()">✕ 關閉</button></div>`;
-    box.innerHTML=h;
+    // 從地圖移除按鈕
+    let removeBtn='';
+    for(let r=0;r<4;r++) for(let c=0;c<4;c++){
+      if(_megaGrid[r][c]===megaId) removeBtn=`<button class="mib-close" style="background:#c33;color:#fff;border-color:#c33;margin-right:8px;" onclick="MEGA.removeMega(${r},${c});MEGA.closeInspect()">✕ 從地圖移除</button>`;
+    }
+    ih+=`<div style="text-align:center;">${removeBtn}<button class="mib-close" onclick="MEGA.closeInspect()">✕ 關閉</button></div>`;
+    box.innerHTML=ih;
     document.getElementById('mega-inspect-overlay').classList.add('show');
   },
   closeInspect(){
     document.getElementById('mega-inspect-overlay').classList.remove('show');
   },
-  // 工業化：進入模擬投入模式
+  // ── 工業化 ──
   startIndustrialize(){
-    // 設定工業化 flag，強制資源為 💰1
     G._industrializing=true;
     G.card={value:1, type:'money'};
     G.phase='place';
     updateCard(G.card);
     render();
-    // 顯示提示橫幅
     const hint=document.createElement('div');
     hint.id='indust-hint';
     hint.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:7000;'+
@@ -7154,9 +7419,7 @@ const MEGA={
       <button onclick="MEGA.cancelIndustrialize()" style="margin-left:12px;padding:4px 12px;border-radius:6px;border:1px solid rgba(255,180,60,.4);background:rgba(255,255,255,.1);color:#ffd080;cursor:pointer;font-size:10px;font-family:inherit;">取消</button>`;
     document.body.appendChild(hint);
     addLog('🏭 工業化模式啟動：請選擇方向投入 💰1','g');
-    DEV.close();
   },
-  // 取消工業化
   cancelIndustrialize(){
     G._industrializing=false;
     document.getElementById('indust-hint')?.remove();
@@ -7421,20 +7684,25 @@ SM.goto('title');
     <span class="mega-sub">測試模式 — 無回合限制</span>
     <button onclick="MEGA.close()">✕ 返回</button>
   </div>
-  <div id="mega-body">
-    <div id="mega-card">
-      <div class="mc-emoji">💵</div>
-      <div class="mc-val" id="mega-card-val">1</div>
-      <div class="mc-type" id="mega-card-type">金錢</div>
+  <div id="mega-main">
+    <div class="panel" id="mega-left-panel">
+      <div class="pt">巨型設施手牌</div>
+      <div id="mega-hand-list" style="max-height:300px;overflow-y:auto;"></div>
+      <div class="pt" style="margin-top:8px;">提示</div>
+      <div style="font-size:10px;color:var(--mu);line-height:1.6;">
+        拖曳設施卡到格子放置<br>
+        拖曳資源卡到方向箭頭投入
+      </div>
     </div>
     <div id="mega-grid-area"></div>
-    <div id="mega-panel">
-      <div class="mp-title">收益</div>
-      <div class="mp-profit" id="mega-profit">0</div>
-      <div class="mp-title" style="margin-top:12px;">記錄</div>
-      <div class="mp-log" id="mega-log"></div>
+    <div class="panel" id="mega-right-panel">
+      <div class="pt">累計收益</div>
+      <div id="mega-profit" style="font-size:20px;font-weight:900;color:var(--money);">0</div>
+      <div class="pt" style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;">記錄 <button onclick="_megaLog=[];MEGA.render();" style="font-size:8px;padding:2px 8px;border-radius:4px;border:1px solid var(--br2);background:var(--sur);color:var(--mu);cursor:pointer;font-family:inherit;">清除</button></div>
+      <div id="mega-log" style="max-height:260px;overflow-y:auto;font-size:9px;color:var(--mu);line-height:1.5;"></div>
     </div>
   </div>
+  <div id="mega-fan-area"></div>
 </div>
 
 <!-- 巨型設施內部檢視 overlay -->
