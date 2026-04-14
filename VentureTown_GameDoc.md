@@ -976,6 +976,7 @@ E:\VT\
 - **開發者面板不關閉**：進入巨型地圖或工業化模式時不再關閉開發者選單
 - **設施不可重複放置**：`placeMega` 檢查同一巨型設施是否已在地圖上，防止無限拖放
 - **方向箭頭僅拖曳資源卡時顯示**：箭頭預設隱藏，拖曳資源卡時透過 `.mega-el-dragging` class 顯示；移除箭頭的 `onclick`，僅支援拖放投入
+- **`MEGA.close()` 重置拖曳狀態**：關閉巨型地圖時清除 `_megaDragging`、`MEGA._elDragging`、`mega-el-dragging` class，防止殘留狀態影響下次開啟
 
 ### Session 9（2026-04-13）— 平衡調整 + 架構精簡 + UI 改善
 

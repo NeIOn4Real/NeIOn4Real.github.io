@@ -7113,6 +7113,9 @@ const MEGA={
   },
   close(){
     document.getElementById('mega-overlay').classList.remove('show');
+    _megaDragging=null;
+    MEGA._elDragging=false;
+    document.getElementById('mega-grid-area')?.classList.remove('mega-el-dragging');
   },
   // ── 格子放置（拖曳） ──
   placeMega(r,c,megaId){
