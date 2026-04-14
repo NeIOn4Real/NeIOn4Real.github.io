@@ -1054,6 +1054,30 @@ E:\VT\
 | `invested` | 本回合是否已投入 |
 | `_returnNeeded` | 重抽後需返回的張數 |
 
+#### 架構精簡
+
+##### 共用設施模擬函數 `simFacilityPath()`
+- 從 `simulateMegaFacility()` 和 `BATTLE.invest()` 提取共用的設施模擬迴圈
+- 接受 `cells`（路徑座標）、`resource`（起始資源）、`gridCtx`（格子上下文：grid/gridSize/round/bldgUpgrades 等）
+- `simulateMegaFacility` 縮為一行呼叫；`BATTLE.invest` 內聯建立 `gridCtx={grid:[s.field], gridSize:8, round:G.round}`
+- 移除 `BATTLE._buildFieldGrid()`（不再需要）
+
+##### CSS 共用 overlay 基底類別
+- `.game-overlay`：取代 `#mega-overlay` 和 `#battle-overlay` 重複的 `display/position/inset/background` 規則
+- `.game-overlay-hdr`：取代 `#mega-hdr` 和 `#battle-hdr` 重複的 header 樣式
+- `.game-overlay-body`：取代 `#mega-main` 和 `#battle-body` 重複的 flex 佈局
+- `.game-overlay-fan`：取代 `#mega-fan-area` 和 `#battle-fan-area` 重複的底部扇形區
+- 各 overlay 僅保留 z-index 差異：mega 8000/8100、battle 8200/8300
+
+##### 其他清理
+- 移除 `TLABEL_MEGA`，改為 `RESOURCE_EMOJI`（語義更清晰，僅含 emoji 無文字）
+- `simFacilityPath` 統一 `b.req` 檢查為 `b.req&&b.req!=='any'&&b.req!==sim.type`，正確處理 `req:null`
+- 戰鬥系統 `invest()` 中敵人 HP≤0 時阻止投入；`endTurn()` 中 HP≤0 時阻止結束回合
+
+##### 行數變化
+- 精簡前：8141 行
+- 精簡後：8087 行（-54 行）
+
 ### Session 9（2026-04-13）— 平衡調整 + 架構精簡 + UI 改善
 
 #### 平衡調整

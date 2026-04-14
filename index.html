@@ -690,44 +690,45 @@ body { padding-bottom: 150px; }
 .dev-row .de{font-size:14px;flex-shrink:0;}
 .dev-row .dn{font-size:10px;color:#ddd;flex:1;}
 
-/* ══ 巨型設施（工業化）系統 ══ */
-#mega-overlay{
-  display:none;position:fixed;inset:0;z-index:8000;
+/* ══ 共用 overlay 基底（巨型設施 / 戰鬥） ══ */
+.game-overlay{
+  display:none;position:fixed;inset:0;
   background:var(--bg);overflow:auto;
   flex-direction:column;align-items:center;
 }
-#mega-overlay.show{display:flex;}
-#mega-hdr{
+.game-overlay.show{display:flex;}
+.game-overlay-hdr{
   width:100%;padding:10px 20px;display:flex;align-items:center;gap:12px;
   background:var(--sur);border-bottom:2px solid var(--br2);flex-shrink:0;
 }
-#mega-hdr .mega-title{font-size:16px;font-weight:900;color:var(--tx);letter-spacing:2px;}
-#mega-hdr .mega-sub{font-size:11px;color:var(--mu);margin-left:8px;}
-#mega-hdr button{margin-left:auto;padding:6px 14px;border-radius:8px;border:1.5px solid var(--br2);
+.game-overlay-hdr .ov-title{font-size:16px;font-weight:900;color:var(--tx);letter-spacing:2px;}
+.game-overlay-hdr .ov-sub{font-size:11px;color:var(--mu);margin-left:8px;}
+.game-overlay-hdr button{margin-left:auto;padding:6px 14px;border-radius:8px;border:1.5px solid var(--br2);
   background:var(--sur);color:var(--tx);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}
-#mega-hdr button:hover{border-color:var(--acc);background:rgba(179,58,0,.08);}
-#mega-main{display:flex;gap:16px;padding:16px;align-items:flex-start;justify-content:center;flex:1;overflow:auto;}
-#mega-left-panel{width:155px;flex-shrink:0;}
-#mega-right-panel{width:200px;flex-shrink:0;}
-#mega-grid-area{display:flex;flex-direction:column;align-items:center;gap:6px;}
-#mega-grid{display:grid;gap:3px;}
-#mega-fan-area{
+.game-overlay-hdr button:hover{border-color:var(--acc);background:rgba(179,58,0,.08);}
+.game-overlay-body{display:flex;gap:16px;padding:16px;align-items:flex-start;justify-content:center;flex:1;overflow:auto;}
+.game-overlay-fan{
   position:fixed;bottom:0;left:0;right:0;height:200px;
   display:flex;justify-content:center;align-items:flex-end;
-  padding-bottom:10px;pointer-events:none;z-index:8100;
+  padding-bottom:10px;pointer-events:none;
 }
-#mega-fan-area>*{pointer-events:auto;}
-/* 巨型地圖格子：放大版，箭頭預設隱藏 */
-#mega-grid-area{--cell:90px;}
+.game-overlay-fan>*{pointer-events:auto;}
+
+/* ══ 巨型設施（工業化）系統 ══ */
+#mega-overlay{z-index:8000;}
+#mega-fan-area{z-index:8100;}
+#mega-left-panel{width:155px;flex-shrink:0;}
+#mega-right-panel{width:200px;flex-shrink:0;}
+#mega-grid-area{display:flex;flex-direction:column;align-items:center;gap:6px;--cell:90px;}
+#mega-grid{display:grid;gap:3px;}
 #mega-grid-area .dbtn{width:90px;height:28px;}
 #mega-grid-area .dbtn.side{width:28px;height:90px;}
-/* 拖曳資源卡時才顯示箭頭 */
 #mega-grid-area.mega-el-dragging .dbtn{opacity:1;pointer-events:auto;color:var(--acc);
   border-color:rgba(179,58,0,.25);background:rgba(179,58,0,.05);}
 #mega-grid-area.mega-el-dragging .dbtn:hover{border-color:var(--acc);background:rgba(179,58,0,.15);}
 .mega-cell.filled{background:linear-gradient(145deg,#fff5ee,var(--sur));cursor:pointer;}
-.mega-cell.drag-over{border-color:var(--acc);box-shadow:0 0 0 3px rgba(179,58,0,.2);}
-/* 巨型設施內部檢視 overlay */
+.mega-cell.drag-over,.battle-field-cell.drag-over{border-color:var(--acc);box-shadow:0 0 0 3px rgba(179,58,0,.2);}
+.mega-dbtn.drag-over{background:rgba(179,58,0,.25);}
 #mega-inspect-overlay{
   display:none;position:fixed;inset:0;z-index:8500;
   background:rgba(0,0,0,.6);align-items:center;justify-content:center;
@@ -749,24 +750,10 @@ body { padding-bottom: 150px; }
 #mega-inspect-box .mib-close{margin-top:12px;padding:6px 18px;border-radius:8px;border:1.5px solid var(--br2);
   background:var(--sur);color:var(--tx);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}
 #mega-inspect-box .mib-close:hover{border-color:var(--acc);}
-/* 巨型地圖方向箭頭沿用 .dbtn，額外標記 */
-.mega-dbtn.drag-over{background:rgba(179,58,0,.25);}
 
 /* ══ 戰鬥系統 ══ */
-#battle-overlay{
-  display:none;position:fixed;inset:0;z-index:8000;
-  background:var(--bg);flex-direction:column;align-items:center;overflow:auto;
-}
-#battle-overlay.show{display:flex;}
-#battle-hdr{
-  width:100%;padding:10px 20px;display:flex;align-items:center;gap:12px;
-  background:var(--sur);border-bottom:2px solid var(--br2);flex-shrink:0;
-}
-#battle-hdr .battle-title{font-size:16px;font-weight:900;color:var(--tx);letter-spacing:2px;}
-#battle-hdr button{margin-left:auto;padding:6px 14px;border-radius:8px;border:1.5px solid var(--br2);
-  background:var(--sur);color:var(--tx);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}
-#battle-hdr button:hover{border-color:var(--acc);background:rgba(179,58,0,.08);}
-#battle-body{display:flex;gap:16px;padding:16px;align-items:flex-start;justify-content:center;flex:1;overflow:auto;}
+#battle-overlay{z-index:8200;}
+#battle-fan-area{z-index:8300;}
 /* 敵人區域 */
 #battle-enemy{
   background:var(--sur);border:1.5px solid var(--br2);border-radius:12px;padding:16px;
@@ -807,12 +794,6 @@ body { padding-bottom: 150px; }
 #battle-panel .bp-btn.bp-danger{background:#c33;color:#fff;border-color:#c33;}
 #battle-log{font-size:9px;color:var(--mu);line-height:1.5;max-height:200px;overflow-y:auto;margin-top:4px;}
 /* 戰鬥手牌 */
-#battle-fan-area{
-  position:fixed;bottom:0;left:0;right:0;height:200px;
-  display:flex;justify-content:center;align-items:flex-end;
-  padding-bottom:10px;pointer-events:none;z-index:8100;
-}
-#battle-fan-area>*{pointer-events:auto;}
 
 /* ══ 標題畫面 ══ */
 #title-screen{
@@ -7103,62 +7084,51 @@ const MEGA_SIM_FX={
   },
 };
 
-// 模擬資源通過巨型設施（同步快速計算，無動畫）
-function simulateMegaFacility(mega, el){
-  let sim={value:el.value, type:el.type};
-  let facHit=0;
-  let bonusProfit=0;
+// 共用設施模擬迴圈（巨型設施 + 戰鬥共用）
+// cells: [[r,c],...] 路徑座標，gridCtx: {grid, gridSize, round, bldgUpgrades?, ...}
+function simFacilityPath(cells, resource, gridCtx){
+  let sim={value:resource.value, type:resource.type};
+  let facHit=0, bonusProfit=0;
   const logs=[];
-  for(const[r,c] of mega.path){
-    const bId=mega.grid[r]&&mega.grid[r][c];
+  for(const[r,c] of cells){
+    const bId=gridCtx.grid[r]&&gridCtx.grid[r][c];
     if(!bId||bId==='ruin') continue;
     const b=BLDG[bId];
-    if(!b) continue;
-    // 物流轉向設施：方向已烘焙進路徑，跳過
-    if(b.special==='redirect') continue;
-    // 類型檢查
-    if(b.req!=='any'&&b.req!==sim.type) continue;
-    const prevVal=sim.value;
-    const prevType=sim.type;
+    if(!b||b.special==='redirect') continue;
+    if(b.req&&b.req!=='any'&&b.req!==sim.type) continue;
+    const prevVal=sim.value, prevType=sim.type;
     const ctx={facHit, cell:[r,c], bonusProfit};
-    // 優先使用特殊效果模擬
     if(b.special&&MEGA_SIM_FX[b.special]){
-      MEGA_SIM_FX[b.special](sim, mega, ctx);
+      MEGA_SIM_FX[b.special](sim, gridCtx, ctx);
       bonusProfit=ctx.bonusProfit;
     } else {
-      // 套用基礎 fn
       if(b.fn) sim.value=b.fn(sim.value);
-      // 轉換類型
       if(b.out) sim.type=b.out;
     }
-    // 加成：bldgUpgrades
+    // 格子加成（巨型設施有，戰鬥沒有）
     const upKey=`${r},${c}`;
-    const upBonus=mega.bldgUpgrades[upKey]||0;
-    if(upBonus>0) sim.value+=upBonus;
-    // 加成：leyaPctMods
-    const leyaPct=mega.leyaPctMods[upKey]||0;
-    if(leyaPct>0) sim.value=Math.max(1,Math.ceil(sim.value*(1+leyaPct/100)));
-    // 加成：cellMods
-    const cellMod=mega.cellMods[upKey]||0;
-    if(cellMod!==0) sim.value=Math.max(1,sim.value+cellMod);
-    // 加成：cellPctMods
-    const cellPct=mega.cellPctMods[upKey]||0;
-    if(cellPct!==0) sim.value=Math.max(1,Math.ceil(sim.value*(1+cellPct/100)));
+    const up=gridCtx.bldgUpgrades;if(up&&up[upKey]) sim.value+=up[upKey];
+    const lp=gridCtx.leyaPctMods; if(lp&&lp[upKey]) sim.value=Math.max(1,Math.ceil(sim.value*(1+lp[upKey]/100)));
+    const cm=gridCtx.cellMods;    if(cm&&cm[upKey]) sim.value=Math.max(1,sim.value+cm[upKey]);
+    const cp=gridCtx.cellPctMods; if(cp&&cp[upKey]) sim.value=Math.max(1,Math.ceil(sim.value*(1+cp[upKey]/100)));
     facHit++;
     logs.push(`  ${b.emoji} ${b.name}: ${TLABEL[prevType]||prevType}${prevVal}→${TLABEL[sim.type]||sim.type}${sim.value}`);
   }
-  // 鑽石轉換
   if(sim.type==='diamond') sim={value:sim.value,type:'money'};
-  // 非金錢打折
   const finalMoney=sim.type==='money'?sim.value:Math.floor(sim.value*0.6);
   return {el:sim, finalMoney, facHit, logs, bonusProfit};
 }
 
-const TLABEL_MEGA={money:'💰',material:'🪨',goods:'📦',diamond:'💎'};
+// 模擬資源通過巨型設施
+function simulateMegaFacility(mega, el){
+  return simFacilityPath(mega.path, el, mega);
+}
+
+const RESOURCE_EMOJI={money:'💰',material:'🪨',goods:'📦',diamond:'💎'};
 // 取得巨型設施顯示圖示（相容舊資料）
 function megaIcons(m){
-  const s=m.startEmoji||(TLABEL_MEGA[m.inputType]||'🏭');
-  const e=m.endEmoji||(TLABEL_MEGA[m.outputType]||'🏭');
+  const s=m.startEmoji||(RESOURCE_EMOJI[m.inputType]||'🏭');
+  const e=m.endEmoji||(RESOURCE_EMOJI[m.outputType]||'🏭');
   return {start:s, end:e, flow:s+'→'+e};
 }
 
@@ -7505,20 +7475,6 @@ let _battleState=null; // {deck, hand, field, enemy, turn, redrawCount, resource
 let _battleDragging=null; // 正在拖曳的設施 ID
 
 const BATTLE={
-  // 建立牌組：複製小鎮所有設施 + 手牌
-  buildDeck(){
-    const deck=[];
-    const gn=GN();
-    for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
-      const bId=G.grid[r][c];
-      if(bId&&bId!=='ruin'&&BLDG[bId]) deck.push(bId);
-    }
-    G.hand.forEach(h=>{
-      if(h.compound) return; // 複合設施跳過
-      if(BLDG[h.id]) for(let i=0;i<h.count;i++) deck.push(h.id);
-    });
-    return deck;
-  },
   // 洗牌
   shuffle(arr){
     const a=[...arr];
@@ -7527,11 +7483,21 @@ const BATTLE={
   },
   // 開始戰鬥
   start(){
-    const deck=BATTLE.buildDeck();
+    // 建立牌組：複製小鎮所有設施 + 手牌（凍結快照）
+    const deck=[];
+    const gn=GN();
+    for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+      const bId=G.grid[r][c];
+      if(bId&&bId!=='ruin'&&BLDG[bId]) deck.push(bId);
+    }
+    G.hand.forEach(h=>{
+      if(h.compound) return;
+      if(BLDG[h.id]) for(let i=0;i<h.count;i++) deck.push(h.id);
+    });
     if(deck.length===0){alert('小鎮上沒有任何設施，無法進入戰鬥！');return;}
-    // 起始資源：玩家最後一回合的資源
     const res=G.card?{...G.card}:{value:1,type:'money'};
     _battleState={
+      fullDeck:[...deck],       // 凍結的完整牌組（不再從 G 重建）
       deck:BATTLE.shuffle(deck),
       hand:[],
       field:Array(8).fill(null),
@@ -7541,53 +7507,59 @@ const BATTLE={
       resource:res,
       log:[],
       invested:false,
+      _returnNeeded:0,
     };
-    // 初始抽牌
     BATTLE.drawCards(7);
     document.getElementById('battle-overlay').classList.add('show');
     BATTLE.render();
     BATTLE.addLog(`⚔ 戰鬥開始！對手 HP：${_battleState.enemy.maxHp}`);
     BATTLE.addLog(`💰 起始資源：${TLABEL[res.type]||res.type} ${res.value}`);
   },
-  // 抽牌
+  // 抽牌（牌組耗盡時從凍結牌組重建）
   drawCards(n){
     const s=_battleState;
-    if(s.deck.length===0) s.deck=BATTLE.shuffle(BATTLE.buildDeck());
+    if(s.deck.length===0) s.deck=BATTLE.shuffle([...s.fullDeck]);
     for(let i=0;i<n&&s.deck.length>0;i++){
       s.hand.push(s.deck.pop());
     }
   },
-  // 重抽：手牌洗回牌組，重抽 7 張，返回 redrawCount 張
+  // 重抽
   redraw(){
     const s=_battleState;
-    if(s.invested){BATTLE.addLog('⚠ 已投入資源，本回合無法重抽','b');return;}
+    if(s.invested){BATTLE.addLog('⚠ 已投入資源，本回合無法重抽');return;}
     s.redrawCount++;
     const returnCount=s.redrawCount;
-    // 手牌全部洗回
     s.deck.push(...s.hand);
     s.hand=[];
     s.deck=BATTLE.shuffle(s.deck);
-    // 抽 7 張
     BATTLE.drawCards(7);
     BATTLE.addLog(`🔄 重抽手牌（第${s.redrawCount}次），需返回 ${returnCount} 張`);
-    // 進入返回模式
     s._returnNeeded=returnCount;
     BATTLE.render();
   },
-  // 返回手牌（重抽懲罰）
+  // 返回手牌
   returnCard(idx){
     const s=_battleState;
     if(!s._returnNeeded||s._returnNeeded<=0) return;
+    if(idx<0||idx>=s.hand.length) return;
     const card=s.hand.splice(idx,1)[0];
     if(card) s.deck.push(card);
     s._returnNeeded--;
     BATTLE.addLog(`↩ 返回 ${BLDG[card]?.emoji||''}${BLDG[card]?.name||card}（剩餘 ${s._returnNeeded} 張）`);
     BATTLE.render();
   },
+  // 計算手牌中某設施的可用放置數（手牌持有量 - 已在場上的數量）
+  _availCount(bldgId){
+    const s=_battleState;
+    const handCount=s.hand.filter(id=>id===bldgId).length;
+    const fieldCount=s.field.filter(id=>id===bldgId).length;
+    return handCount-fieldCount;
+  },
   // 放置設施到戰場
   placeOnField(fieldIdx, bldgId){
     const s=_battleState;
     if(s.invested) return;
+    if(BATTLE._availCount(bldgId)<=0) return; // 超過手牌持有量
     s.field[fieldIdx]=bldgId;
     BATTLE.render();
   },
@@ -7601,51 +7573,36 @@ const BATTLE={
   // 投入資源
   invest(){
     const s=_battleState;
-    if(s.invested){BATTLE.addLog('⚠ 本回合已投入','b');return;}
-    if(s._returnNeeded>0){BATTLE.addLog(`⚠ 還需返回 ${s._returnNeeded} 張手牌`,'b');return;}
+    if(s.enemy.hp<=0){BATTLE.addLog('⚠ 對手已被擊敗');return;}
+    if(s.invested){BATTLE.addLog('⚠ 本回合已投入');return;}
+    if(s._returnNeeded>0){BATTLE.addLog('⚠ 還需返回手牌');return;}
     s.invested=true;
-    // 模擬資源從左到右通過 1×8 戰場
-    let el={value:s.resource.value, type:s.resource.type};
-    const startVal=el.value;
-    BATTLE.addLog(`▶ 投入 ${TLABEL[el.type]||el.type} ${el.value}`);
-    let facHit=0;
-    for(let i=0;i<8;i++){
-      const bId=s.field[i];
-      if(!bId) continue;
-      const b=BLDG[bId];
-      if(!b) continue;
-      if(b.special==='redirect') continue;
-      if(b.req!=='any'&&b.req!==el.type) continue;
-      const prev=el.value;
-      const prevType=el.type;
-      // 使用 MEGA_SIM_FX 或基礎 fn
-      if(b.special&&MEGA_SIM_FX[b.special]){
-        const ctx={facHit,cell:[0,i],bonusProfit:0};
-        MEGA_SIM_FX[b.special](el,{round:G.round,gridSize:1},ctx);
-      } else {
-        if(b.fn) el.value=b.fn(el.value);
-        if(b.out) el.type=b.out;
-      }
-      facHit++;
-      BATTLE.addLog(`  ${b.emoji} ${b.name}: ${TLABEL[prevType]||prevType}${prev}→${TLABEL[el.type]||el.type}${el.value}`);
+    const startEl={value:s.resource.value, type:s.resource.type};
+    const startVal=startEl.value;
+    BATTLE.addLog(`▶ 投入 ${TLABEL[startEl.type]||startEl.type} ${startEl.value}`);
+    // 建立 1×8 路徑座標 + 虛擬格子
+    const cells=[];for(let i=0;i<8;i++) cells.push([0,i]);
+    const gridCtx={grid:[s.field], gridSize:8, round:G.round};
+    const result=simFacilityPath(cells, startEl, gridCtx);
+    result.logs.forEach(l=>BATTLE.addLog(l));
+    let damage=Math.max(0,result.finalMoney-startVal);
+    if(result.bonusProfit>0){
+      damage+=result.bonusProfit;
+      BATTLE.addLog(`  🏷️ 額外傷害：+${result.bonusProfit}`);
     }
-    // 結算傷害
-    if(el.type==='diamond') el={value:el.value,type:'money'};
-    const finalMoney=el.type==='money'?el.value:Math.floor(el.value*0.6);
-    const damage=Math.max(0,finalMoney-startVal);
     s.enemy.hp=Math.max(0,s.enemy.hp-damage);
-    BATTLE.addLog(`💥 造成 ${damage} 點傷害！（入${startVal}→出${finalMoney}）`);
+    BATTLE.addLog(`💥 造成 ${damage} 點傷害！（入${startVal}→出${result.finalMoney}）`);
     BATTLE.addLog(`❤ 對手 HP：${s.enemy.hp}/${s.enemy.maxHp}`);
-    if(s.enemy.hp<=0) BATTLE.addLog(`🎉 對手被擊敗！`);
+    if(s.enemy.hp<=0) BATTLE.addLog('🎉 對手被擊敗！');
     BATTLE.render();
   },
   // 結束回合
   endTurn(){
     const s=_battleState;
-    if(s._returnNeeded>0){BATTLE.addLog(`⚠ 還需返回 ${s._returnNeeded} 張手牌`,'b');return;}
+    if(s._returnNeeded>0){BATTLE.addLog('⚠ 還需返回手牌');return;}
+    if(s.enemy.hp<=0){BATTLE.addLog('🎉 戰鬥已結束，請撤退');return;}
     s.turn++;
     s.invested=false;
-    // 清空戰場
     s.field=Array(8).fill(null);
     BATTLE.addLog(`── 回合 ${s.turn} ──`);
     BATTLE.render();
@@ -7791,11 +7748,12 @@ const BATTLE={
           <div class="fc-desc" style="color:var(--red);font-weight:700;">點擊返回</div>
         </div>`;
       }
-      // 一般模式：可拖曳到戰場
-      return `<div class="fan-card" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};cursor:grab;"
-        draggable="true"
-        ondragstart="BATTLE.onCardDragStart(event,'${card.id}')"
-        ondragend="BATTLE.onCardDragEnd(event)">
+      // 一般模式：可拖曳到戰場（檢查可用數量）
+      const avail=BATTLE._availCount(card.id);
+      const canDrag=avail>0&&!s.invested;
+      return `<div class="fan-card" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};${canDrag?'cursor:grab;':'opacity:.4;cursor:default;'}"
+        ${canDrag?`draggable="true" ondragstart="BATTLE.onCardDragStart(event,'${card.id}')" ondragend="BATTLE.onCardDragEnd(event)"`:''}
+        >
         <div class="fc-emoji">${card.emoji}</div>
         <div class="fc-name">${card.name}</div>
         <div class="fc-desc">${card.desc}</div>
@@ -8055,13 +8013,13 @@ SM.goto('title');
 </script>
 
 <!-- 戰鬥場景 overlay -->
-<div id="battle-overlay">
-  <div id="battle-hdr">
-    <span class="battle-title">⚔ 戰鬥</span>
-    <span id="battle-turn-info" style="font-size:11px;color:var(--mu);"></span>
+<div id="battle-overlay" class="game-overlay">
+  <div class="game-overlay-hdr">
+    <span class="ov-title">⚔ 戰鬥</span>
+    <span id="battle-turn-info" class="ov-sub"></span>
     <button onclick="BATTLE.endBattle()">✕ 結束戰鬥</button>
   </div>
-  <div id="battle-body">
+  <div class="game-overlay-body">
     <div id="battle-enemy">
       <div class="be-name" id="battle-enemy-name">競爭對手</div>
       <div class="be-emoji" id="battle-enemy-emoji">🏴‍☠️</div>
@@ -8079,17 +8037,17 @@ SM.goto('title');
       <div id="battle-log"></div>
     </div>
   </div>
-  <div id="battle-fan-area"></div>
+  <div id="battle-fan-area" class="game-overlay-fan"></div>
 </div>
 
 <!-- 巨型設施地圖 overlay -->
-<div id="mega-overlay">
-  <div id="mega-hdr">
-    <span class="mega-title">🏭 巨型設施地圖</span>
-    <span class="mega-sub">測試模式 — 無回合限制</span>
+<div id="mega-overlay" class="game-overlay">
+  <div class="game-overlay-hdr">
+    <span class="ov-title">🏭 巨型設施地圖</span>
+    <span class="ov-sub">測試模式 — 無回合限制</span>
     <button onclick="MEGA.close()">✕ 返回</button>
   </div>
-  <div id="mega-main">
+  <div class="game-overlay-body">
     <div class="panel" id="mega-left-panel">
       <div class="pt">巨型設施手牌</div>
       <div id="mega-hand-list" style="max-height:300px;overflow-y:auto;"></div>
@@ -8107,7 +8065,7 @@ SM.goto('title');
       <div id="mega-log" style="max-height:260px;overflow-y:auto;font-size:9px;color:var(--mu);line-height:1.5;"></div>
     </div>
   </div>
-  <div id="mega-fan-area"></div>
+  <div id="mega-fan-area" class="game-overlay-fan"></div>
 </div>
 
 <!-- 巨型設施內部檢視 overlay -->
