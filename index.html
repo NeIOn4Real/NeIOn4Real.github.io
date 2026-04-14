@@ -752,6 +752,68 @@ body { padding-bottom: 150px; }
 /* 巨型地圖方向箭頭沿用 .dbtn，額外標記 */
 .mega-dbtn.drag-over{background:rgba(179,58,0,.25);}
 
+/* ══ 戰鬥系統 ══ */
+#battle-overlay{
+  display:none;position:fixed;inset:0;z-index:8000;
+  background:var(--bg);flex-direction:column;align-items:center;overflow:auto;
+}
+#battle-overlay.show{display:flex;}
+#battle-hdr{
+  width:100%;padding:10px 20px;display:flex;align-items:center;gap:12px;
+  background:var(--sur);border-bottom:2px solid var(--br2);flex-shrink:0;
+}
+#battle-hdr .battle-title{font-size:16px;font-weight:900;color:var(--tx);letter-spacing:2px;}
+#battle-hdr button{margin-left:auto;padding:6px 14px;border-radius:8px;border:1.5px solid var(--br2);
+  background:var(--sur);color:var(--tx);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}
+#battle-hdr button:hover{border-color:var(--acc);background:rgba(179,58,0,.08);}
+#battle-body{display:flex;gap:16px;padding:16px;align-items:flex-start;justify-content:center;flex:1;overflow:auto;}
+/* 敵人區域 */
+#battle-enemy{
+  background:var(--sur);border:1.5px solid var(--br2);border-radius:12px;padding:16px;
+  min-width:180px;text-align:center;
+}
+#battle-enemy .be-name{font-size:14px;font-weight:900;color:var(--tx);}
+#battle-enemy .be-emoji{font-size:40px;line-height:1;margin:8px 0;}
+#battle-enemy .be-hp-bar{width:100%;height:14px;background:var(--bg3);border-radius:7px;overflow:hidden;margin-top:6px;}
+#battle-enemy .be-hp-fill{height:100%;background:linear-gradient(90deg,#c33,#e55);border-radius:7px;transition:width .4s;}
+#battle-enemy .be-hp-text{font-size:11px;color:var(--mu);margin-top:4px;font-family:'DM Mono',monospace;}
+/* 戰場 1×8 */
+#battle-field-area{display:flex;flex-direction:column;align-items:center;gap:8px;}
+#battle-field{display:grid;grid-template-columns:repeat(8,var(--cell));gap:3px;}
+#battle-field .cell{cursor:pointer;}
+#battle-field .cell.drag-over{border-color:var(--acc);box-shadow:0 0 0 3px rgba(179,58,0,.2);}
+.battle-arrow-in{
+  width:28px;height:var(--cell);display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;color:var(--acc);opacity:.6;
+}
+.battle-arrow-out{
+  width:28px;height:var(--cell);display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;color:var(--green);opacity:.6;
+}
+/* 戰鬥控制面板 */
+#battle-panel{
+  background:var(--sur);border:1.5px solid var(--br2);border-radius:12px;padding:14px;
+  min-width:180px;display:flex;flex-direction:column;gap:8px;
+}
+#battle-panel .bp-title{font-size:11px;font-weight:700;color:var(--tx);}
+#battle-panel .bp-btn{
+  padding:8px 12px;border-radius:8px;border:1.5px solid var(--br2);background:var(--sur);
+  color:var(--tx);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;transition:all .12s;
+  text-align:center;
+}
+#battle-panel .bp-btn:hover{border-color:var(--acc);background:rgba(179,58,0,.08);}
+#battle-panel .bp-btn.bp-primary{background:var(--acc);color:#fff;border-color:var(--acc);}
+#battle-panel .bp-btn.bp-primary:hover{opacity:.9;}
+#battle-panel .bp-btn.bp-danger{background:#c33;color:#fff;border-color:#c33;}
+#battle-log{font-size:9px;color:var(--mu);line-height:1.5;max-height:200px;overflow-y:auto;margin-top:4px;}
+/* 戰鬥手牌 */
+#battle-fan-area{
+  position:fixed;bottom:0;left:0;right:0;height:200px;
+  display:flex;justify-content:center;align-items:flex-end;
+  padding-bottom:10px;pointer-events:none;z-index:8100;
+}
+#battle-fan-area>*{pointer-events:auto;}
+
 /* ══ 標題畫面 ══ */
 #title-screen{
   position:fixed;inset:0;z-index:10000;
@@ -7437,6 +7499,312 @@ const MEGA={
 loadMegaFacilities();
 
 // ══════════════════════════════════════
+// 戰鬥系統（開發者模式）
+// ══════════════════════════════════════
+let _battleState=null; // {deck, hand, field, enemy, turn, redrawCount, resource, log, invested}
+let _battleDragging=null; // 正在拖曳的設施 ID
+
+const BATTLE={
+  // 建立牌組：複製小鎮所有設施 + 手牌
+  buildDeck(){
+    const deck=[];
+    const gn=GN();
+    for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+      const bId=G.grid[r][c];
+      if(bId&&bId!=='ruin'&&BLDG[bId]) deck.push(bId);
+    }
+    G.hand.forEach(h=>{
+      if(h.compound) return; // 複合設施跳過
+      if(BLDG[h.id]) for(let i=0;i<h.count;i++) deck.push(h.id);
+    });
+    return deck;
+  },
+  // 洗牌
+  shuffle(arr){
+    const a=[...arr];
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+    return a;
+  },
+  // 開始戰鬥
+  start(){
+    const deck=BATTLE.buildDeck();
+    if(deck.length===0){alert('小鎮上沒有任何設施，無法進入戰鬥！');return;}
+    // 起始資源：玩家最後一回合的資源
+    const res=G.card?{...G.card}:{value:1,type:'money'};
+    _battleState={
+      deck:BATTLE.shuffle(deck),
+      hand:[],
+      field:Array(8).fill(null),
+      enemy:{name:'競爭對手',emoji:'🏴‍☠️',hp:100,maxHp:100},
+      turn:1,
+      redrawCount:0,
+      resource:res,
+      log:[],
+      invested:false,
+    };
+    // 初始抽牌
+    BATTLE.drawCards(7);
+    document.getElementById('battle-overlay').classList.add('show');
+    BATTLE.render();
+    BATTLE.addLog(`⚔ 戰鬥開始！對手 HP：${_battleState.enemy.maxHp}`);
+    BATTLE.addLog(`💰 起始資源：${TLABEL[res.type]||res.type} ${res.value}`);
+  },
+  // 抽牌
+  drawCards(n){
+    const s=_battleState;
+    if(s.deck.length===0) s.deck=BATTLE.shuffle(BATTLE.buildDeck());
+    for(let i=0;i<n&&s.deck.length>0;i++){
+      s.hand.push(s.deck.pop());
+    }
+  },
+  // 重抽：手牌洗回牌組，重抽 7 張，返回 redrawCount 張
+  redraw(){
+    const s=_battleState;
+    if(s.invested){BATTLE.addLog('⚠ 已投入資源，本回合無法重抽','b');return;}
+    s.redrawCount++;
+    const returnCount=s.redrawCount;
+    // 手牌全部洗回
+    s.deck.push(...s.hand);
+    s.hand=[];
+    s.deck=BATTLE.shuffle(s.deck);
+    // 抽 7 張
+    BATTLE.drawCards(7);
+    BATTLE.addLog(`🔄 重抽手牌（第${s.redrawCount}次），需返回 ${returnCount} 張`);
+    // 進入返回模式
+    s._returnNeeded=returnCount;
+    BATTLE.render();
+  },
+  // 返回手牌（重抽懲罰）
+  returnCard(idx){
+    const s=_battleState;
+    if(!s._returnNeeded||s._returnNeeded<=0) return;
+    const card=s.hand.splice(idx,1)[0];
+    if(card) s.deck.push(card);
+    s._returnNeeded--;
+    BATTLE.addLog(`↩ 返回 ${BLDG[card]?.emoji||''}${BLDG[card]?.name||card}（剩餘 ${s._returnNeeded} 張）`);
+    BATTLE.render();
+  },
+  // 放置設施到戰場
+  placeOnField(fieldIdx, bldgId){
+    const s=_battleState;
+    if(s.invested) return;
+    s.field[fieldIdx]=bldgId;
+    BATTLE.render();
+  },
+  // 移除戰場設施
+  removeFromField(fieldIdx){
+    const s=_battleState;
+    if(s.invested) return;
+    s.field[fieldIdx]=null;
+    BATTLE.render();
+  },
+  // 投入資源
+  invest(){
+    const s=_battleState;
+    if(s.invested){BATTLE.addLog('⚠ 本回合已投入','b');return;}
+    if(s._returnNeeded>0){BATTLE.addLog(`⚠ 還需返回 ${s._returnNeeded} 張手牌`,'b');return;}
+    s.invested=true;
+    // 模擬資源從左到右通過 1×8 戰場
+    let el={value:s.resource.value, type:s.resource.type};
+    const startVal=el.value;
+    BATTLE.addLog(`▶ 投入 ${TLABEL[el.type]||el.type} ${el.value}`);
+    let facHit=0;
+    for(let i=0;i<8;i++){
+      const bId=s.field[i];
+      if(!bId) continue;
+      const b=BLDG[bId];
+      if(!b) continue;
+      if(b.special==='redirect') continue;
+      if(b.req!=='any'&&b.req!==el.type) continue;
+      const prev=el.value;
+      const prevType=el.type;
+      // 使用 MEGA_SIM_FX 或基礎 fn
+      if(b.special&&MEGA_SIM_FX[b.special]){
+        const ctx={facHit,cell:[0,i],bonusProfit:0};
+        MEGA_SIM_FX[b.special](el,{round:G.round,gridSize:1},ctx);
+      } else {
+        if(b.fn) el.value=b.fn(el.value);
+        if(b.out) el.type=b.out;
+      }
+      facHit++;
+      BATTLE.addLog(`  ${b.emoji} ${b.name}: ${TLABEL[prevType]||prevType}${prev}→${TLABEL[el.type]||el.type}${el.value}`);
+    }
+    // 結算傷害
+    if(el.type==='diamond') el={value:el.value,type:'money'};
+    const finalMoney=el.type==='money'?el.value:Math.floor(el.value*0.6);
+    const damage=Math.max(0,finalMoney-startVal);
+    s.enemy.hp=Math.max(0,s.enemy.hp-damage);
+    BATTLE.addLog(`💥 造成 ${damage} 點傷害！（入${startVal}→出${finalMoney}）`);
+    BATTLE.addLog(`❤ 對手 HP：${s.enemy.hp}/${s.enemy.maxHp}`);
+    if(s.enemy.hp<=0) BATTLE.addLog(`🎉 對手被擊敗！`);
+    BATTLE.render();
+  },
+  // 結束回合
+  endTurn(){
+    const s=_battleState;
+    if(s._returnNeeded>0){BATTLE.addLog(`⚠ 還需返回 ${s._returnNeeded} 張手牌`,'b');return;}
+    s.turn++;
+    s.invested=false;
+    // 清空戰場
+    s.field=Array(8).fill(null);
+    BATTLE.addLog(`── 回合 ${s.turn} ──`);
+    BATTLE.render();
+  },
+  // 結束戰鬥
+  endBattle(){
+    document.getElementById('battle-overlay').classList.remove('show');
+    _battleState=null;
+    _battleDragging=null;
+  },
+  // 記錄
+  addLog(msg){
+    if(!_battleState) return;
+    _battleState.log.push(msg);
+  },
+  // ── 拖曳系統 ──
+  onCardDragStart(e, bldgId){
+    _battleDragging=bldgId;
+    e.dataTransfer.setData('text/plain',bldgId);
+    e.dataTransfer.effectAllowed='copy';
+    const cv=document.createElement('canvas');cv.width=1;cv.height=1;
+    e.dataTransfer.setDragImage(cv,0,0);
+    // 高亮空格
+    document.querySelectorAll('#battle-field .cell').forEach(c=>{
+      if(!c.dataset.bid) c.classList.add('upgrade-glow');
+    });
+  },
+  onCardDragEnd(e){
+    _battleDragging=null;
+    document.querySelectorAll('#battle-field .cell').forEach(c=>{
+      c.classList.remove('upgrade-glow');c.classList.remove('drag-over');
+    });
+  },
+  onFieldDragOver(e,idx){
+    if(!_battleDragging) return;
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+  },
+  onFieldDragLeave(e,idx){
+    e.currentTarget.classList.remove('drag-over');
+  },
+  onFieldDrop(e,idx){
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if(!_battleDragging||!_battleState) return;
+    if(_battleState.invested) return;
+    BATTLE.placeOnField(idx, _battleDragging);
+    _battleDragging=null;
+  },
+  // ── 渲染 ──
+  render(){
+    if(!_battleState) return;
+    const s=_battleState;
+    // 回合資訊
+    document.getElementById('battle-turn-info').textContent=`回合 ${s.turn}${s.invested?' — 已投入':''}`;
+    // 敵人
+    document.getElementById('battle-enemy-name').textContent=s.enemy.name;
+    document.getElementById('battle-enemy-emoji').textContent=s.enemy.emoji;
+    const hpPct=Math.max(0,Math.round(s.enemy.hp/s.enemy.maxHp*100));
+    document.getElementById('battle-hp-fill').style.width=hpPct+'%';
+    document.getElementById('battle-hp-text').textContent=`${s.enemy.hp} / ${s.enemy.maxHp}`;
+    // 戰場
+    const fieldArea=document.getElementById('battle-field-area');
+    let fh='<div style="display:flex;align-items:center;gap:3px;">';
+    fh+=`<div class="battle-arrow-in">→</div>`;
+    fh+=`<div id="battle-field" style="grid-template-columns:repeat(8,var(--cell))">`;
+    for(let i=0;i<8;i++){
+      const bId=s.field[i];
+      const b=bId?BLDG[bId]:null;
+      fh+=`<div class="cell${b?' filled':''}" data-fi="${i}" ${b?`data-bid="${bId}"`:''}
+        onclick="${s.invested?'':`BATTLE.removeFromField(${i})`}"
+        ondragover="BATTLE.onFieldDragOver(event,${i})"
+        ondragleave="BATTLE.onFieldDragLeave(event,${i})"
+        ondrop="BATTLE.onFieldDrop(event,${i})">`;
+      if(b){
+        fh+=`<div style="font-size:28px;line-height:1;">${b.emoji}</div>`;
+        fh+=`<div class="cname">${b.name}</div>`;
+      }
+      fh+=`</div>`;
+    }
+    fh+=`</div>`;
+    fh+=`<div class="battle-arrow-out">→</div>`;
+    fh+=`</div>`;
+    fieldArea.innerHTML=fh;
+    // 按鈕狀態
+    document.getElementById('btn-battle-invest').style.opacity=s.invested?'.4':'1';
+    document.getElementById('btn-battle-redraw').style.opacity=s.invested?'.4':'1';
+    // 記錄
+    const logEl=document.getElementById('battle-log');
+    logEl.innerHTML=s.log.map(l=>{
+      if(l.startsWith('▶')) return `<div style="color:var(--acc);font-weight:700;margin-top:4px;">${l}</div>`;
+      if(l.startsWith('💥')) return `<div style="color:var(--red);font-weight:700;">${l}</div>`;
+      if(l.startsWith('🎉')) return `<div style="color:var(--green);font-weight:900;font-size:12px;">${l}</div>`;
+      if(l.startsWith('──')) return `<hr style="border:none;border-top:1px solid var(--br2);margin:4px 0;">`;
+      return `<div>${l}</div>`;
+    }).join('');
+    logEl.scrollTop=logEl.scrollHeight;
+    // 扇形手牌
+    BATTLE.renderFan();
+  },
+  // 扇形手牌
+  renderFan(){
+    const area=document.getElementById('battle-fan-area');
+    if(!area||!_battleState) return;
+    const s=_battleState;
+    const isReturn=s._returnNeeded>0;
+    const cards=[];
+    // 手牌設施
+    s.hand.forEach((bId,idx)=>{
+      const b=BLDG[bId];
+      if(!b) return;
+      cards.push({type:'bldg',id:bId,idx,emoji:b.emoji,name:b.name,desc:b.desc});
+    });
+    // 資源卡（最右）
+    const emojis={money:'💵',material:'🪨',goods:'📦',diamond:'💎'};
+    cards.push({
+      type:'element',
+      emoji:emojis[s.resource.type]||'💵',
+      name:TLABEL[s.resource.type]||'資源',
+      val:s.resource.value,
+    });
+    const total=cards.length;
+    const maxAngle=Math.min(25,total*4);
+    area.innerHTML=cards.map((card,i)=>{
+      const frac=total>1?(i/(total-1))-0.5:0;
+      const angle=frac*maxAngle*2;
+      const sinkY=Math.abs(frac)*14;
+      const zi=i+1;
+      if(card.type==='element'){
+        return `<div class="fan-card el-card-fan" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};">
+          <div class="fc-emoji">${card.emoji}</div>
+          <div class="fc-val">${card.val}</div>
+          <div class="fc-type">${card.name}</div>
+          <div class="fc-buff-desc fc-buff-idle">自動投入</div>
+        </div>`;
+      }
+      // 重抽返回模式：點擊返回
+      if(isReturn){
+        return `<div class="fan-card" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};cursor:pointer;border-color:var(--red);"
+          onclick="BATTLE.returnCard(${card.idx})">
+          <div class="fc-emoji">${card.emoji}</div>
+          <div class="fc-name">${card.name}</div>
+          <div class="fc-desc" style="color:var(--red);font-weight:700;">點擊返回</div>
+        </div>`;
+      }
+      // 一般模式：可拖曳到戰場
+      return `<div class="fan-card" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};cursor:grab;"
+        draggable="true"
+        ondragstart="BATTLE.onCardDragStart(event,'${card.id}')"
+        ondragend="BATTLE.onCardDragEnd(event)">
+        <div class="fc-emoji">${card.emoji}</div>
+        <div class="fc-name">${card.name}</div>
+        <div class="fc-desc">${card.desc}</div>
+      </div>`;
+    }).join('');
+  },
+};
+
+// ══════════════════════════════════════
 // 場景管理器 (Scene Manager)
 // ══════════════════════════════════════
 const SM={
@@ -7639,6 +8007,11 @@ const DEV={
       <div class="dev-row" title="清除所有已建立的巨型設施" onclick="if(confirm('確定清除所有巨型設施？')){_megaFacilities=[];saveMegaFacilities();DEV.render();}"><span class="de">🗑️</span><span class="dn">清除所有巨型設施</span></div>
     </div>`;
 
+    // ── 戰鬥系統 ──
+    h+=`<div class="dev-sec"><div class="dev-sec-title">⚔ 戰鬥</div>
+      <div class="dev-row" title="進入戰鬥場景（使用小鎮設施組成牌組）" onclick="BATTLE.start();"><span class="de">⚔</span><span class="dn">開始戰鬥</span></div>
+    </div>`;
+
     panel.innerHTML=h;
   },
   addRandomCompound(){
@@ -7680,6 +8053,34 @@ document.getElementById('logo').addEventListener('click',()=>DEV.push('L'));
 G=newGame();
 SM.goto('title');
 </script>
+
+<!-- 戰鬥場景 overlay -->
+<div id="battle-overlay">
+  <div id="battle-hdr">
+    <span class="battle-title">⚔ 戰鬥</span>
+    <span id="battle-turn-info" style="font-size:11px;color:var(--mu);"></span>
+    <button onclick="BATTLE.endBattle()">✕ 結束戰鬥</button>
+  </div>
+  <div id="battle-body">
+    <div id="battle-enemy">
+      <div class="be-name" id="battle-enemy-name">競爭對手</div>
+      <div class="be-emoji" id="battle-enemy-emoji">🏴‍☠️</div>
+      <div class="be-hp-bar"><div class="be-hp-fill" id="battle-hp-fill" style="width:100%"></div></div>
+      <div class="be-hp-text" id="battle-hp-text">100 / 100</div>
+    </div>
+    <div id="battle-field-area"></div>
+    <div id="battle-panel">
+      <div class="bp-title">⚔ 戰鬥控制</div>
+      <button class="bp-btn bp-primary" id="btn-battle-invest" onclick="BATTLE.invest()">💰 投入資源</button>
+      <button class="bp-btn" id="btn-battle-redraw" onclick="BATTLE.redraw()">🔄 重抽手牌</button>
+      <button class="bp-btn" id="btn-battle-endturn" onclick="BATTLE.endTurn()">⏩ 結束回合</button>
+      <button class="bp-btn bp-danger" onclick="BATTLE.endBattle()">🏳 撤退</button>
+      <div class="bp-title" style="margin-top:8px;">戰鬥記錄</div>
+      <div id="battle-log"></div>
+    </div>
+  </div>
+  <div id="battle-fan-area"></div>
+</div>
 
 <!-- 巨型設施地圖 overlay -->
 <div id="mega-overlay">
