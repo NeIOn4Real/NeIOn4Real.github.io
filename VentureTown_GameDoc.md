@@ -992,6 +992,7 @@ E:\VT\
 ##### UI 修正
 - **百貨公司升級顯示**：`renderGrid` 百貨公司渲染聚合 2×2 四格 `bldgUpgrades` 總和
 - **百貨公司 active-path 閃爍**：`stepWithMover` 跳過 `dept_store`/`dept_store_part` 格子的 `active-path` class 切換
+- **`bId` 宣告順序錯誤（嚴重）**：`_isDeptCell` 檢查引用了尚未宣告的 `const bId`，導致 `ReferenceError` 使每次資源投入時 `stepWithMover` 崩潰。修正：將 `const bId=G.grid[r][c]` 移到 `_isDeptCell` 之前
 - **百貨公司非商品投入卡住**：`dept_store(fx)` 非 goods 時改為 `fx.next(200)` 而非直接 return
 - **`active-path` 全格迭代**：redirect 分支和嫉妒惡魔分支也改為 `stepWithMover._prevActive` 快取
 
