@@ -2664,7 +2664,7 @@ function onCell(r,c){
 
   // 自由排列模式（拖曳設施到目標格子交換）
   if(G.freeRearrange){
-    if(G.grid[r][c]){
+    if(G.grid[r][c]&&G.grid[r][c]!=='ruin'){
       addLog(`💡 拖曳 ${BLDG[G.grid[r][c]].emoji}${BLDG[G.grid[r][c]].name} 到想要的位置`);
     }
     return;
@@ -4115,7 +4115,7 @@ function recruitPartner(pid){
 // ── 自由排列拖曳系統 ──
 let _rearrangeSrc=null;
 function onRearrangeDragStart(e,r,c){
-  if(!G.freeRearrange||!G.grid[r][c]){e.preventDefault();return;}
+  if(!G.freeRearrange||!G.grid[r][c]||G.grid[r][c]==='ruin'){e.preventDefault();return;}
   _rearrangeSrc=[r,c];
   e.dataTransfer.effectAllowed='move';
   e.dataTransfer.setData('text/plain','rearrange');
