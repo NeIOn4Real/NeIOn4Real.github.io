@@ -300,7 +300,7 @@
 | `gridSize` | 地圖大小（預設 4，大地主 5） |
 | `windDir` | 場風大師指定方向 |
 | `buff` | 本回合臨時增益（matCrash/logisticsDisabled/noMatToGoods/cafeteriaDisabled/moneyToGoodsPenalty/laborInsurance 等） |
-| `inv` | 每次投入重置的臨時 flag 物件（`sendEl()` 初始化），含：`facHit`、`logSet`、`envyPen`、`cenHits`、`logHits`、`speedAct`、`ampAct`、`fxM2G`/`fxG2M`、`arbM2G`/`arbG2M`、`windOK`、`hwCenter`、`exchBoard` |
+| `inv` | 每次投入重置的臨時 flag 物件（`sendEl()` 初始化），含：`facHit`、`logSet`、`envyPen`、`cenHits`、`logHits`、`speedAct`、`ampAct`、`fxM2G`/`fxG2M`、`arbM2G`/`arbG2M`、`windOK`、`hwCenter`、`exchBoard`、`sendIdx`、`cellPath` |
 | `turnFacMoved` | 本回合設施移動計數（`startTurn()` 重置），動態加強器用 |
 | `cellMods` | 格子固定修正值 `{'r,c': +N/-N}` |
 | `cellPctMods` | 格子百分比修正值 `{'r,c': +10/-10}`，向上取整，資源最小 1 |
@@ -323,6 +323,7 @@
 | `_eventDeferred` | 跨輪未觸發事件延遲次數 |
 | `_futuresMoveNext` | 期貨交易所下回合需移動列表 `[{r,c}]` |
 | `_landSpecStale` | 地皮炒家設施未移動回合計數 `{'r,c': count}` |
+| `_industrializing` | 工業化模式 flag，`finish()` 攔截結算用 |
 
 ---
 
@@ -339,11 +340,12 @@
 
 ### 存檔格式
 ```json
-{ "v": 1, "ts": "ISO時間", "g": { ... }, "cs": N }
+{ "v": 1, "ts": "ISO時間", "g": { ... }, "cs": N, "mega": [...] }
 ```
 - `v`：版本號（供未來遷移）
 - `g`：完整 G 狀態（`Set` → `{_s:[...]}` 序列化）
 - `cs`：複合設施序號計數器 `_compoundSeq`
+- `mega`：巨型設施陣列（工業化系統），讀檔時同步到 `MEGA_KEY` localStorage
 
 ### 反序列化安全措施
 - **驗證必要欄位**：`round`/`hand`/`grid`/`partners` 缺失時拒絕載入
@@ -364,9 +366,35 @@
 
 ---
 
+## 工業化系統（開發者模式）
+
+### 概念
+玩家可將當前小鎮（4×4 或 5×5）快照為「巨型設施」。巨型設施在獨立的 4×4 地圖上排列，資源投入流程比照正式遊戲，差別在於格子上是巨型設施。目前僅支援兩層（普通 → 巨型），僅在開發者模式中可用。
+
+### 建立流程
+1. 開發者面板 → 🏭 工業化 → 資源卡強制為 💰1
+2. 玩家選擇方向投入，資源跑完小鎮路徑（含完整動畫與設施效果）
+3. 系統記錄實際路徑、投入/輸出類型、模擬收益
+4. 巨型設施存入 `localStorage`（`VentureTown_MegaFacilities`）及遊戲存檔，遊戲繼續
+
+### 巨型設施規則
+- 佔巨型地圖 1×1 格，不管原始小鎮大小
+- 顯示資源流向圖示（如 💰→📦）
+- 不管從哪個方向進入，都走建立時固定的內部路徑
+- 輸出方向取決於巨型地圖上的投入方向（非內部終點方向）
+- 各巨型設施獨立結算收益
+- 巨型地圖只能放巨型設施，不能放一般設施
+
+### 巨型地圖（測試模式）
+- 4×4 格子，無回合/目標限制
+- 資源投入方式同一般小鎮（四邊方向箭頭，起始 💰1）
+- 懸停格子 → 「進入巨型設施」按鈕 → 查看內部佈局
+
+---
+
 ## 技術細節
 
-- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~6333 行）
+- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~7458 行）
 - **無框架**：純 vanilla JS，直接操作 DOM
 - **字體**：Noto Sans TC（中文）、DM Mono（數值）
 - **配色**：暖色系牛皮紙風格，CSS 變數控制主題色
@@ -417,7 +445,8 @@ E:\VT\
 | 譚雅交換系統 | 5564~5635 | tanyaOfferSwap/showTanyaHandPick |
 | TUT | 5647~6048 | 新手教學（9 步驟） |
 | 存檔/讀檔系統 | 6054~6178 | autoSave/autoLoad/exportSave/importSave/showResumePrompt |
-| DEV | 6184~6310 | 開發者面板 |
+| 工業化系統 | 6843~7170 | MEGA_KEY/loadMega/saveMega/createMegaFacilityFromRun/simulateMegaFacility/MEGA 物件 |
+| DEV | 7350~7460 | 開發者面板（含工業化按鈕） |
 
 ---
 
@@ -795,6 +824,128 @@ E:\VT\
 - 存檔系統 + 場景管理器 + 標題畫面：+94 行
 - Session 8 結束：6422 行
 
+### Session 10（2026-04-14）— 工業化系統（巨型設施）
+
+#### 新系統：工業化（開發者模式）
+玩家可將當前小鎮快照為「巨型設施」，巨型設施在獨立的 4×4 地圖上排列與投入，形成兩層遊戲結構。
+
+##### 巨型設施建立流程
+1. 開發者面板 → 🏭「工業化」按鈕
+2. 系統強制資源卡為 💰1，進入工業化模式（頂部顯示金色提示橫幅）
+3. 玩家選擇方向箭頭正常投入，資源以完整動畫跑完小鎮路徑
+4. `finish()` 攔截結算 → 記錄實際路徑、模擬收益、投入/輸出資源類型
+5. 建立巨型設施存入 `localStorage`（`MEGA_KEY`）及遊戲存檔，遊戲繼續（`phase='done'`）
+
+##### 巨型設施屬性
+| 欄位 | 說明 |
+|------|------|
+| `id` | 唯一 ID（`mega_時間戳_亂數`）|
+| `grid` | 建立時的小鎮格子快照 |
+| `gridSize` | 原始地圖大小（4 或 5）|
+| `partners` | 建立時的合夥人列表 |
+| `buffs` | 建立時的 buff 狀態 |
+| `bldgUpgrades`/`leyaPctMods`/`cellMods`/`cellPctMods` | 所有格子加成快照 |
+| `path` | 實際經過的格子座標陣列（含物流轉向） |
+| `entryCell` | 投入起點 `[r,c]` |
+| `entryDir` | 投入方向 |
+| `inputType`/`outputType` | 投入/輸出資源類型 |
+| `simProfit` | 建立時的模擬收益 |
+| `round` | 建立時的輪數 |
+| `timestamp` | 建立時間 |
+
+##### 巨型設施地圖（測試模式）
+- 獨立的 4×4 格子（`#mega-overlay`），無回合/目標限制
+- 格子上只能放置巨型設施，顯示資源流向圖示（如 💰→📦）
+- 四邊方向箭頭投入資源（起始 💰1），資源依序通過巨型設施
+- 資源進入巨型設施時：以當前數值模擬內部路徑（`simulateMegaFacility`）
+- 不管從哪個方向進入，都走建立時固定的內部路徑
+- 輸出方向取決於巨型地圖上的投入方向
+- 各巨型設施獨立結算收益
+- 右側面板顯示累計收益與投入記錄
+
+##### 巨型設施內部模擬（`simulateMegaFacility`）
+- 同步快速計算，無動畫
+- 沿記錄路徑逐格處理：跳過 redirect（方向已烘焙）、檢查類型匹配
+- 套用 `fn` 基礎效果 + `bldgUpgrades` + `leyaPctMods` + `cellMods` + `cellPctMods`
+- 鑽石自動轉金錢，非金錢打 60% 折
+
+##### 巨型設施 UI
+- **地圖格子**：顯示 `inputType→outputType` 圖示、輪數、路徑長度、模擬收益
+- **懸停按鈕**：「🔍 進入巨型設施」→ 開啟內部檢視 overlay
+- **內部檢視**（`#mega-inspect-overlay`）：顯示原始 N×N 格子佈局、入口高亮（橘框）、路徑高亮（淡色底）、升級加成、合夥人列表、模擬收益
+- **放置選擇器**：點擊空格 → 彈出已建立的巨型設施列表供選擇
+
+##### 開發者面板新增
+| 按鈕 | 功能 |
+|------|------|
+| 🏭 工業化（建立巨型設施） | 進入工業化模式，模擬投入後建立 |
+| 🗺️ 巨型設施地圖（N個） | 開啟巨型設施測試地圖 |
+| 🗑️ 清除所有巨型設施 | 清除 localStorage 中所有巨型設施 |
+
+##### 儲存機制
+- `MEGA_KEY = 'VentureTown_MegaFacilities'`
+- `_megaFacilities` 陣列存入 `localStorage`，跨遊戲保留
+- `loadMegaFacilities()` / `saveMegaFacilities()` 讀寫
+
+#### 程式碼變更
+
+##### 既有函數修改
+- **`sendEl()`**：工業化時跳過颱風/場風方向限制；`G.inv` 新增 `sendIdx`（投入行/列索引）和 `cellPath:[]`（實際路徑追蹤）
+- **`stepWithMover()`**：每步推入 `[r,c]` 到 `G.inv.cellPath`
+- **`finish()`**：新增 `G._industrializing` 攔截分支 → `createMegaFacilityFromRun()` → 返回標題
+- **`deserializeGame()`**：新增 `delete data._industrializing` 安全清理
+
+##### 新增函數/物件
+| 函數 | 說明 |
+|------|------|
+| `loadMegaFacilities()` | 從 localStorage 讀取巨型設施陣列 |
+| `saveMegaFacilities()` | 將巨型設施陣列存入 localStorage |
+| `createMegaFacilityFromRun()` | 從實際投入路徑建立巨型設施 |
+| `simulateMegaFacility(mega, el)` | 同步模擬資源通過巨型設施 |
+| `MEGA.open()` / `close()` | 開關巨型設施地圖 |
+| `MEGA.sendMega(dir, idx)` | 巨型地圖資源投入 |
+| `MEGA.render()` | 渲染巨型地圖（格子 + 方向箭頭） |
+| `MEGA.placeMega(r, c, megaId)` | 放置巨型設施到地圖 |
+| `MEGA.showPlacePicker(r, c)` | 顯示巨型設施選擇器 |
+| `MEGA.inspect(megaId)` | 開啟內部檢視 overlay |
+| `MEGA.startIndustrialize()` | 進入工業化模式 |
+| `MEGA.cancelIndustrialize()` | 取消工業化模式 |
+
+##### 新增 CSS
+- `#mega-overlay`：巨型設施地圖全屏 overlay
+- `.mega-cell`：巨型地圖格子（90×90px，懸停顯示檢視按鈕）
+- `.mega-dbtn`：巨型地圖方向箭頭
+- `#mega-inspect-overlay` / `#mega-inspect-box`：內部檢視 overlay
+- `.mib-cell` / `.mib-entry` / `.mib-path`：內部檢視格子（入口橘框、路徑高亮）
+- `#mega-panel` / `#mega-card`：收益面板與資源卡
+
+##### 新增 HTML
+- `#mega-overlay`：巨型設施地圖（含 header、格子區、資源卡、收益面板）
+- `#mega-inspect-overlay`：巨型設施內部檢視
+
+##### 死碼清除
+- 移除 `computeMegaPath()`（舊靜態路徑計算，已被實際投入路徑取代）
+- 移除 `createMegaFacility()`（舊建立函數，已被 `createMegaFacilityFromRun()` 取代）
+- 移除 `#indust-overlay` HTML 及 40 行相關 CSS（舊手動選擇器 UI）
+
+#### 程式碼架構概覽（更新）
+| 區塊 | 行號（約） | 說明 |
+|------|-----------|------|
+| 工業化系統 | 6843~7170 | MEGA_KEY/loadMega/saveMega/createMegaFacilityFromRun/simulateMegaFacility/MEGA 物件 |
+
+#### 總行數變化
+- Session 8 結束：6422 行
+- 工業化系統（CSS+HTML+JS）：+230 行
+- 工業化改版（移除舊選擇器+死碼）：-130 行
+- 路徑追蹤（sendEl/stepWithMover/finish 修改）：+30 行
+- Session 10 結束：7458 行
+
+#### 後續修正：建立不結束遊戲 + 存檔整合
+- **`finish()` 工業化分支**：移除 `alert` + `clearAutoSave` + `SM.goto('title')`，改為 `G.phase='done'`，遊戲繼續正常流程
+- **`serializeGame()`**：新增 `mega` 欄位，存入 `_megaFacilities` 陣列
+- **`deserializeGame()`**：讀取 `save.mega`，還原 `_megaFacilities` 並同步到 `MEGA_KEY` localStorage
+- **開發者面板 tooltip**：移除「遊戲結束」描述
+
 ### Session 9（2026-04-13）— 平衡調整 + 架構精簡 + UI 改善
 
 #### 平衡調整
@@ -908,3 +1059,68 @@ E:\VT\
 #### 開發者面板
 - **🔥 觸發大熱波**：簡化為直接呼叫 `triggerHeatwave`
 - **🏚️ 獲得廢墟卡**：取代原本的廢墟紀念碑按鈕
+
+### Session 10（2026-04-13）— 程式碼品質修繕
+
+#### renderFanHand inline style 移除
+- `.fan-card` 基底 CSS 新增 `background`/`border`/`display:flex`/`gap`/`padding`/`box-shadow`，不再每張卡片重複 inline
+- 新增 7 個 CSS class：`fc-selected`、`fc-compound-layout`/`fc-vert`/`fc-compound-emoji`/`fc-compound-link`、`fc-compound-name`、`fc-talent-badge`、`fc-buff-desc`/`fc-buff-active`/`fc-buff-idle`、`fc-pos-mark`
+- 卡片 `style=` 僅剩動態 `transform` 和 `z-index`
+
+#### 加班辦公室 desc 修正
+- `'資源通過時+人材數量一半%'` → `'資源通過時+(人材數÷2)%加成'`
+
+#### 轉運中心方向選擇器事件監聽洩漏修復
+- 選擇方向按鈕時未移除 `_escPicker` keydown 監聽 → 統一提取 `_cleanup()` 函數，所有關閉路徑（選方向/ESC/點擊外部）都呼叫
+- `_closePicker` 拆為 `_cleanup` + 各路徑專屬邏輯，避免匿名函數無法 removeEventListener
+
+#### finish() onSettle 順序文件化
+- 在 `G.partners.forEach` 上方加入註釋說明執行順序：依招募順序 → 稅務局 → 嫉妒工廠 → 勞工保險
+
+#### venture-town.html 同步
+- 從 index.html 複製同步
+
+#### 教學系統（TUT）重構：集中式鉤子
+- **問題**：15+ 處核心函數散佈 `if(TUT.active)` 檢查和教學特定邏輯，維護困難
+- **解法**：在 TUT 物件新增集中式 hook 方法，核心函數只需一行呼叫
+- **新增 hook 方法**（返回 true 表示攔截正常流程）：
+  | 方法 | 呼叫處 | 功能 |
+  |------|--------|------|
+  | `hookPlace(bldgId)` | tryPlaceAtCell | 設施放置後檢查教學進度 |
+  | `hookStep(bId)` | stepWithMover | 記錄是否通過原料廠 |
+  | `hookFinishPre(el)` | finish 開頭 | 教學第一次投入→攔截正常結算 |
+  | `hookFinishPost(profit)` | finish 結尾 | step6 投入後提示結束回合 |
+  | `hookDoNext()` | doNext | 教學各階段的回合推進 |
+  | `hookConfirmRearrange()` | confirmRearrange | 確認排列後恢復等待 |
+  | `hookUseDemolition()` | useDemolition | 教學中使用拆遷隊 |
+  | `hookCharClick()` | charClick | 點擊立繪跳到下一句 |
+  | `hookDMFilter()` | DM.show | 教學期間過濾非教學台詞 |
+  | `isBlocking()` | 6 處 | 統一守衛（大熱波/莫菲/商店/轉換/存讀檔） |
+- **結果**：核心函數不再包含任何 `TUT.active`/`TUT.waitingFor`/`TUT.step` 直接存取，所有教學邏輯集中在 TUT 物件內
+
+#### 程式碼精簡
+- **`cellQ(r,c)` 工具函數**：取代 16 處重複的 `document.querySelector(`[data-r="${r}"][data-c="${c}"]`)`
+- **手動格子迴圈改用 `findCells`/`findFacilityCells`**：消除 6 處 `for(r) for(c)` 重複（doAction upgrade、磁力板、爆破裝置、人力訓練中心、臨時工棚、TUT hookPlace/step5）
+- 所有手動格子迴圈已統一為 `eachCell`/`findCells`（除 `eachCell` 定義本身）
+
+#### Bug 修復
+- **`destroyFacility` 百貨公司越界**：2×2 迴圈未檢查 `cr<GN()&&cc<GN()`，5×5→4×4 邊界可能存取超出範圍
+- **`chaos_architect` 空值存取**：`BLDG[G.grid[fr][fc]].name` 未防護 → 加入 `?.name||'設施'`
+- **疊加設施特效未觸發（嚴重）**：overlay 設施通過時只呼叫 `ob.fn()`（恆等函數），完全跳過 `FACILITY_FX` 調度表，導致所有 special 效果（勞動轉換站×2、集體罷工台+10×人材、清倉拍賣場×4 等）在疊加時完全失效。修復為優先走 `FACILITY_FX[ob.special]` 調度，升級加成透過暫存/還原確保只套用一次
+- **`cellQ` 無限遞迴（致命）**：`replace_all` 將函數定義內的 querySelector 也替換成 `cellQ(r,c)` 造成自我呼叫 stack overflow
+- **`.fc-selected` CSS 優先級**：被 `.fan-card.el-card-fan` 同 specificity 覆蓋 → 加 `!important`
+- **商店取消後無法結束回合**：`showCardChooser` 跳過按鈕先 `closeCardChooser()`（清 null）再呼叫回調 → 回調永不執行，`G.phase` 卡在 `'event'`。改為先暫存引用
+- **莫菲定律 noMove 閾值 off-by-one**：文件設計 5 回合起加權，代碼 `noMove-5` 需 6 回合 → 改為 `noMove-4`
+- **譚雅重複交換**：`evPick`/`evDone` → `startTurn()` 再次觸發 `tanyaOfferSwap`，同回合交換兩次。加 `_tanyaSwappedThisTurn` flag 防護
+- **複合設施無法交換**：`tanyaOfferSwap` 初始檢查未排除複合卡，只有複合卡時進入空白選擇器。加入 `!h.compound` 過濾
+- **拆遷隊不累積**：累積邏輯放在 `evDone` 中（只有事件回合呼叫），移至 `doNext` 的 `G.turn++` 後穩定觸發
+- **`facHit` 雙重計數**：音效新增時在物流轉向和通用轉換路徑多加了 `facHit++`，影響快遞達人和大熱波判定。移除重複
+- **更換預告事件可能換到相同事件**：`swap_ev` 行動直接 `pickNextEvent()` 無排除。加入比對，相同時重抽
+
+#### 新功能
+- **音效系統（SFX）**：Web Audio API，無外部檔案
+  - `SFX.hit(step)`：資源通過設施，triangle 波 C4 起每步升半音
+  - `SFX.convert(step)`：資源類型轉換，sine 波 E4 起每步升半音
+  - `SFX.settle()`：正收益結算，C5→E5→G5 琶音
+- **轉換收益按鈕動態文字**：可用時顯示 `🔄 轉換 +{值}`，懸停提示完整說明
+- **場風大師方向箭頭**：改為指向資源前進方向（從左投入 → 顯示 →）
