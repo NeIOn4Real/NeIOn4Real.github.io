@@ -717,12 +717,14 @@ body { padding-bottom: 150px; }
   padding-bottom:10px;pointer-events:none;z-index:8100;
 }
 #mega-fan-area>*{pointer-events:auto;}
-/* 巨型地圖格子：放大版 + 箭頭常駐可見 */
+/* 巨型地圖格子：放大版，箭頭預設隱藏 */
 #mega-grid-area{--cell:90px;}
-#mega-grid-area .dbtn{width:90px;height:28px;opacity:1;pointer-events:auto;color:var(--acc);
-  border-color:rgba(179,58,0,.15);background:rgba(179,58,0,.03);}
+#mega-grid-area .dbtn{width:90px;height:28px;}
 #mega-grid-area .dbtn.side{width:28px;height:90px;}
-#mega-grid-area .dbtn:hover{border-color:var(--acc);background:rgba(179,58,0,.12);}
+/* 拖曳資源卡時才顯示箭頭 */
+#mega-grid-area.mega-el-dragging .dbtn{opacity:1;pointer-events:auto;color:var(--acc);
+  border-color:rgba(179,58,0,.25);background:rgba(179,58,0,.05);}
+#mega-grid-area.mega-el-dragging .dbtn:hover{border-color:var(--acc);background:rgba(179,58,0,.15);}
 .mega-cell.filled{background:linear-gradient(145deg,#fff5ee,var(--sur));cursor:pointer;}
 .mega-cell.drag-over{border-color:var(--acc);box-shadow:0 0 0 3px rgba(179,58,0,.2);}
 /* 巨型設施內部檢視 overlay */
@@ -7115,6 +7117,10 @@ const MEGA={
   // ── 格子放置（拖曳） ──
   placeMega(r,c,megaId){
     if(!megaId) return;
+    // 同一設施只能放一次
+    for(let rr=0;rr<4;rr++) for(let cc=0;cc<4;cc++){
+      if(_megaGrid[rr][cc]===megaId) return;
+    }
     _megaGrid[r][c]=megaId;
     MEGA.render();
   },
@@ -7167,13 +7173,12 @@ const MEGA={
     e.dataTransfer.effectAllowed='move';
     const cv=document.createElement('canvas');cv.width=1;cv.height=1;
     e.dataTransfer.setDragImage(cv,0,0);
-    document.body.classList.add('card-dragging');
-    document.querySelectorAll('#mega-grid-area .mega-dbtn').forEach(b=>b.classList.add('wind-active'));
+    document.getElementById('mega-grid-area')?.classList.add('mega-el-dragging');
   },
   onElDragEnd(e){
     MEGA._elDragging=false;
-    document.body.classList.remove('card-dragging');
-    document.querySelectorAll('#mega-grid-area .mega-dbtn').forEach(b=>{b.classList.remove('wind-active');b.classList.remove('drag-over');});
+    document.getElementById('mega-grid-area')?.classList.remove('mega-el-dragging');
+    document.querySelectorAll('#mega-grid-area .mega-dbtn').forEach(b=>b.classList.remove('drag-over'));
   },
   onDirDragOver(e,btn){
     if(!MEGA._elDragging) return;
@@ -7255,14 +7260,12 @@ const MEGA={
     // 上方箭頭
     h+=`<div class="drow"><div style="width:28px"></div>`;
     for(let ci=0;ci<4;ci++) h+=`<button class="dbtn mega-dbtn"
-      onclick="MEGA.sendMega('top',${ci})"
       ondragover="MEGA.onDirDragOver(event,this)" ondragleave="MEGA.onDirDragLeave(this)"
       ondrop="MEGA.onDirDrop(event,'top',${ci})">↓</button>`;
     h+=`<div style="width:28px"></div></div>`;
     // 中間
     h+=`<div class="dcol-wrap"><div class="dside">`;
     for(let ri=0;ri<4;ri++) h+=`<button class="dbtn side mega-dbtn"
-      onclick="MEGA.sendMega('left',${ri})"
       ondragover="MEGA.onDirDragOver(event,this)" ondragleave="MEGA.onDirDragLeave(this)"
       ondrop="MEGA.onDirDrop(event,'left',${ri})">→</button>`;
     h+=`</div>`;
@@ -7287,14 +7290,12 @@ const MEGA={
     // 右側箭頭
     h+=`<div class="dside">`;
     for(let ri=0;ri<4;ri++) h+=`<button class="dbtn side mega-dbtn"
-      onclick="MEGA.sendMega('right',${ri})"
       ondragover="MEGA.onDirDragOver(event,this)" ondragleave="MEGA.onDirDragLeave(this)"
       ondrop="MEGA.onDirDrop(event,'right',${ri})">←</button>`;
     h+=`</div></div>`;
     // 下方箭頭
     h+=`<div class="drow"><div style="width:28px"></div>`;
     for(let ci=0;ci<4;ci++) h+=`<button class="dbtn mega-dbtn"
-      onclick="MEGA.sendMega('bottom',${ci})"
       ondragover="MEGA.onDirDragOver(event,this)" ondragleave="MEGA.onDirDragLeave(this)"
       ondrop="MEGA.onDirDrop(event,'bottom',${ci})">↑</button>`;
     h+=`<div style="width:28px"></div></div>`;
