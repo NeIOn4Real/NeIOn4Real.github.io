@@ -729,6 +729,8 @@ body { padding-bottom: 150px; }
 .mega-cell.filled{background:linear-gradient(145deg,#fff5ee,var(--sur));cursor:pointer;}
 .mega-cell.drag-over,.battle-field-cell.drag-over{border-color:var(--acc);box-shadow:0 0 0 3px rgba(179,58,0,.2);}
 .mega-dbtn.drag-over{background:rgba(179,58,0,.25);}
+/* DEV 選定清除格子高亮 */
+.cell.dev-select-clear{border:2px solid #c33!important;box-shadow:0 0 0 3px rgba(200,50,50,.3)!important;background:rgba(200,50,50,.1)!important;}
 #mega-inspect-overlay{
   display:none;position:fixed;inset:0;z-index:8500;
   background:rgba(0,0,0,.6);align-items:center;justify-content:center;
@@ -754,33 +756,48 @@ body { padding-bottom: 150px; }
 /* ══ 戰鬥系統 ══ */
 #battle-overlay{z-index:8200;}
 #battle-fan-area{z-index:8300;}
-/* 敵人區域 */
-#battle-enemy{
-  background:var(--sur);border:1.5px solid var(--br2);border-radius:12px;padding:16px;
-  min-width:180px;text-align:center;
+/* 敵人立繪 */
+#battle-enemy-bg{
+  position:fixed;bottom:-10%;left:50%;transform:translateX(-50%);
+  width:clamp(250px,35vw,450px);pointer-events:none;z-index:8201;
+  opacity:.75;
 }
-#battle-enemy .be-name{font-size:14px;font-weight:900;color:var(--tx);}
-#battle-enemy .be-emoji{font-size:40px;line-height:1;margin:8px 0;}
-#battle-enemy .be-hp-bar{width:100%;height:14px;background:var(--bg3);border-radius:7px;overflow:hidden;margin-top:6px;}
-#battle-enemy .be-hp-fill{height:100%;background:linear-gradient(90deg,#c33,#e55);border-radius:7px;transition:width .4s;}
-#battle-enemy .be-hp-text{font-size:11px;color:var(--mu);margin-top:4px;font-family:'DM Mono',monospace;}
-/* 戰場 1×8 */
-#battle-field-area{display:flex;flex-direction:column;align-items:center;gap:8px;}
+#battle-enemy-bg img{width:100%;display:block;filter:drop-shadow(0 -4px 24px rgba(42,26,8,.3));}
+/* 敵人 HP 條（頂部固定） */
+#battle-hp-area{
+  position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:8250;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  pointer-events:none;
+}
+#battle-hp-area .be-name{font-size:16px;font-weight:900;color:var(--tx);text-shadow:0 1px 6px rgba(255,255,255,.8);}
+#battle-hp-area .be-hp-bar{width:280px;height:18px;background:rgba(0,0,0,.15);border-radius:9px;overflow:hidden;
+  border:2px solid rgba(200,50,50,.4);box-shadow:0 2px 10px rgba(0,0,0,.15);}
+#battle-hp-area .be-hp-fill{height:100%;background:linear-gradient(90deg,#c33,#e55);border-radius:7px;transition:width .4s;}
+#battle-hp-area .be-hp-text{font-size:12px;color:var(--tx);font-family:'DM Mono',monospace;text-shadow:0 1px 4px rgba(255,255,255,.8);}
+/* 戰場 1×8（底部，手牌上方） */
+#battle-field-wrap{
+  position:fixed;bottom:240px;left:50%;transform:translateX(-50%);z-index:8250;
+  display:flex;align-items:center;gap:3px;
+  --cell:86px;
+}
 #battle-field{display:grid;grid-template-columns:repeat(8,var(--cell));gap:3px;}
-#battle-field .cell{cursor:pointer;}
+#battle-field .cell{cursor:pointer;background:rgba(244,239,229,.92);backdrop-filter:blur(4px);width:var(--cell);height:var(--cell);}
 #battle-field .cell.drag-over{border-color:var(--acc);box-shadow:0 0 0 3px rgba(179,58,0,.2);}
 .battle-arrow-in{
-  width:28px;height:var(--cell);display:flex;align-items:center;justify-content:center;
-  font-size:18px;font-weight:900;color:var(--acc);opacity:.6;
+  width:32px;height:86px;display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:900;color:var(--acc);opacity:.6;transition:all .15s;
 }
+.battle-arrow-in.drag-over{opacity:1;color:#fff;background:var(--acc);border-radius:6px;}
 .battle-arrow-out{
-  width:28px;height:var(--cell);display:flex;align-items:center;justify-content:center;
-  font-size:18px;font-weight:900;color:var(--green);opacity:.6;
+  width:32px;height:86px;display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:900;color:var(--green);opacity:.6;
 }
-/* 戰鬥控制面板 */
+/* 戰鬥控制面板（右側固定） */
 #battle-panel{
-  background:var(--sur);border:1.5px solid var(--br2);border-radius:12px;padding:14px;
-  min-width:180px;display:flex;flex-direction:column;gap:8px;
+  position:fixed;top:60px;right:16px;z-index:8250;
+  background:rgba(250,247,241,.95);border:1.5px solid var(--br2);border-radius:12px;padding:14px;
+  width:180px;display:flex;flex-direction:column;gap:8px;
+  backdrop-filter:blur(4px);box-shadow:0 4px 16px rgba(0,0,0,.1);
 }
 #battle-panel .bp-title{font-size:11px;font-weight:700;color:var(--tx);}
 #battle-panel .bp-btn{
@@ -793,7 +810,6 @@ body { padding-bottom: 150px; }
 #battle-panel .bp-btn.bp-primary:hover{opacity:.9;}
 #battle-panel .bp-btn.bp-danger{background:#c33;color:#fff;border-color:#c33;}
 #battle-log{font-size:9px;color:var(--mu);line-height:1.5;max-height:200px;overflow-y:auto;margin-top:4px;}
-/* 戰鬥手牌 */
 
 /* ══ 標題畫面 ══ */
 #title-screen{
@@ -1778,7 +1794,7 @@ function checkHeatwave(){
   const hw=G._heatwave;
   // 更新設施收益追蹤
   if(G.inv.facProfitMap) Object.entries(G.inv.facProfitMap).forEach(([k,v])=>{ hw.facProfits[k]=(hw.facProfits[k]||0)+v; });
-  // 更新路徑歷史（方向+設施序列）
+  // 更新路徑歷史（方向+設施序列）——跨輪累計
   const pathKey=(G.inv.sendDir||'')+'|'+(G.inv.facPath||[]).join(',');
   if(pathKey===hw.lastPath) hw.samePathCount++;
   else { hw.samePathCount=1; hw.lastPath=pathKey; }
@@ -1789,12 +1805,12 @@ function checkHeatwave(){
     if(t){ hw.facProfits={}; hw.samePathCount=0; hw.lastPath=''; triggerHeatwave(t); return; }
   }
 
-  // 觸發方式B：4條件全滿足
+  // 觸發方式B：條件放寬（跨輪累計路徑 + 1 回合達標）
   const rh=G.roundHistory||[];
-  const cond1=rh.length>=3&&rh.slice(-3).every(r=>r.turnsUsed<=1);
-  const cond2=(G.inv.facHit||0)<4;
-  const cond3=Object.values(hw.facProfits).some(v=>v>G.goal*1.5);
-  const cond4=hw.samePathCount>=5;
+  const cond1=rh.length>=3&&rh.slice(-3).every(r=>r.turnsUsed<=1); // 連續 3 輪 1 回合達標
+  const cond2=(G.inv.facHit||0)<4;                                  // 經過少於 4 設施
+  const cond3=Object.values(hw.facProfits).some(v=>v>G.goal*1.5);   // 有設施累積收益 > 目標 150%
+  const cond4=hw.samePathCount>=3;                                   // 連續 3 次相同路徑（跨輪計算）
   if(!(cond1&&cond2&&cond3&&cond4)) return;
 
   const t=findHeatwaveTarget();
@@ -2295,8 +2311,8 @@ function startRound(){
     pickNextEvent();
   }
   pickActionOptions();
-  // 大熱波：每輪重置設施收益追蹤
-  if(G._heatwave) G._heatwave.facProfits={};
+  // 大熱波：每輪重置設施收益追蹤（samePathCount 跨輪保留以偵測固定路徑）
+  if(G._heatwave){ G._heatwave.facProfits={}; }
   // partner round start effects
   G.partners.forEach(pid=>{
     const p=PARTNERS[pid];
@@ -2381,14 +2397,15 @@ function addHandMaybeCompound(id){
 }
 
 // ── 百貨公司 2×2 放置：尋找包含(r,c)的 2×2 商店區域 ──
+function _isNonDeptShop(bId){ return isShopType(bId)&&bId!=='dept_store'&&bId!=='dept_store_part'; }
 function findShop2x2(r,c){
   const gn=GN();
-  // 檢查(r,c)可能作為哪個 2x2 的一部分（4 種可能的左上角）
+  // 檢查(r,c)可能作為哪個 2x2 的一部分（4 種可能的左上角），排除已有的百貨公司
   for(let dr=0;dr>=-1;dr--) for(let dc=0;dc>=-1;dc--){
     const tr=r+dr, tc=c+dc;
     if(tr<0||tc<0||tr+1>=gn||tc+1>=gn) continue;
-    if(isShopType(G.grid[tr][tc])&&isShopType(G.grid[tr][tc+1])&&
-       isShopType(G.grid[tr+1][tc])&&isShopType(G.grid[tr+1][tc+1])) return [tr,tc];
+    if(_isNonDeptShop(G.grid[tr][tc])&&_isNonDeptShop(G.grid[tr][tc+1])&&
+       _isNonDeptShop(G.grid[tr+1][tc])&&_isNonDeptShop(G.grid[tr+1][tc+1])) return [tr,tc];
   }
   return null;
 }
@@ -2542,10 +2559,36 @@ function tryPlaceAtCell(r,c,bldgId){
     return true;
   }
 
-  // ── 百貨公司 2×2 ──
+  // ── 蕾雅升級百貨公司（手牌百貨公司 + 小鎮百貨公司）──
+  if(bldgId==='dept_store'&&hasPartner('leya')){
+    // 檢查點擊的格子是否為百貨公司（錨點或部分格）
+    const clickedBId=G.grid[r][c];
+    if(clickedBId==='dept_store'||clickedBId==='dept_store_part'){
+      if(!handItem||handItem.count<=0){ addLog('👩‍🔧 蕾雅：手牌不足','b'); return false; }
+      // 找到錨點
+      let ar=r,ac=c;
+      if(clickedBId==='dept_store_part'){
+        const ak=G.deptStoreParts[`${r},${c}`];
+        if(ak){[ar,ac]=ak.split(',').map(Number);}
+      }
+      handItem.count--;
+      // 對 2×2 四格都加蕾雅升級
+      for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
+        const k=`${ar+dr},${ac+dc}`;
+        G.bldgUpgrades[k]=(G.bldgUpgrades[k]||0)+1;
+        if(!G.leyaPctMods) G.leyaPctMods={};
+        G.leyaPctMods[k]=(G.leyaPctMods[k]||0)+2;
+      }
+      addLog(`👩‍🔧 蕾雅：百貨公司 (${ar+1},${ac+1}) 升級！2×2 各 +1, +2%`,'g');
+      pulse(ar,ac); render();
+      return true;
+    }
+  }
+
+  // ── 百貨公司 2×2（只能蓋在一般商店上）──
   if(BLDG[bldgId]&&BLDG[bldgId].needs2x2){
     const anchor=findShop2x2(r,c);
-    if(!anchor){ addLog('🏬 百貨公司需要 2×2 的商店區域！請點擊四個商店組成的 2×2 區域','b'); return false; }
+    if(!anchor){ addLog('🏬 百貨公司需要 2×2 的一般商店區域（不含已有的百貨公司）','b'); return false; }
     if(!handItem||handItem.count<=0) return false;
     handItem.count--;
     const [tr,tc]=anchor;
@@ -2555,7 +2598,7 @@ function tryPlaceAtCell(r,c,bldgId){
     return true;
   }
 
-  // ── 蕾雅升級 ──
+  // ── 蕾雅升級（一般設施）──
   if(G.grid[r][c]&&G.grid[r][c]===bldgId&&hasPartner('leya')){
     if(!handItem||handItem.count<=0){ addLog('👩‍🔧 蕾雅：手牌不足','b'); return false; }
     handItem.count--;
@@ -2655,6 +2698,9 @@ function tryPlaceAtCell(r,c,bldgId){
 }
 
 function onCell(r,c){
+  // DEV 選定清除模式（優先攔截）
+  if(DEV._selectClearCells){DEV.toggleSelectCell(r,c);return;}
+
   if(G.phase!=='place')return;
 
   // 擁慶記房屋賣出模式
@@ -2824,9 +2870,16 @@ function onCellDragOver(e,r,c){
     _insertBldgPreview(cell2, compH.parts[1]);
     return;
   }
-  // 百貨公司：2×2 預覽
+  // 百貨公司：2×2 預覽 或 蕾雅升級預覽
   if(bldgDragging==='dept_store'){
     _clearBldgPreview();
+    // 蕾雅：拖到已有的百貨公司上 → 升級預覽
+    if(hasPartner('leya')&&(G.grid[r][c]==='dept_store'||G.grid[r][c]==='dept_store_part')){
+      e.preventDefault();
+      const cellEl=cellQ(r,c);
+      if(cellEl){cellEl.classList.add('drag-over-cell');cellEl.style.boxShadow='0 0 0 3px rgba(0,200,100,.4)';}
+      return;
+    }
     const anchor=findShop2x2(r,c);
     if(!anchor) return;
     e.preventDefault();
@@ -2840,8 +2893,11 @@ function onCellDragOver(e,r,c){
   }
   // 中央限定：非中央格不預覽
   if(BLDG[bldgDragging]&&BLDG[bldgDragging].centerOnly&&!isCenterCell(r,c)) return;
-  // 蕾雅：允許拖到相同設施的格子
-  const isLeyaUpgrade = G.grid[r][c]===bldgDragging && hasPartner('leya');
+  // 蕾雅：允許拖到相同設施的格子（百貨公司：拖到錨點或部分格都算）
+  const isLeyaUpgrade = hasPartner('leya')&&(
+    G.grid[r][c]===bldgDragging||
+    (bldgDragging==='dept_store'&&(G.grid[r][c]==='dept_store'||G.grid[r][c]==='dept_store_part'))
+  );
   // 廢墟紀念碑：允許拖到廢墟格
   const isRuinPlace = bldgDragging==='ruin_monument' && G.grid[r][c]==='ruin';
   // 物流之王/倉儲女王：允許雙向疊加
@@ -2989,7 +3045,7 @@ const FACILITY_FX={
     fx.hit();
   },
   dept_store(fx){
-    if(fx.el.type!=='goods') return;
+    if(fx.el.type!=='goods'){ fx.next(200); return; }
     const prev=fx.el.value, step1=prev*2;
     let nv=Math.max(1,Math.floor(step1*1.02));
     // 聚合 2×2 四格的加成（cellMods/cellPctMods/bldgUpgrades/leyaPctMods）
@@ -3357,9 +3413,11 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
     mover.style.top=(rect.top+2)+'px';
   }
 
-  // 高亮當前格
-  document.querySelectorAll('.cell').forEach(c=>c.classList.remove('active-path'));
-  cellEl?.classList.add('active-path');
+  // 高亮當前格（跳過百貨公司格子避免 overlay 閃爍）
+  if(stepWithMover._prevActive) stepWithMover._prevActive.classList.remove('active-path');
+  const _isDeptCell=bId==='dept_store'||bId==='dept_store_part';
+  if(cellEl&&!_isDeptCell) cellEl.classList.add('active-path');
+  stepWithMover._prevActive=_isDeptCell?null:cellEl;
 
   const bId=G.grid[r][c];
   // 速遞站：經過空格或廢墟時消耗 flag（效果浪費）
@@ -3539,7 +3597,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       setTimeout(()=>{
         if(newPath.length===0){
           mover.style.display='none';
-          document.querySelectorAll('.cell').forEach(c=>c.classList.remove('active-path'));
+          if(stepWithMover._prevActive){stepWithMover._prevActive.classList.remove('active-path');stepWithMover._prevActive=null;}
           finish(el,startVal);
         } else {
           stepWithMover(newPath,el,0,startVal,mover,updateMover);
@@ -3566,7 +3624,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       }
       if(hasPartner('envy')&&bId==='envy_factory'&&(G.inv.facHit||0)>0){
         addLog('  💚 嫉妒惡魔：已經過其他設施，嫉妒工廠中斷','b');
-        setTimeout(()=>{ mover.style.display='none'; document.querySelectorAll('.cell').forEach(c=>c.classList.remove('active-path')); finish(el,startVal); },400);
+        setTimeout(()=>{ mover.style.display='none'; if(stepWithMover._prevActive){stepWithMover._prevActive.classList.remove('active-path');stepWithMover._prevActive=null;} finish(el,startVal); },400);
         return;
       }
       // 嫉妒工廠負面：投入時非鑽石則最終收益-50%
@@ -3741,7 +3799,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
 }
 
 function finish(el,startVal){
-  document.querySelectorAll('.cell').forEach(c=>c.classList.remove('active-path'));
+  if(stepWithMover._prevActive){stepWithMover._prevActive.classList.remove('active-path');stepWithMover._prevActive=null;}
   // ── 工業化模式：攔截結算，建立巨型設施 ──
   if(G._industrializing){
     G._industrializing=false;
@@ -3865,11 +3923,12 @@ function finish(el,startVal){
     G.elementExtraUses--;
     addLog(`🧑‍💼 人材效果：可再投入一次（剩餘 ${G.elementExtraUses} 次）`,'g');
     G.phase='place';
-    // 額外投入階段：保留當前卡牌值再投入一次
+    G._extraUsePhase=true; // 標記：額外投入階段，允許跳過
     updateCard(el);
     render();
     return;
   }
+  G._extraUsePhase=false;
   // ── 大熱波追蹤與檢查 ──
   checkHeatwave();
 
@@ -3918,37 +3977,45 @@ function adjustDifficulty(){
   const hist=G.roundHistory;
   if(hist.length===0) return;
 
-  const recent=hist.slice(-3); // 最近 3 輪
+  const recent=hist.slice(-3);
   const avgTurns=recent.reduce((s,h)=>s+h.turnsUsed,0)/recent.length;
 
   let delta=0;
 
   // ── 基於平均達標速度 ──
-  if(avgTurns<=2)      delta+=0.25;  // 極快：強力加壓
-  else if(avgTurns<=4) delta+=0.15;  // 快速：中度加壓
-  else if(avgTurns<=6) delta+=0.05;  // 略快：微調
-  else if(avgTurns<=8) delta+=0;     // 正常：不調整
-  else                 delta-=0.08;  // 勉強/緩慢：減壓
+  if(avgTurns<=2)      delta+=0.25;
+  else if(avgTurns<=4) delta+=0.15;
+  else if(avgTurns<=6) delta+=0.05;
+  else if(avgTurns<=8) delta+=0;
+  else                 delta-=0.08;
 
-  // ── 連續瞬殺檢測（連續 2+ 輪 ≤3 回合達標）──
+  // ── 連續瞬殺檢測 ──
   if(recent.length>=2){
     const streak=recent.filter(h=>h.turnsUsed<=3).length;
-    if(streak>=3)      delta+=0.2;   // 3 連瞬殺
-    else if(streak>=2) delta+=0.1;   // 2 連瞬殺
+    if(streak>=3)      delta+=0.2;
+    else if(streak>=2) delta+=0.1;
   }
 
-  // ── 超額達標檢測（收益遠超目標）──
+  // ── 收益/目標倍數差異（核心調整）──
   const lastRound=hist[hist.length-1];
   const overRatio=lastRound.profit/lastRound.goal;
-  if(overRatio>=3)      delta+=0.15;  // 收益 ≥3 倍目標
-  else if(overRatio>=2) delta+=0.08;  // 收益 ≥2 倍目標
+  if(overRatio>=10)     delta+=0.35;  // 收益 ≥10 倍：極端加壓
+  else if(overRatio>=5) delta+=0.25;  // 收益 ≥5 倍：重度加壓
+  else if(overRatio>=3) delta+=0.15;  // 收益 ≥3 倍
+  else if(overRatio>=2) delta+=0.08;  // 收益 ≥2 倍
+
+  // ── 最近 3 輪平均超額比率 ──
+  const avgRatio=recent.reduce((s,h)=>s+h.profit/h.goal,0)/recent.length;
+  if(avgRatio>=5)       delta+=0.2;   // 平均 5 倍以上：持續碾壓
+  else if(avgRatio>=3)  delta+=0.1;   // 平均 3 倍以上
 
   // ── 套用並限制範圍 ──
   G.difficultyMult=Math.max(0.6, Math.min(2.5, G.difficultyMult+delta));
 
   // log
-  if(delta>0) addLog(`📈 動態難度：+${Math.round(delta*100)}%（平均${avgTurns.toFixed(1)}回合達標，倍率${G.difficultyMult.toFixed(2)}）`,'w');
-  else if(delta<0) addLog(`📉 動態難度：${Math.round(delta*100)}%（平均${avgTurns.toFixed(1)}回合達標，倍率${G.difficultyMult.toFixed(2)}）`,'g');
+  const ratioStr=overRatio>=2?`，超額${overRatio.toFixed(1)}倍`:'';
+  if(delta>0) addLog(`📈 動態難度：+${Math.round(delta*100)}%（平均${avgTurns.toFixed(1)}回合${ratioStr}，倍率${G.difficultyMult.toFixed(2)}）`,'w');
+  else if(delta<0) addLog(`📉 動態難度：${Math.round(delta*100)}%（平均${avgTurns.toFixed(1)}回合${ratioStr}，倍率${G.difficultyMult.toFixed(2)}）`,'g');
 }
 
 // ══════════════════════════════════════
@@ -3986,9 +4053,9 @@ function pickNextEvent(){
 function checkMurphyHijack(){
   if(G.round<2||TUT.isBlocking()) return false;
   const mt=G._murphyTrack||{repeatCount:0,noMove:0};
-  const murphyWeight=1+Math.max(0,mt.repeatCount-3)*3+Math.max(0,mt.noMove-4)*2;
+  // 跨輪計算：1 回合達標的玩家 repeatCount 跨輪累積
+  const murphyWeight=1+Math.max(0,mt.repeatCount-2)*3+Math.max(0,mt.noMove-3)*2;
   if(murphyWeight<=1) return false;
-  // 機率上限 60%，防止高權重時必發
   const prob=Math.min(0.6, murphyWeight/(murphyWeight+5));
   return Math.random()<prob;
 }
@@ -4043,8 +4110,9 @@ function doAction(id){
   if(G.profit<actCost){ addLog(`⚠ 收益不足（需要 ${actCost}，現有 ${G.profit}）`,'b'); return; }
   G.profit-=actCost;
 
+  const _tc=getPlayerTagCounts(); // 快取詞條計數（本次行動共用）
   if(id==='buy_fac'){
-    const pool=weightedPickN(Object.keys(BLDG).filter(bid=>bid!=='envy_factory'&&bid!=='ruin'&&bid!=='dept_store_part'),3);
+    const pool=weightedPickN(Object.keys(BLDG).filter(bid=>bid!=='envy_factory'&&bid!=='ruin'&&bid!=='dept_store_part'),3,_tc);
     const refund=actCost;
     showCardChooser(
       '🏗 選擇一個設施加入手牌',
@@ -4074,10 +4142,10 @@ function doAction(id){
     let picks;
     if(checkSafetyNet()){
       const priority=['tanya','leya'].filter(pid=>pool.includes(pid));
-      const rest=weightedPickN(pool.filter(pid=>!priority.includes(pid)),3-priority.length);
+      const rest=weightedPickN(pool.filter(pid=>!priority.includes(pid)),3-priority.length,_tc);
       picks=[...priority,...rest].slice(0,3);
     } else {
-      picks=weightedPickN(pool,3);
+      picks=weightedPickN(pool,3,_tc);
     }
     const refund=actCost;
     showCardChooser(
@@ -4253,10 +4321,11 @@ function startTurn(){
   G._yongqingSellMode = false;
   G._yongqingSellUsed = false;
   G._hrUsedThisTurn = false; // 人力資源總監每回合重置
-  // 莫菲定律：用上回合的 turnFacMoved（重置前）判斷是否有移動
+  // 莫菲定律：追蹤未移動設施的回合數（跨輪累計，但新輪第 1 回合不計）
   if(!G._murphyTrack) G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
   if(G.turnFacMoved===0&&G.turn>1) G._murphyTrack.noMove++;
-  else G._murphyTrack.noMove=0;
+  else if(G.turn>1) G._murphyTrack.noMove=0;
+  // turn===1 時不動 noMove（玩家還沒機會操作）
   G.turnFacMoved = 0; // 動態加強器用：本回合設施移動計數（重置放在檢查之後）
   _safetyNetRoll = false; // 重置安全網判定
   G._permShopUsed = false; // 重置商店使用
@@ -4446,6 +4515,14 @@ function scaledCost(base){
 }
 function doNext(){
   if(TUT.hookDoNext()) return;
+  // 額外投入階段：允許跳過
+  if(G.phase==='place'&&G._extraUsePhase){
+    G.elementExtraUses=0;
+    G._extraUsePhase=false;
+    G.phase='done';
+    addLog('⏩ 跳過剩餘人材投入','w');
+    render();
+  }
   if(G.phase!=='done')return;
 
   // 儲存本回合 log 到歷史
@@ -4504,6 +4581,7 @@ function isPermShopFree(){
 function doPermShop(){
   if(G.phase!=='place'&&G.phase!=='done') return;
   if(G._permShopUsed) return;
+  const _shopTc=getPlayerTagCounts();
   // 基礎設施池 + 1 隨機物流方向
   let pool=[...BASIC_FACILITIES];
   pool.push(LOGISTICS_DIRS[Math.floor(Math.random()*LOGISTICS_DIRS.length)]);
@@ -4514,9 +4592,9 @@ function doPermShop(){
       id!=='envy_factory'&&id!=='ruin'&&id!=='dept_store_part'&&id!=='dept_store'&&
       !BLDG[id].centerOnly&&!BLDG[id].ruinOnly
     );
-    if(nonBasic.length) pool.push(weightedPickN(nonBasic,1)[0]);
+    if(nonBasic.length) pool.push(weightedPickN(nonBasic,1,_shopTc)[0]);
   }
-  const shuffled=weightedPickN([...new Set(pool)],3);
+  const shuffled=weightedPickN([...new Set(pool)],3,_shopTc);
   const hasFree=isPermShopFree();
   const freeIdx=hasFree?Math.floor(Math.random()*shuffled.length):-1;
   const cost=getPermShopCost();
@@ -4675,7 +4753,9 @@ function render(){
     }
   }
 
-  document.getElementById('btn-next').disabled=G.phase!=='done';
+  const _btnNext=document.getElementById('btn-next');
+  _btnNext.disabled=G.phase!=='done'&&!(G.phase==='place'&&G._extraUsePhase);
+  _btnNext.textContent=G._extraUsePhase?'⏩ 跳過額外投入':'⏩ 結束回合';
   updatePermBtns();
 
   renderGrid();
@@ -4862,8 +4942,9 @@ function renderGrid(){
     const routeTargetHi=G._freeMoveLogistics&&!G._freeMoveLogisticsSrc&&b&&b.special==='redirect'?' upgrade-glow':'';
     const evPreview=(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(`${r},${c}`))?' event-preview':'';
     const sellHi=(G._yongqingSellMode&&b)?' sell-shake':'';
+    const devSelHi=(DEV._selectClearCells&&DEV._selectClearCells.has(`${r},${c}`))?' dev-select-clear':'';
     const isCenter=isCenterCell(r,c);
-    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${evPreview}${sellHi}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
+    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${evPreview}${sellHi}${devSelHi}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
       onmouseenter="cellHoverStart(event,${r},${c})"
       onmouseleave="cellHoverEnd()"
       onclick="onCell(${r},${c})"
@@ -4902,9 +4983,13 @@ function renderGrid(){
         }
         if(baseBonus>0) h+=`<div style="font-size:8px;font-weight:700;color:var(--money);">+${baseBonus}</div>`;
       } else if(bId==='dept_store'){
-        // 百貨公司錨點：渲染 2×2 整體方塊
+        // 百貨公司錨點：渲染 2×2 整體方塊（聚合 4 格加成）
+        let deptBonus=0;
+        for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
+          deptBonus+=(G.bldgUpgrades?.[`${r+dr},${c+dc}`]||0);
+        }
         const cellSize=getComputedStyle(document.documentElement).getPropertyValue('--cell').trim()||'72px';
-        const sz=`calc(${cellSize} * 2 + 6px)`; // 2 cells + gap + borders
+        const sz=`calc(${cellSize} * 2 + 6px)`;
         h+=`<div style="position:absolute;top:-1px;left:-1px;width:${sz};height:${sz};
           background:linear-gradient(145deg,#fff5ee,#ffe8d0);border:2px solid var(--money);border-radius:10px;
           display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -4912,7 +4997,7 @@ function renderGrid(){
           <div style="font-size:36px;line-height:1;">🏬</div>
           <div style="font-size:10px;font-weight:700;color:var(--tx);">百貨公司</div>
           <div style="font-size:7px;color:var(--mu);text-align:center;line-height:1.3;padding:0 6px;">${b.desc}</div>
-          <div style="font-size:8px;font-weight:700;color:var(--money);">+${baseBonus}</div>
+          ${deptBonus>0?`<div style="font-size:8px;font-weight:700;color:var(--money);">+${deptBonus}</div>`:''}
         </div>`;
       } else if(bId==='dept_store_part'){
         // 百貨公司部分格：不渲染內容（由錨點的 overlay 覆蓋）
@@ -6904,6 +6989,8 @@ function deserializeGame(save){
   delete data._tanyaSwapPending; delete data._tanyaSwapPool;
   delete data._permShopUsed;
   delete data._industrializing;
+  delete data._extraUsePhase;
+  delete data._cardBeforeIndustrialize;
   G=data;
   if(save.cs!==undefined) _compoundSeq=save.cs;
   // 還原巨型設施（同步到獨立 localStorage key）
@@ -7132,9 +7219,16 @@ function megaIcons(m){
   return {start:s, end:e, flow:s+'→'+e};
 }
 
-let _megaDragging=null; // 正在拖曳的巨型設施 ID
+let _megaDragging=null;
+// overlay 互斥：檢查是否有其他 overlay 開啟
+function _isAnyOverlayOpen(){
+  return document.getElementById('mega-overlay')?.classList.contains('show')||
+    document.getElementById('battle-overlay')?.classList.contains('show')||
+    !!G._industrializing;
+}
 const MEGA={
   open(){
+    if(_battleState){addLog('⚠ 戰鬥中無法開啟巨型設施地圖','b');return;}
     loadMegaFacilities();
     _megaGrid=Array(4).fill(null).map(()=>Array(4).fill(null));
     _megaProfit=0;
@@ -7439,6 +7533,9 @@ const MEGA={
   },
   // ── 工業化 ──
   startIndustrialize(){
+    if(_isAnyOverlayOpen()){addLog('⚠ 請先關閉其他面板','b');return;}
+    // 備份原始資源卡
+    G._cardBeforeIndustrialize=G.card?{...G.card}:null;
     G._industrializing=true;
     G.card={value:1, type:'money'};
     G.phase='place';
@@ -7459,7 +7556,10 @@ const MEGA={
   cancelIndustrialize(){
     G._industrializing=false;
     document.getElementById('indust-hint')?.remove();
+    // 還原原始資源卡
+    if(G._cardBeforeIndustrialize){G.card=G._cardBeforeIndustrialize;delete G._cardBeforeIndustrialize;}
     G.phase='place';
+    updateCard(G.card);
     render();
     addLog('🏭 工業化已取消','b');
   }
@@ -7483,6 +7583,7 @@ const BATTLE={
   },
   // 開始戰鬥
   start(){
+    if(_isAnyOverlayOpen()){addLog('⚠ 請先關閉其他面板','b');return;}
     // 建立牌組：複製小鎮所有設施 + 手牌（凍結快照）
     const deck=[];
     const gn=GN();
@@ -7503,11 +7604,13 @@ const BATTLE={
       field:Array(8).fill(null),
       enemy:{name:'競爭對手',emoji:'🏴‍☠️',hp:100,maxHp:100},
       turn:1,
+      round:G.round,            // 凍結輪數（不再引用 G.round）
       redrawCount:0,
       resource:res,
       log:[],
       invested:false,
       _returnNeeded:0,
+      _drawnThisTurn:false,
     };
     BATTLE.drawCards(7);
     document.getElementById('battle-overlay').classList.add('show');
@@ -7526,7 +7629,8 @@ const BATTLE={
   // 重抽
   redraw(){
     const s=_battleState;
-    if(s.invested){BATTLE.addLog('⚠ 已投入資源，本回合無法重抽');return;}
+    if(s.turn>1){BATTLE.addLog('⚠ 重抽只能在第 1 回合使用');return;}
+    if(s.invested){BATTLE.addLog('⚠ 已投入資源，無法重抽');return;}
     s.redrawCount++;
     const returnCount=s.redrawCount;
     s.deck.push(...s.hand);
@@ -7548,53 +7652,173 @@ const BATTLE={
     BATTLE.addLog(`↩ 返回 ${BLDG[card]?.emoji||''}${BLDG[card]?.name||card}（剩餘 ${s._returnNeeded} 張）`);
     BATTLE.render();
   },
-  // 計算手牌中某設施的可用放置數（手牌持有量 - 已在場上的數量）
-  _availCount(bldgId){
-    const s=_battleState;
-    const handCount=s.hand.filter(id=>id===bldgId).length;
-    const fieldCount=s.field.filter(id=>id===bldgId).length;
-    return handCount-fieldCount;
-  },
-  // 放置設施到戰場
+  // 放置設施到戰場（從手牌移除）
   placeOnField(fieldIdx, bldgId){
     const s=_battleState;
     if(s.invested) return;
-    if(BATTLE._availCount(bldgId)<=0) return; // 超過手牌持有量
+    // 若目標格已有設施，先歸還手牌
+    if(s.field[fieldIdx]) s.hand.push(s.field[fieldIdx]);
     s.field[fieldIdx]=bldgId;
+    // 從手牌移除一張
+    const hi=s.hand.indexOf(bldgId);
+    if(hi!==-1) s.hand.splice(hi,1);
     BATTLE.render();
   },
-  // 移除戰場設施
+  // 移除戰場設施（歸還手牌）
   removeFromField(fieldIdx){
     const s=_battleState;
     if(s.invested) return;
+    if(s.field[fieldIdx]) s.hand.push(s.field[fieldIdx]);
     s.field[fieldIdx]=null;
     BATTLE.render();
   },
-  // 投入資源
+  // 每回合抽牌（每回合限一次）
+  drawExtra(){
+    const s=_battleState;
+    if(s.invested){BATTLE.addLog('⚠ 已投入，無法抽牌');return;}
+    if(s._drawnThisTurn){BATTLE.addLog('⚠ 本回合已抽過牌');return;}
+    s._drawnThisTurn=true;
+    const before=s.hand.length;
+    BATTLE.drawCards(1);
+    const drawn=s.hand.length>before?s.hand[s.hand.length-1]:null;
+    if(drawn&&BLDG[drawn]) BATTLE.addLog(`🃏 抽牌：${BLDG[drawn].emoji}${BLDG[drawn].name}`);
+    else BATTLE.addLog('🃏 牌組已空');
+    BATTLE.render();
+  },
+  // 投入資源（帶動畫）
   invest(){
     const s=_battleState;
     if(s.enemy.hp<=0){BATTLE.addLog('⚠ 對手已被擊敗');return;}
     if(s.invested){BATTLE.addLog('⚠ 本回合已投入');return;}
     if(s._returnNeeded>0){BATTLE.addLog('⚠ 還需返回手牌');return;}
     s.invested=true;
-    const startEl={value:s.resource.value, type:s.resource.type};
-    const startVal=startEl.value;
-    BATTLE.addLog(`▶ 投入 ${TLABEL[startEl.type]||startEl.type} ${startEl.value}`);
-    // 建立 1×8 路徑座標 + 虛擬格子
-    const cells=[];for(let i=0;i<8;i++) cells.push([0,i]);
-    const gridCtx={grid:[s.field], gridSize:8, round:G.round};
-    const result=simFacilityPath(cells, startEl, gridCtx);
-    result.logs.forEach(l=>BATTLE.addLog(l));
-    let damage=Math.max(0,result.finalMoney-startVal);
-    if(result.bonusProfit>0){
-      damage+=result.bonusProfit;
-      BATTLE.addLog(`  🏷️ 額外傷害：+${result.bonusProfit}`);
-    }
-    s.enemy.hp=Math.max(0,s.enemy.hp-damage);
-    BATTLE.addLog(`💥 造成 ${damage} 點傷害！（入${startVal}→出${result.finalMoney}）`);
-    BATTLE.addLog(`❤ 對手 HP：${s.enemy.hp}/${s.enemy.maxHp}`);
-    if(s.enemy.hp<=0) BATTLE.addLog('🎉 對手被擊敗！');
     BATTLE.render();
+    const emojis={money:'💵',material:'🪨',goods:'📦',diamond:'💎'};
+    let el={value:s.resource.value, type:s.resource.type};
+    const startVal=el.value;
+    BATTLE.addLog(`▶ 投入 ${TLABEL[el.type]||el.type} ${el.value}`);
+    // 建立移動器
+    let mover=document.getElementById('battle-mover');
+    if(!mover){
+      mover=document.createElement('div');
+      mover.id='battle-mover';
+      mover.style.cssText='position:fixed;width:56px;height:66px;background:linear-gradient(145deg,var(--sur),var(--bg2));'+
+        'border:2px solid var(--acc);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;'+
+        'gap:2px;pointer-events:none;z-index:8400;box-shadow:0 4px 14px rgba(179,58,0,.3);'+
+        'transition:left .3s cubic-bezier(.4,0,.2,1),top .3s cubic-bezier(.4,0,.2,1);';
+      mover.innerHTML='<div class="bm-emoji" style="font-size:16px;line-height:1;"></div><div class="bm-val" style="font-size:14px;font-weight:900;font-family:DM Mono,monospace;"></div><div class="bm-type" style="font-size:7px;color:var(--mu);"></div>';
+      document.body.appendChild(mover);
+    }
+    function updateMover(){
+      mover.querySelector('.bm-emoji').textContent=emojis[el.type]||'❓';
+      mover.querySelector('.bm-val').textContent=el.value;
+      mover.querySelector('.bm-type').textContent=TLABEL[el.type]||el.type;
+      mover.style.borderColor=TCOLOR[el.type]||'var(--acc)';
+    }
+    mover.style.display='flex';
+    updateMover();
+    // 逐格動畫
+    const fieldCells=document.querySelectorAll('#battle-field .cell');
+    let step=0;
+    let facHit=0, bonusProfit=0;
+    function animStep(){
+      if(step>=8){
+        // 動畫結束 → 結算傷害
+        mover.style.display='none';
+        fieldCells.forEach(c=>c.classList.remove('active-path'));
+        if(el.type==='diamond') el={value:el.value,type:'money'};
+        const finalMoney=el.type==='money'?el.value:Math.floor(el.value*0.6);
+        let damage=Math.max(0,finalMoney-startVal)+bonusProfit;
+        if(bonusProfit>0) BATTLE.addLog(`  🏷️ 額外傷害：+${bonusProfit}`);
+        // 傷害數字放大 + 飛向敵人
+        BATTLE._showDamageFly(damage);
+        setTimeout(()=>{
+          s.enemy.hp=Math.max(0,s.enemy.hp-damage);
+          BATTLE.addLog(`💥 造成 ${damage} 點傷害！（入${startVal}→出${finalMoney}）`);
+          BATTLE.addLog(`❤ 對手 HP：${s.enemy.hp}/${s.enemy.maxHp}`);
+          if(s.enemy.hp<=0) BATTLE.addLog('🎉 對手被擊敗！');
+          BATTLE.render();
+        },1200);
+        return;
+      }
+      // 移動到當前格
+      const cellEl=fieldCells[step];
+      if(!cellEl){step++;animStep();return;}
+      fieldCells.forEach(c=>c.classList.remove('active-path'));
+      cellEl.classList.add('active-path');
+      const rect=cellEl.getBoundingClientRect();
+      mover.style.left=(rect.left+2)+'px';
+      mover.style.top=(rect.top-70)+'px';
+      const bId=s.field[step];
+      if(!bId||!BLDG[bId]||BLDG[bId].special==='redirect'){step++;setTimeout(animStep,200);return;}
+      const b=BLDG[bId];
+      if(b.req&&b.req!=='any'&&b.req!==el.type){step++;setTimeout(animStep,200);return;}
+      const prev=el.value, prevType=el.type;
+      const ctx={facHit,cell:[0,step],bonusProfit};
+      if(b.special&&MEGA_SIM_FX[b.special]){
+        MEGA_SIM_FX[b.special](el,{grid:[s.field],gridSize:8,round:s.round},ctx);
+        bonusProfit=ctx.bonusProfit;
+      } else {
+        if(b.fn) el.value=b.fn(el.value);
+        if(b.out) el.type=b.out;
+      }
+      facHit++;
+      updateMover();
+      cellEl.style.transform='scale(1.1)';
+      setTimeout(()=>{cellEl.style.transform='';},300);
+      BATTLE.addLog(`  ${b.emoji} ${b.name}: ${TLABEL[prevType]||prevType}${prev}→${TLABEL[el.type]||el.type}${el.value}`);
+      // 更新記錄面板
+      const logEl=document.getElementById('battle-log');
+      if(logEl){
+        logEl.innerHTML+=`<div>  ${b.emoji} ${b.name}: ${TLABEL[prevType]||prevType}${prev}→${TLABEL[el.type]||el.type}${el.value}</div>`;
+        logEl.scrollTop=logEl.scrollHeight;
+      }
+      step++;
+      setTimeout(animStep,350);
+    }
+    // 從左側箭頭開始
+    const arrowIn=document.querySelector('.battle-arrow-in');
+    if(arrowIn){
+      const ar=arrowIn.getBoundingClientRect();
+      mover.style.left=ar.left+'px';
+      mover.style.top=(ar.top-20)+'px';
+    }
+    setTimeout(animStep,300);
+  },
+  // 傷害飛行動畫：數字放大 → 停頓 → 飛向敵人血量條
+  _showDamageFly(damage){
+    const fly=document.createElement('div');
+    fly.style.cssText='position:fixed;z-index:8500;pointer-events:none;font-weight:900;font-family:DM Mono,monospace;'+
+      'text-shadow:0 2px 12px rgba(200,40,40,.5);';
+    fly.textContent=damage>0?`-${damage}`:'0';
+    fly.style.color=damage>0?'#c33':'var(--mu)';
+    // 起始位置：戰場中央
+    const field=document.getElementById('battle-field');
+    if(!field) return;
+    const fr=field.getBoundingClientRect();
+    fly.style.left=(fr.left+fr.width/2-30)+'px';
+    fly.style.top=(fr.top+fr.height/2-20)+'px';
+    fly.style.fontSize='16px';
+    fly.style.transition='all .4s cubic-bezier(.4,0,.2,1)';
+    document.body.appendChild(fly);
+    // 階段 1：放大
+    requestAnimationFrame(()=>{
+      fly.style.fontSize='48px';
+      fly.style.transform='scale(1.2)';
+    });
+    // 階段 2：停頓後飛向敵人
+    setTimeout(()=>{
+      const hpBar=document.getElementById('battle-hp-fill');
+      if(hpBar){
+        const hr=hpBar.getBoundingClientRect();
+        fly.style.left=(hr.left+hr.width/2-30)+'px';
+        fly.style.top=(hr.top-10)+'px';
+        fly.style.fontSize='20px';
+        fly.style.opacity='0';
+        fly.style.transform='scale(.6)';
+      }
+    },600);
+    setTimeout(()=>fly.remove(),1300);
   },
   // 結束回合
   endTurn(){
@@ -7603,6 +7827,7 @@ const BATTLE={
     if(s.enemy.hp<=0){BATTLE.addLog('🎉 戰鬥已結束，請撤退');return;}
     s.turn++;
     s.invested=false;
+    s._drawnThisTurn=false;
     s.field=Array(8).fill(null);
     BATTLE.addLog(`── 回合 ${s.turn} ──`);
     BATTLE.render();
@@ -7630,14 +7855,29 @@ const BATTLE={
       if(!c.dataset.bid) c.classList.add('upgrade-glow');
     });
   },
+  _fieldDragSrc:null, // 正在從場上拖曳的格子 index
   onCardDragEnd(e){
     _battleDragging=null;
     document.querySelectorAll('#battle-field .cell').forEach(c=>{
       c.classList.remove('upgrade-glow');c.classList.remove('drag-over');
     });
   },
+  // 場上設施拖曳（重新排列）
+  onFieldCellDragStart(e,idx){
+    BATTLE._fieldDragSrc=idx;
+    _battleDragging=null; // 不是從手牌拖的
+    e.dataTransfer.setData('text/plain','field-'+idx);
+    e.dataTransfer.effectAllowed='move';
+    const cv=document.createElement('canvas');cv.width=1;cv.height=1;
+    e.dataTransfer.setDragImage(cv,0,0);
+    e.currentTarget.style.opacity='.4';
+  },
+  onFieldCellDragEnd(e){
+    BATTLE._fieldDragSrc=null;
+    document.querySelectorAll('#battle-field .cell').forEach(c=>{c.style.opacity='';c.classList.remove('drag-over');});
+  },
   onFieldDragOver(e,idx){
-    if(!_battleDragging) return;
+    if(!_battleDragging&&BATTLE._fieldDragSrc===null) return;
     e.preventDefault();
     e.currentTarget.classList.add('drag-over');
   },
@@ -7647,10 +7887,55 @@ const BATTLE={
   onFieldDrop(e,idx){
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
-    if(!_battleDragging||!_battleState) return;
-    if(_battleState.invested) return;
-    BATTLE.placeOnField(idx, _battleDragging);
-    _battleDragging=null;
+    if(!_battleState||_battleState.invested) return;
+    const s=_battleState;
+    // 場上設施互換
+    if(BATTLE._fieldDragSrc!==null){
+      const src=BATTLE._fieldDragSrc;
+      BATTLE._fieldDragSrc=null;
+      if(src!==idx){
+        const tmp=s.field[src];
+        s.field[src]=s.field[idx];
+        s.field[idx]=tmp;
+      }
+      BATTLE.render();
+      return;
+    }
+    // 手牌拖入
+    if(_battleDragging){
+      BATTLE.placeOnField(idx, _battleDragging);
+      _battleDragging=null;
+    }
+  },
+  // ── 拖曳：資源卡 → 投入箭頭 ──
+  _elDragging:false,
+  onElDragStart(e){
+    BATTLE._elDragging=true;
+    e.dataTransfer.setData('text/plain','battle-element');
+    e.dataTransfer.effectAllowed='move';
+    const cv=document.createElement('canvas');cv.width=1;cv.height=1;
+    e.dataTransfer.setDragImage(cv,0,0);
+    document.querySelectorAll('.battle-arrow-in').forEach(a=>a.style.cssText+=';border:2px dashed var(--acc);border-radius:6px;opacity:1;');
+  },
+  onElDragEnd(e){
+    BATTLE._elDragging=false;
+    document.querySelectorAll('.battle-arrow-in').forEach(a=>{a.style.border='';a.style.opacity='';a.classList.remove('drag-over');});
+  },
+  onInvestDragOver(e){
+    if(!BATTLE._elDragging) return;
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+    e.currentTarget.style.opacity='1';
+  },
+  onInvestDragLeave(e){
+    e.currentTarget.classList.remove('drag-over');
+  },
+  onInvestDrop(e){
+    e.preventDefault();
+    if(!BATTLE._elDragging) return;
+    BATTLE._elDragging=false;
+    document.querySelectorAll('.battle-arrow-in').forEach(a=>{a.style.border='';a.style.opacity='';a.classList.remove('drag-over');});
+    BATTLE.invest();
   },
   // ── 渲染 ──
   render(){
@@ -7658,22 +7943,25 @@ const BATTLE={
     const s=_battleState;
     // 回合資訊
     document.getElementById('battle-turn-info').textContent=`回合 ${s.turn}${s.invested?' — 已投入':''}`;
-    // 敵人
+    // 敵人 HP
     document.getElementById('battle-enemy-name').textContent=s.enemy.name;
-    document.getElementById('battle-enemy-emoji').textContent=s.enemy.emoji;
     const hpPct=Math.max(0,Math.round(s.enemy.hp/s.enemy.maxHp*100));
     document.getElementById('battle-hp-fill').style.width=hpPct+'%';
     document.getElementById('battle-hp-text').textContent=`${s.enemy.hp} / ${s.enemy.maxHp}`;
     // 戰場
     const fieldArea=document.getElementById('battle-field-area');
     let fh='<div style="display:flex;align-items:center;gap:3px;">';
-    fh+=`<div class="battle-arrow-in">→</div>`;
+    fh+=`<div class="battle-arrow-in"
+      ondragover="BATTLE.onInvestDragOver(event)" ondragleave="BATTLE.onInvestDragLeave(event)"
+      ondrop="BATTLE.onInvestDrop(event)">→</div>`;
     fh+=`<div id="battle-field" style="grid-template-columns:repeat(8,var(--cell))">`;
     for(let i=0;i<8;i++){
       const bId=s.field[i];
       const b=bId?BLDG[bId]:null;
+      const canInteract=!s.invested;
       fh+=`<div class="cell${b?' filled':''}" data-fi="${i}" ${b?`data-bid="${bId}"`:''}
-        onclick="${s.invested?'':`BATTLE.removeFromField(${i})`}"
+        ${canInteract&&b?`draggable="true" ondragstart="BATTLE.onFieldCellDragStart(event,${i})" ondragend="BATTLE.onFieldCellDragEnd(event)"`:''}
+        onclick="${canInteract?`BATTLE.removeFromField(${i})`:''}"
         ondragover="BATTLE.onFieldDragOver(event,${i})"
         ondragleave="BATTLE.onFieldDragLeave(event,${i})"
         ondrop="BATTLE.onFieldDrop(event,${i})">`;
@@ -7688,8 +7976,9 @@ const BATTLE={
     fh+=`</div>`;
     fieldArea.innerHTML=fh;
     // 按鈕狀態
+    document.getElementById('btn-battle-draw').style.opacity=(s.invested||s._drawnThisTurn)?'.4':'1';
     document.getElementById('btn-battle-invest').style.opacity=s.invested?'.4':'1';
-    document.getElementById('btn-battle-redraw').style.opacity=s.invested?'.4':'1';
+    document.getElementById('btn-battle-redraw').style.opacity=(s.invested||s.turn>1)?'.4':'1';
     // 記錄
     const logEl=document.getElementById('battle-log');
     logEl.innerHTML=s.log.map(l=>{
@@ -7732,11 +8021,14 @@ const BATTLE={
       const sinkY=Math.abs(frac)*14;
       const zi=i+1;
       if(card.type==='element'){
-        return `<div class="fan-card el-card-fan" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};">
+        const canInvest=!s.invested&&!(s._returnNeeded>0)&&s.enemy.hp>0;
+        return `<div class="fan-card el-card-fan" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};${canInvest?'cursor:grab;':'opacity:.4;'}"
+          ${canInvest?`draggable="true" ondragstart="BATTLE.onElDragStart(event)" ondragend="BATTLE.onElDragEnd(event)"`:''}
+          >
           <div class="fc-emoji">${card.emoji}</div>
           <div class="fc-val">${card.val}</div>
           <div class="fc-type">${card.name}</div>
-          <div class="fc-buff-desc fc-buff-idle">自動投入</div>
+          <div class="fc-buff-desc fc-buff-idle">拖曳到 → 投入</div>
         </div>`;
       }
       // 重抽返回模式：點擊返回
@@ -7749,9 +8041,8 @@ const BATTLE={
         </div>`;
       }
       // 一般模式：可拖曳到戰場（檢查可用數量）
-      const avail=BATTLE._availCount(card.id);
-      const canDrag=avail>0&&!s.invested;
-      return `<div class="fan-card" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};${canDrag?'cursor:grab;':'opacity:.4;cursor:default;'}"
+      const canDrag=!s.invested;
+      return `<div class="fan-card" style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi};${canDrag?'cursor:grab;':'cursor:default;'}"
         ${canDrag?`draggable="true" ondragstart="BATTLE.onCardDragStart(event,'${card.id}')" ondragend="BATTLE.onCardDragEnd(event)"`:''}
         >
         <div class="fc-emoji">${card.emoji}</div>
@@ -7911,6 +8202,7 @@ const DEV={
     h+=`<div class="dev-sec"><div class="dev-sec-title">🏗 設施</div>`;
     h+=`<div class="dev-row" title="隨機生成一張兩格黏合設施卡加入手牌" onclick="DEV.addRandomCompound();"><span class="de">🔗</span><span class="dn">隨機複合設施</span></div>`;
     h+=`<div class="dev-row" title="清除小鎮所有格子（含設施、廢墟、百貨公司資料）" onclick="DEV.clearGrid();"><span class="de">🗑️</span><span class="dn">清除小鎮所有設施</span></div>`;
+    h+=`<div class="dev-row" title="選取要清除的格子（可複選）" onclick="DEV.startSelectClear();"><span class="de">🎯</span><span class="dn">清除選定格子</span></div>`;
     h+=`<div style="display:flex;flex-wrap:wrap;">`;
     for(const[id,b] of Object.entries(BLDG)){
       if(id==='envy_factory'||id==='ruin'||id==='dept_store_part') continue;
@@ -8001,6 +8293,79 @@ const DEV={
     G.deptStoreParts={};
     addLog('🗑️ DEV：已清除小鎮所有設施（含廢墟）','b');
     render();
+  },
+  // ── 選定清除格子 ──
+  _selectClearCells:null,
+  startSelectClear(){
+    if(DEV._selectClearCells){addLog('⚠ 已在選取模式中','b');return;}
+    DEV._selectClearCells=new Set();
+    addLog('🎯 DEV：點擊格子選取要清除的設施，再點一次取消選取','w');
+    // 顯示確認/取消橫幅
+    const bar=document.createElement('div');
+    bar.id='dev-select-clear-bar';
+    bar.style.cssText='position:fixed;bottom:220px;left:50%;transform:translateX(-50%);z-index:9500;'+
+      'display:flex;gap:8px;padding:10px 18px;border-radius:12px;'+
+      'background:rgba(20,12,4,.92);box-shadow:0 4px 20px rgba(0,0,0,.4);';
+    bar.innerHTML=`
+      <span style="color:#ffd080;font-size:12px;font-weight:700;margin-right:8px;" id="dev-sc-count">已選：0</span>
+      <button onclick="DEV.confirmSelectClear()" style="padding:6px 16px;border-radius:8px;border:none;background:var(--acc);color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">✅ 確認清除</button>
+      <button onclick="DEV.cancelSelectClear()" style="padding:6px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#eee;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">✕ 取消</button>`;
+    document.body.appendChild(bar);
+    render();
+  },
+  toggleSelectCell(r,c){
+    if(!DEV._selectClearCells) return;
+    const key=`${r},${c}`;
+    if(DEV._selectClearCells.has(key)) DEV._selectClearCells.delete(key);
+    else DEV._selectClearCells.add(key);
+    // 更新計數
+    const cnt=document.getElementById('dev-sc-count');
+    if(cnt) cnt.textContent=`已選：${DEV._selectClearCells.size}`;
+    // 更新格子高亮
+    const cellEl=cellQ(r,c);
+    if(cellEl) cellEl.classList.toggle('dev-select-clear',DEV._selectClearCells.has(key));
+  },
+  confirmSelectClear(){
+    if(!DEV._selectClearCells) return;
+    const cells=[...DEV._selectClearCells];
+    cells.forEach(key=>{
+      const [r,c]=key.split(',').map(Number);
+      const bId=G.grid[r][c];
+      if(!bId) return;
+      // 百貨公司：整體清除
+      if(bId==='dept_store'){
+        for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
+          G.grid[r+dr][c+dc]=null;
+          const dk=`${r+dr},${c+dc}`;
+          KEYED_DATA_FIELDS.forEach(f=>{if(G[f])delete G[f][dk];});
+        }
+      } else if(bId==='dept_store_part'){
+        // 找到錨點整體清除
+        const anchor=G.deptStoreParts[key];
+        if(anchor){
+          const [ar,ac]=anchor.split(',').map(Number);
+          for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
+            G.grid[ar+dr][ac+dc]=null;
+            const dk=`${ar+dr},${ac+dc}`;
+            KEYED_DATA_FIELDS.forEach(f=>{if(G[f])delete G[f][dk];});
+          }
+        } else { G.grid[r][c]=null; }
+      } else {
+        G.grid[r][c]=null;
+        KEYED_DATA_FIELDS.forEach(f=>{if(G[f])delete G[f][key];});
+      }
+      if(G.ruinCells) G.ruinCells.delete(key);
+    });
+    rebuildDeptStore();
+    addLog(`🎯 DEV：已清除 ${cells.length} 個格子`,'b');
+    DEV.cancelSelectClear();
+    render();
+  },
+  cancelSelectClear(){
+    DEV._selectClearCells=null;
+    document.getElementById('dev-select-clear-bar')?.remove();
+    document.querySelectorAll('.dev-select-clear').forEach(c=>c.classList.remove('dev-select-clear'));
+    render();
   }
 };
 
@@ -8019,24 +8384,28 @@ SM.goto('title');
     <span id="battle-turn-info" class="ov-sub"></span>
     <button onclick="BATTLE.endBattle()">✕ 結束戰鬥</button>
   </div>
-  <div class="game-overlay-body">
-    <div id="battle-enemy">
-      <div class="be-name" id="battle-enemy-name">競爭對手</div>
-      <div class="be-emoji" id="battle-enemy-emoji">🏴‍☠️</div>
-      <div class="be-hp-bar"><div class="be-hp-fill" id="battle-hp-fill" style="width:100%"></div></div>
-      <div class="be-hp-text" id="battle-hp-text">100 / 100</div>
-    </div>
-    <div id="battle-field-area"></div>
-    <div id="battle-panel">
-      <div class="bp-title">⚔ 戰鬥控制</div>
-      <button class="bp-btn bp-primary" id="btn-battle-invest" onclick="BATTLE.invest()">💰 投入資源</button>
-      <button class="bp-btn" id="btn-battle-redraw" onclick="BATTLE.redraw()">🔄 重抽手牌</button>
-      <button class="bp-btn" id="btn-battle-endturn" onclick="BATTLE.endTurn()">⏩ 結束回合</button>
-      <button class="bp-btn bp-danger" onclick="BATTLE.endBattle()">🏳 撤退</button>
-      <div class="bp-title" style="margin-top:8px;">戰鬥記錄</div>
-      <div id="battle-log"></div>
-    </div>
+  <!-- 敵人立繪（背景） -->
+  <div id="battle-enemy-bg"><img src="img/LI_1.png" alt="競爭對手"></div>
+  <!-- HP 條（頂部） -->
+  <div id="battle-hp-area">
+    <div class="be-name" id="battle-enemy-name">競爭對手</div>
+    <div class="be-hp-bar"><div class="be-hp-fill" id="battle-hp-fill" style="width:100%"></div></div>
+    <div class="be-hp-text" id="battle-hp-text">100 / 100</div>
   </div>
+  <!-- 戰場 1×8（底部，手牌上方） -->
+  <div id="battle-field-wrap"><div id="battle-field-area"></div></div>
+  <!-- 控制面板（右側） -->
+  <div id="battle-panel">
+    <div class="bp-title">⚔ 戰鬥控制</div>
+    <button class="bp-btn" id="btn-battle-draw" onclick="BATTLE.drawExtra()">🃏 抽牌</button>
+    <button class="bp-btn bp-primary" id="btn-battle-invest" onclick="BATTLE.invest()">💰 投入資源</button>
+    <button class="bp-btn" id="btn-battle-redraw" onclick="BATTLE.redraw()">🔄 重抽手牌</button>
+    <button class="bp-btn" id="btn-battle-endturn" onclick="BATTLE.endTurn()">⏩ 結束回合</button>
+    <button class="bp-btn bp-danger" onclick="BATTLE.endBattle()">🏳 撤退</button>
+    <div class="bp-title" style="margin-top:8px;">戰鬥記錄</div>
+    <div id="battle-log"></div>
+  </div>
+  <!-- 手牌 -->
   <div id="battle-fan-area" class="game-overlay-fan"></div>
 </div>
 
