@@ -145,7 +145,7 @@
 | 激情惡魔 | 🔥 | 減少效果被逆轉為增加 | 超過 5 回合未遇減少效果，收益 -33% |
 | 嫉妒惡魔 | 💚 | 獲得嫉妒工廠（金錢→鑽石→×12） | 非鑽石進入嫉妒工廠時收益 -50% |
 | 貪婪惡魔 | 💰 | 每回合結束額外獲得收益 50% | 每輪開始目標 +50% |
-| 傲慢惡魔 | 👑 | 名稱含「惡魔」的合夥人負面效果不生效，每個惡魔 +10% | 無 |
+| 傲慢惡魔 | 👑 | 惡魔系（`isDemon:true`）合夥人負面效果不生效，每個惡魔 +10% | 無 |
 | 黑市商人 | 🕶️ | 每輪第一次商品→金錢×125% | 之後每次倍率 -0.5（最低×1） |
 | 爆破工程師 | 🧨 | 消耗 2 收益可主動摧毀設施 | 每輪目標 +10% |
 
@@ -394,7 +394,7 @@
 
 ## 技術細節
 
-- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~7458 行）
+- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~8441 行）
 - **無框架**：純 vanilla JS，直接操作 DOM
 - **字體**：Noto Sans TC（中文）、DM Mono（數值）
 - **配色**：暖色系牛皮紙風格，CSS 變數控制主題色
@@ -424,7 +424,7 @@ E:\VT\
 | EVENTS | 1283~1640 | 19 種隨機事件（含預計算 + 地震滑動機制） |
 | 格子修正 helper | 1642~1670 | applyRowColPctMod/apply2x2PctMod/flash 函數 |
 | newGame() | 1668~1720 | G 物件初始化（含 `inv:{}`） |
-| startRound() | 1724~1765 | 每輪開始（合夥人 hook、場風初始化） |
+| startRound() | 1724~1765 | 每輪開始（合夥人 onRoundStart hook → startTurn()） |
 | 事件系統 | 1869~1950 | triggerEvent/showEv/evDone/evPick/applyBuff |
 | tryPlaceAtCell() | 1969~2097 | 統一放置邏輯（click/drag 共用） |
 | onCell() | 2099~2185 | 格子點擊（模式分流 → tryPlaceAtCell） |
@@ -436,7 +436,7 @@ E:\VT\
 | 動態難度 | 3320~3358 | adjustDifficulty() |
 | 行動選項 | 3360~3540 | doAction/openActionOverlay |
 | 自由排列拖曳 | 3550~3655 | onRearrangeDrag 系列 |
-| startTurn() | 3657~3850 | 回合控制（稅務局、磁力板、爆破裝置、turnFacMoved 重置） |
+| startTurn() | 3657~3850 | 回合控制（防重入守衛、onTurnStart、稅務局、磁力板、爆破裝置、場風、turnFacMoved 重置） |
 | render / renderGrid() | 3972~4300 | 主渲染（event-preview 高亮 + cellPctMods） |
 | renderFanHand() | 4590~4750 | 扇形手牌 |
 | 工具函數群 | 4750~5220 | expandGrid/destroyFacility/swapCellData/onFacilityMoved/leyaUpgrade 等 |
@@ -1291,3 +1291,98 @@ E:\VT\
   - `SFX.settle()`：正收益結算，C5→E5→G5 琶音
 - **轉換收益按鈕動態文字**：可用時顯示 `🔄 轉換 +{值}`，懸停提示完整說明
 - **場風大師方向箭頭**：改為指向資源前進方向（從左投入 → 顯示 →）
+
+### Session 11（2026-04-15）— 全面審查 + Bug 修復 + 死碼清除
+
+#### 嚴重 Bug 修復
+
+- **普通移動模式不轉移格子附帶資料（嚴重）**：`onCell` 的 `moveMode` 分支只搬 `G.grid[r][c]`，未呼叫 `swapCellData()`，導致升級加成/蕾雅%/炸彈倒數/期貨%等 8 種 `KEYED_DATA_FIELDS` 遺留在舊格子。修復為改用 `swapCellData(sr,sc,r,c)` + `onFacilityMoved(r,c,sr,sc)`，一併觸發臨時工棚計數、拆遷補償局+1、地皮炒家+20 等連鎖效果
+- **`onTurnStart` 每輪第一回合觸發兩次（嚴重）**：`startRound()` 在 L2324 直接呼叫 `onTurnStart` 迴圈 + 場風設定 + tanya/actionOverlay，而 `startTurn()` 中也全部存在。第一回合的 `buy_fac`/`trig_ev` 行動路徑透過 `evPick`/`evDone` 再次呼叫 `startTurn()`，導致混沌建築師移動兩次設施並扣兩次 5% 收益。修復為移除 `startRound()` 中重複的 `onTurnStart`/場風/UI 邏輯，改為直接呼叫 `startTurn()`；在 `startTurn()` 開頭加入 `_lastStartedTurn` 防重入機制（以 `round*1000+turn` 為 key），同回合重複呼叫只執行 render + UI 顯示
+- **`destroyFacility` 未清理所有 keyed data（嚴重）**：只清除 `bldgUpgrades`/`leyaPctMods`/`cellOverlay`，遺漏 `bombTimers`/`tempShedMoves`/`logisticsVault`/`futuresPct`/`cellMods` 5 個欄位。修復為改用 `KEYED_DATA_FIELDS.forEach(f=>{ if(G[f]) delete G[f][key]; })` 統一清理。同步修復百貨公司 2×2 消滅路徑
+
+#### 中等 Bug 修復
+
+- **`isDemonNegDisabled` 用名稱子字串判定**：檢查 `name.includes('惡魔')`，但黑市商人（`isDemon:true`，名稱「黑市商人」）和爆破工程師（`isDemon:true`，名稱「爆破工程師」）不含「惡魔」字串，傲慢惡魔永遠無法豁免其負面效果。修復為改用 `p.isDemon` 判定
+- **廢墟掠奪者懲罰計算錯誤**：描述「超過 3 格每格 -2%」，但代碼用 `ruinCount*2` 而非 `(ruinCount-3)*2`，前 3 格「免費」廢墟也被計入懲罰。修復為 `(ruinCount-3)*2`
+- **`reviveSets` 跳過陣列**：`Array.isArray(o[k]) => continue`，若 Set 序列化為 `{_s:[...]}` 嵌套在陣列元素內，反序列化會失敗。修復為加入陣列元素遞迴處理
+- **`DM.onEvent` 只映射 9/19 個事件**：地震、危險廢棄物、譚雅/蕾雅的禮物、運輸異常、重大食安、勞工保險、莫菲定律、就業輔助、原料大降等 10 個事件的角色台詞永遠不會觸發。修復為自動從 title 生成 `event_` 鍵 + fallback 子字串匹配，取代硬編碼映射表
+- **扇形手牌元素卡重複 drag 屬性**：`ondragover`/`ondrop`/`ondragleave` 在 `dragAttrs` 和後面的字串各輸出一次，後者覆蓋前者。修復為加入 `!card.draggable` 條件，僅在非拖曳卡上補充屬性
+- **擁慶記賣出 ESC 監聽器洩漏**：`useYongqingSell` 的 keydown 監聽器只在按 ESC 時移除，正常賣出和點空格取消路徑均未移除，導致累積。修復為將監聽器存為 `G._yongqingSellEsc`，所有退出路徑統一 `removeEventListener`
+
+#### 死碼清除
+
+- 移除嫉妒惡魔空 `if` block：`if(hasPartner('envy')&&...){ if((G.inv.facHit||0)===0){} }` 完全無作用
+- 移除 `renderFanHand` 中 `card.type==='talent'` 渲染分支（人材卡已移至左面板，不在手牌陣列）
+- 移除 `dragAttrs` 中 `card.type==='talent'` 拖曳分支（同上）
+- 移除 CSS `@keyframes hwBomb`（無任何引用，實際用的是 `hwBoom`）
+- 統一 `renderGrid` 中 `GN()` 重複呼叫：`_gn` 和 `gn` 統一為 `gn=_gn`
+- 移除 `poverty_god.state` 和 `wrath.state` 死欄位（實際使用 `G.partnerState`）
+
+#### 一致性改善
+
+- **`yongqingSellCell` keyed data 清理**：手寫的 8 行個別 delete 改用 `KEYED_DATA_FIELDS.forEach`，與 `destroyFacility`/`swapCellData` 一致
+- **`yongqingSellCell` 百貨公司 2×2 清理**：同步改用 `KEYED_DATA_FIELDS.forEach`
+- **`deserializeGame` 重置 `_lastStartedTurn`**：確保讀檔後 `startTurn` 正常執行
+
+#### 巨型設施合夥人效果補全
+
+##### 問題
+`simFacilityPath` 為純數值模擬，完全不包含合夥人效果。`mega.partners` 僅作為檢視面板的展示資料，模擬收益與實際建立時的收益可能有顯著差異。
+
+##### 建立時快照擴充（`createMegaFacilityFromRun`）
+- 新增 `partnerState`：深拷貝合夥人專屬狀態（如黑市商人使用次數）
+- 新增 `talentCards`：人材數量（工會主席/勞工保險需要）
+- 新增 `ruinCells`：廢墟格子 Set（無冕之王需要），序列化為 `{_s:[...]}`
+
+##### `simFacilityPath` 路徑中效果（新增）
+| 效果 | 說明 |
+|------|------|
+| 暴食惡魔 | material↔goods 互換匹配 + 輸出互換 |
+| 嫉妒惡魔 | 進入嫉妒工廠前若已命中設施則中斷 |
+| 嫉妒工廠負面 | 非鑽石標記 `envyPen` |
+| 運輸異常 buff | 原料無法→商品時跳過 |
+| 原料大降/出口熱/颱風/食安/商品熱銷 buff | 類型轉換時套用倍率 |
+| 激情惡魔 | `cellMod<0` 時逆轉為正 |
+| 匯率波動板 | 通過時標記 `exchBoard` |
+
+##### `simFacilityPath` 結算效果（新增）
+| 效果 | 說明 |
+|------|------|
+| 慾望惡魔 `modifyFinish` | 2 設施×2 / >2 設施÷N |
+| 匯率波動板 | 隨機 ±3~15% |
+| 貪婪惡魔 `onSettle` | +50% |
+| 黑市商人 `onSettle` | 首次+25% |
+| 工會主席 `onSettle` | 3+人材+50% / <3人材-20% |
+| 運輸大亨 `onSettle` | 物流中心×3 / 無物流-50% |
+| 快遞達人 `onSettle` | 4+格+10% / <4格-50% |
+| 路線規劃師 `onSettle` | 物流<2時-30% |
+| 壟斷者 `onSettle` | 每3商店+5% / 不足-10%/個 |
+| 無冕之王 `onSettle` | 廢墟²/2 % |
+| 稅務局 | -10% |
+| 嫉妒工廠負面 | -50% |
+| 勞工保險 | 人材×2% |
+
+##### `simulateMegaFacility` 改善
+- 新增 `ruinCells` 反序列化（相容 `{_s:[...]}` 格式）
+
+##### `MEGA.sendMega` 改善
+- 改用 `result.profit`（含合夥人效果）取代手動計算的 `finalMoney-inputMoney`
+
+##### 設計決策
+- 合夥人效果為**模擬版**：不依賴 DOM 或全域 `G` 狀態，使用快照中的 `partners`/`partnerState`/`talentCards`/`buffs`
+- `_isDemonNeg` 使用本地 `_hasPride` 判定，不呼叫全域 `isDemonNegDisabled`
+- `onSettle` 為手寫簡化版（非呼叫原始 hook），避免修改全域狀態
+- 傲慢惡魔加成（每惡魔+10%）未模擬（需遍歷所有惡魔計數，複雜度較高且影響小）
+
+#### 巨型設施疊加設施（cellOverlay）補全
+
+##### 問題
+`createMegaFacilityFromRun` 未快照 `cellOverlay`，`simFacilityPath` 遇到 redirect 格直接跳過，疊加在物流中心上的設施效果（勞動轉換站×2、清倉拍賣場×4 等）在模擬中完全不觸發。
+
+##### 修復
+- **`createMegaFacilityFromRun`**：新增 `cellOverlay` 深拷貝快照
+- **`simFacilityPath`**：redirect 分支新增疊加設施處理
+  - 從 `gridCtx.cellOverlay` 取得疊加設施列表（相容 string/array 格式）
+  - 逐個檢查類型匹配（`ob.req`），有 `MEGA_SIM_FX` 走特效調度，否則走 `ob.fn` 基礎轉換
+  - 升級加成（`bldgUpgrades`）只套用一次（與 `stepWithMover` 一致）
+  - 每個疊加設施計入 `facHit`，影響終點站/快遞達人等計數
