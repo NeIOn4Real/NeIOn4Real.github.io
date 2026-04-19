@@ -1386,3 +1386,50 @@ E:\VT\
   - 逐個檢查類型匹配（`ob.req`），有 `MEGA_SIM_FX` 走特效調度，否則走 `ob.fn` 基礎轉換
   - 升級加成（`bldgUpgrades`）只套用一次（與 `stepWithMover` 一致）
   - 每個疊加設施計入 `facHit`，影響終點站/快遞達人等計數
+
+### Session 12（2026-04-20）— 新合夥人機制 Excel 同步 + 關鍵 Bug 修 + 2×2 保護
+
+依據 `新合夥人機制.xlsx` 的設計調整，先在舊基底做了一輪後發現本地落後遠端 14 個 commit（含 battle system、industrialization 等），備份為 `backup-pre-sync` 分支後 `git reset --hard origin/main` 重置，再於最新 `1c4ec3f` 上重新套用。
+
+#### PARTNERS 文字同步（pos/neg/desc）
+更新以下合夥人的顯示文字以對齊 Excel 設計（多數機制碼保留，僅文字）：
+- **人力**：人力仲介（每回合+4人材）、工會主席（8+人材時+2人材）、勞動部長（最終失半+4）、人力資源總監（每2人材+2）
+- **物流**：倉儲女王（可2層疊加）、路線規劃師、快遞達人（通過4格後每格+4）
+- **貿易**：外匯交易員（金錢→金錢+4/-2）、套利者（+2永久累積）、壟斷者（4商店/+6）
+- **拆遷**：地皮炒家（空格+4）、爆破工程師（失收益+8消滅）、混沌建築師（最多8設施交換）、廢墟掠奪者（第一次投廢墟-4/-6）、無冕之王（投廢墟+2累積）、擁慶記房屋（賣+2永久）
+- **中央/起始**：市長（每觸發+8）、阿北（1設施疊加）、譚雅（換更高稀有度）、蕾雅（疊加永久+2）、facility_destroyer（消滅+4）、貧窮神（+8累積，onSettle 機制同步）
+
+#### BLDG desc 同步（未動 fn 平衡數值）
+- **物流**：螺旋物流站、終點站、物流放大器、轉運中心、速遞站、物流倉、環境感應站
+- **貿易**：外貿港口、匯率波動板、期貨交易所、貿易特區、清倉拍賣場、進出口稅站
+- **拆遷**：爆破裝置、建築廢料廠、臨時工棚、磁力板、廢墟紀念碑、拆遷補償局、動態加強器、地基不穩定站
+- **人力**：人力訓練中心、勞動轉換站、人材倉庫、人才市場、加班辦公室、人力銀行、派遣總部、集體罷工台
+- **中央**：貿易代理、科技研發、百貨公司
+
+#### 6 個關鍵 Bug 修復（文字與程式碼直接矛盾）
+
+| 設施/合夥人 | 修復位置 | 變更 |
+|-------------|---------|------|
+| `facility_destroyer` | `destroyFacility` 兩處 | +50 → +4（含 log / profitFly） |
+| `demolish_bureau` | `FACILITY_FX` + `onFacilityMoved` | +1 → +4（log + profit） |
+| `magnet_plate` | `startTurn` 交換邏輯 | 新增：被交換設施 `cellMods +2` |
+| `ruin_monument` | fn + special handler | 固定 +5 → 廢墟數 ×4（fn 顯示 +4 tooltip） |
+| `env_sensor` | `FACILITY_FX.env_sensor` | 每設施 +1 → 每設施 +2 |
+| `terminal` | `FACILITY_FX.terminal` | facHit×2 → facHit×4 |
+
+#### 百貨公司（2×2）結構保護
+防止 dept_store/dept_store_part 被移動造成 2×2 斷裂：
+- **chaos_architect**：`filled` 過濾排除 dept_store/part
+- **magnet_plate**：adjacent filter 排除 dept_store/part
+- **Rearrange 拖曳**：`onRearrangeDragStart` 擋住源為 dept_store/part；`onRearrangeDrop` 擋住目標為 dept_store/part
+
+#### chaos_architect ruinCells 幽靈項修復
+`wasRuin=true` 時 `swapCellData` 會把 'ruin' 放到來源格，ruinCells 新增一條記錄；接著 `G.grid[fr][fc]=null` 卻沒同步 `ruinCells.delete(fr,fc)`，造成幽靈廢墟。已補上 delete。
+
+#### poverty_god onSettle 機制同步
+從「收益為 0 時 +bonus（初始 1，每次 ++）」改為「+8 起跳，每次 +8 累積；收益 >0 時清空回 8」，與 Excel 設計一致。
+
+#### 未處理（需後續）
+- 大部分合夥人/設施的文字與實際機制碼仍有落差（如壟斷者 4 商店規則、套利者永久 +2、匯率波動板 ±2×設施數、外匯交易員每投入觸發 2 次 等）— 僅同步 desc/pos/neg 文字，觸發邏輯需個別改寫
+- Excel 新增的 11 位合夥人與 26 項設施因無對應台詞暫時略過，名單見 `新合夥人_無台詞名單.md`
+- 疊加設施（cellOverlay）被消滅時 `facility_destroyer` 不觸發 — 設計一致性議題
