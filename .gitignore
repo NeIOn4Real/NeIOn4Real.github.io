@@ -1,8 +1,13 @@
-# 第三方參考框架（不納入版控）
-實作規格/Claude-Code-Game-Studios-main/
-
 # Claude Code 本地設定
 .claude/
+CLAUDE.md
+
+# 設計稿原檔
+新合夥人表.xlsx
+VentureTown_企劃書.xlsx
+
+# 第三方參考框架
+實作規格/Claude-Code-Game-Studios-main/
 
 # 系統檔案
 .DS_Store
