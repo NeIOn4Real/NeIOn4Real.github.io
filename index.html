@@ -1038,18 +1038,18 @@ const SFX=(()=>{
 // 設施資料庫
 // ══════════════════════════════════════
 const BLDG = {
-  mat_factory:{ name:'原料廠', emoji:'⛏️', desc:'金錢→原料 +2', req:'money',    out:'material', fn:v=>v+2 },
-  factory:    { name:'工廠',   emoji:'🏭', desc:'原料→商品 +2', req:'material', out:'goods',    fn:v=>v+2 },
-  shop:       { name:'商店',   emoji:'🏪', desc:'商品→金錢 +2', req:'goods',    out:'money',    fn:v=>v+2, isShop:true },
+  mat_factory:{ name:'原料廠', emoji:'⛏️', desc:'金錢→原料 +2。', req:'money',    out:'material', fn:v=>v+2 },
+  factory:    { name:'工廠',   emoji:'🏭', desc:'原料→商品 +2。', req:'material', out:'goods',    fn:v=>v+2 },
+  shop:       { name:'商店',   emoji:'🏪', desc:'商品→金錢 +2。', req:'goods',    out:'money',    fn:v=>v+2, isShop:true },
   small_shop: { name:'小型販售商', emoji:'🛍️', desc:'視為商店。商品→金錢+2；金錢→商品→金錢+4', req:'any', out:'money', fn:v=>v, special:'small_shop', isShop:true },
   scalper:    { name:'黃牛販子', emoji:'🎫', desc:'視為商店。商品→金錢→商品(-10%)', req:'goods', out:'goods', fn:v=>v, special:'scalper', isShop:true },
   bulk_store: { name:'量販店', emoji:'🛒', desc:'視為商店。商品→金錢(+50%,上限10×輪數)→商品', req:'goods', out:'goods', fn:v=>v, special:'bulk_store', isShop:true },
-  dept_store: { name:'百貨公司', emoji:'🏬', desc:'大型商店（2×2，需蓋在2×2商店上；不會被消滅）。商品→金錢+8→商品+8→金錢+8', req:'goods', out:'money', fn:v=>v, special:'dept_store', isShop:true, needs2x2:true },
+  dept_store: { name:'百貨公司', emoji:'🏬', desc:'大型。商店。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。只能蓋在 2×2 商店上，此設施視為 4 商店。商品→金錢+8→商品+8→金錢+8', req:'goods', out:'money', fn:v=>v, special:'dept_store', isShop:true, needs2x2:true },
   dept_store_part:{ name:'百貨公司', emoji:'🏬', desc:'百貨公司的一部分', req:null, out:null, fn:v=>v, special:'dept_store_part', isShop:true },
-  refinery:   { name:'精煉廠', emoji:'🔩', desc:'原料→原料 +4', req:'material', out:'material', fn:v=>v+4 },
-  warehouse:  { name:'倉庫',   emoji:'📦', desc:'商品→商品 +4', req:'goods',    out:'goods',    fn:v=>v+4 },
-  booster:    { name:'增幅器', emoji:'⚡', desc:'任意 +4',      req:'any',      out:null,       fn:v=>v+4 },
-  converter:  { name:'轉化器', emoji:'🔄', desc:'任意→金錢',    req:'any',      out:'money',    fn:v=>v   },
+  refinery:   { name:'精煉廠', emoji:'🔩', desc:'原料→原料 +4。', req:'material', out:'material', fn:v=>v+4 },
+  warehouse:  { name:'倉庫',   emoji:'📦', desc:'商品→商品 +4。', req:'goods',    out:'goods',    fn:v=>v+4 },
+  booster:    { name:'增幅器', emoji:'⚡', desc:'任意 +4。',      req:'any',      out:null,       fn:v=>v+4 },
+  converter:  { name:'轉化器', emoji:'🔄', desc:'任意→金錢。',    req:'any',      out:'money',    fn:v=>v   },
 
   // ── 累積人力流設施 ──
   talent_training:{ name:'人力訓練中心', emoji:'🎓', desc:'回合開始時獲得人材 +1', req:'any', out:null, fn:v=>v, special:'talent_training' },
@@ -1062,12 +1062,12 @@ const BLDG = {
   strike_board:   { name:'集體罷工台',   emoji:'📢', desc:'投入資源時失去一半人材，每個 +8', req:'any', out:null, fn:v=>v, special:'strike_board' },
 
   // ── 物流中心流設施 ──
-  spiral_hub:     { name:'螺旋物流站',   emoji:'🔄', desc:'商品→商品。資源投入時，之前每通過 1 個設施，這個設施 +2', req:'any', out:null, fn:v=>v, special:'spiral_hub' },
-  terminal:       { name:'終點站',       emoji:'🏁', desc:'任意→任意。資源投入時，之前每通過 1 個設施，這個設施 +4', req:'any', out:null, fn:v=>v, special:'terminal' },
-  logistics_amp:  { name:'物流放大器',   emoji:'📡', desc:'任意→任意。資源投入時，下一設施這回合 +8', req:'any', out:null, fn:v=>v, special:'logistics_amp' },
+  spiral_hub:     { name:'螺旋物流站',   emoji:'🔄', desc:'商品→商品。資源投入時，之前每通過 1 個設施，這個設施獲得+2收益。', req:'any', out:null, fn:v=>v, special:'spiral_hub' },
+  terminal:       { name:'終點站',       emoji:'🏁', desc:'任意→任意。資源投入時，之前每通過 1 個設施，這個設施獲得+4。', req:'any', out:null, fn:v=>v, special:'terminal' },
+  logistics_amp:  { name:'物流放大器',   emoji:'📡', desc:'任意→任意。資源投入時，下一設施這回合獲得+8。', req:'any', out:null, fn:v=>v, special:'logistics_amp' },
   transfer_hub:   { name:'轉運中心',     emoji:'🔀', desc:'放置時變成物流中心，可決定方向', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
   speed_station:  { name:'速遞站',       emoji:'⚡', desc:'資源投入時，若下一格有設施，使其立即再投入一次', req:'any', out:null, fn:v=>v, special:'speed_station' },
-  logistics_vault:{ name:'物流倉',       emoji:'🏪', desc:'資源投入時獲得1物流計數，計數≥3時獲得+8收益', req:'any', out:null, fn:v=>v, special:'logistics_vault' },
+  logistics_vault:{ name:'物流倉',       emoji:'🏪', desc:'資源投入時，這個設施獲得1個物流計數。當物流計數大於等於3時，獲得+8收益。', req:'any', out:null, fn:v=>v, special:'logistics_vault' },
   env_sensor:     { name:'環境感應站',   emoji:'📊', desc:'資源投入時，周圍4格每有1個設施 +2', req:'any', out:null, fn:v=>v, special:'env_sensor' },
 
   // ── 貿易流設施 ──
@@ -1102,32 +1102,32 @@ const BLDG = {
   tax_office:{ name:'稅務局', emoji:'🏛', desc:'每回合開始隨機設施升級，最終收益-10%', req:'any', out:null, fn:v=>v, special:'tax_office' },
 
   // ── 基礎升級設施（R 級）──
-  adv_mat_factory:{ name:'高級原料廠', emoji:'⛏️', desc:'金錢→原料 +4', req:'money', out:'material', fn:v=>v+4 },
-  adv_factory:    { name:'高級工廠',   emoji:'🏭', desc:'原料→商品 +4', req:'material', out:'goods', fn:v=>v+4 },
-  convenience:    { name:'超商', emoji:'🏪', desc:'商店。商品→金錢+4；原料→金錢+4', req:'any', out:'money', fn:v=>v, special:'convenience', isShop:true },
-  chem_refinery:  { name:'化工精煉廠', emoji:'🔩', desc:'原料→原料 +6', req:'material', out:'material', fn:v=>v+6 },
-  adv_warehouse:  { name:'高級倉庫',   emoji:'📦', desc:'商品→商品 +6', req:'goods', out:'goods', fn:v=>v+6 },
-  adv_booster:    { name:'強化增幅裝置', emoji:'⚡', desc:'任意+4。周圍設施獲得+2', req:'any', out:null, fn:v=>v+4, special:'adv_booster' },
-  adv_converter:  { name:'高級轉化器', emoji:'🔄', desc:'任意→金錢 +4', req:'any', out:'money', fn:v=>v+4 },
+  adv_mat_factory:{ name:'高級原料廠', emoji:'⛏️', desc:'金錢→原料 +4。', req:'money', out:'material', fn:v=>v+4 },
+  adv_factory:    { name:'高級工廠',   emoji:'🏭', desc:'原料→商品 +4。', req:'material', out:'goods', fn:v=>v+4 },
+  convenience:    { name:'超商', emoji:'🏪', desc:'商店。商品→金錢 +4。原料→金錢 +4。', req:'any', out:'money', fn:v=>v, special:'convenience', isShop:true },
+  chem_refinery:  { name:'化工精煉廠', emoji:'🔩', desc:'原料→原料 +6。', req:'material', out:'material', fn:v=>v+6 },
+  adv_warehouse:  { name:'高級倉庫',   emoji:'📦', desc:'商品→商品 +6。', req:'goods', out:'goods', fn:v=>v+6 },
+  adv_booster:    { name:'強化增幅裝置', emoji:'⚡', desc:'任意+4。周圍設施獲得 +2。', req:'any', out:null, fn:v=>v+4, special:'adv_booster' },
+  adv_converter:  { name:'高級轉化器', emoji:'🔄', desc:'任意→金錢 +4。', req:'any', out:'money', fn:v=>v+4 },
 
   // ── 中央系設施 ──
-  center_trade:   { name:'中央貿易代理', emoji:'🌐', desc:'中央。僅中央。金錢→原料+4；原料→金錢+4；商品→金錢+4', req:'any', out:null, fn:v=>v, special:'center_trade', centerOnly:true },
-  center_tech:    { name:'中央科技研發', emoji:'🔬', desc:'中央。僅中央。原料→商品+8；商品→商品+8', req:'any', out:null, fn:v=>v, special:'center_tech', centerOnly:true },
-  center_factory_bureau:{ name:'中央工廠監督局', emoji:'🏭', desc:'中央。僅中央。此回合沒有投入時，每經過一個工廠+2', req:'any', out:null, fn:v=>v, special:'center_factory_bureau', centerOnly:true },
-  center_shop_bureau:   { name:'中央商店監督局', emoji:'🏪', desc:'中央。僅中央。此回合沒有投入時，每經過一個商店+2', req:'any', out:null, fn:v=>v, special:'center_shop_bureau', centerOnly:true },
-  center_mat_bureau:    { name:'中央原料監督局', emoji:'⛏️', desc:'中央。僅中央。此回合沒有投入時，每經過一個原料廠+2', req:'any', out:null, fn:v=>v, special:'center_mat_bureau', centerOnly:true },
-  center_elec_net:{ name:'中央電子網路', emoji:'🔌', desc:'中央。電子。僅中央。可將中央建築蓋在此設施上', req:'any', out:null, fn:v=>v, special:'center_elec_net', centerOnly:true },
+  center_trade:   { name:'中央貿易代理', emoji:'🌐', desc:'中央。僅能蓋在中央格子。金錢→原料+4。原料→金錢+4。商品→金錢+4。', req:'any', out:null, fn:v=>v, special:'center_trade', centerOnly:true },
+  center_tech:    { name:'中央科技研發', emoji:'🔬', desc:'中央。僅能蓋在中央格子。原料→商品+8。商品→商品+8。', req:'any', out:null, fn:v=>v, special:'center_tech', centerOnly:true },
+  center_factory_bureau:{ name:'中央工廠監督局', emoji:'🏭', desc:'中央。僅能蓋在中央格子。此回合沒有資源投入時，每經過一個工廠，最終收益獲得+2。', req:'any', out:null, fn:v=>v, special:'center_factory_bureau', centerOnly:true },
+  center_shop_bureau:   { name:'中央商店監督局', emoji:'🏪', desc:'中央。僅能蓋在中央格子。此回合沒有資源投入時，每經過一個商店，最終收益獲得+2。', req:'any', out:null, fn:v=>v, special:'center_shop_bureau', centerOnly:true },
+  center_mat_bureau:    { name:'中央原料監督局', emoji:'⛏️', desc:'中央。僅能蓋在中央格子。此回合沒有資源投入時，每經過一個原料廠，最終收益獲得+2。', req:'any', out:null, fn:v=>v, special:'center_mat_bureau', centerOnly:true },
+  center_elec_net:{ name:'中央電子網路', emoji:'🔌', desc:'中央。電子。僅能蓋在中央格子。你可以將中央建築蓋在此設施上。', req:'any', out:null, fn:v=>v, special:'center_elec_net', centerOnly:true },
 
   // ── 電子系設施 ──
-  mega_elec_supply:{ name:'大型電子供給站', emoji:'🔋', desc:'大型。電子。金錢→原料+4；商品→原料+4。每回合開始自動設置一個', req:'any', out:'material', fn:v=>v+4, special:'mega_elec_supply', needs2x2:true },
-  elec_factory:   { name:'電子工廠', emoji:'⚡', desc:'電子。原料投入時，場上每有一個電子設施，永久+2', req:'material', out:'material', fn:v=>v, special:'elec_factory' },
-  elec_conveyor:  { name:'電子輸送帶', emoji:'⚡', desc:'電子。原料投入時，下一個電子設施永久+2', req:'material', out:'material', fn:v=>v, special:'elec_conveyor' },
-  elec_shop:      { name:'電子商店', emoji:'⚡', desc:'電子。金錢→原料；商品→原料；原料→金錢+2', req:'any', out:null, fn:v=>v, special:'elec_shop' },
+  mega_elec_supply:{ name:'大型電子供給站', emoji:'🔋', desc:'大型。電子。金錢→原料+4。商品→原料+4。每回合開始時，這個設施將自動設置一個大型電子供給站於自身。', req:'any', out:'material', fn:v=>v+4, special:'mega_elec_supply', needs2x2:true },
+  elec_factory:   { name:'電子工廠', emoji:'⚡', desc:'電子。原料投入時，場上每有一個電子設施，這個設施設置時永久獲得+2。', req:'material', out:'material', fn:v=>v, special:'elec_factory' },
+  elec_conveyor:  { name:'電子輸送帶', emoji:'⚡', desc:'電子。原料投入時，下一個投入的設施若為電子，使其永久獲得+2。', req:'material', out:'material', fn:v=>v, special:'elec_conveyor' },
+  elec_shop:      { name:'電子商店', emoji:'⚡', desc:'電子。金錢→原料。商品→原料。原料→金錢+2。', req:'any', out:null, fn:v=>v, special:'elec_shop' },
 
   // ── 大型設施（2×2）──
-  giant_village:  { name:'巨人村', emoji:'🏰', desc:'大型。佔2×2，不會被消滅。回合開始人材歸0，獲得+8人材', req:'any', out:null, fn:v=>v, special:'giant_village', needs2x2:true, isLarge:true, indestructible:true },
-  ancient_factory:{ name:'古代的機械工廠', emoji:'🏛', desc:'大型工廠。佔2×2，不會被消滅。工廠被投入+8。原料→商品', req:'material', out:'goods', fn:v=>v, special:'ancient_factory', needs2x2:true, isLarge:true, indestructible:true },
-  world_wonder:   { name:'世界奇觀', emoji:'🏟', desc:'大型。佔2×2，不會被消滅。最終收益每有一個人材+8', req:'any', out:null, fn:v=>v, special:'world_wonder', needs2x2:true, isLarge:true, indestructible:true },
+  giant_village:  { name:'巨人村', emoji:'🏰', desc:'大型。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。回合開始時，你的人材為0，獲得+8人材。', req:'any', out:null, fn:v=>v, special:'giant_village', needs2x2:true, isLarge:true, indestructible:true },
+  ancient_factory:{ name:'古代的機械工廠', emoji:'🏛', desc:'大型。工廠。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。只能蓋在 2×2 工廠上，此設施視為 4 工廠。所有的工廠被投入時，獲得+8。原料→商品。', req:'material', out:'goods', fn:v=>v, special:'ancient_factory', needs2x2:true, isLarge:true, indestructible:true },
+  world_wonder:   { name:'世界奇觀', emoji:'🏟', desc:'大型。這個設施佔用2*2的格子，不會被消滅。小鎮中只能存在一個大型設施。最終收益時，你每有一個人材，獲得+8。', req:'any', out:null, fn:v=>v, special:'world_wonder', needs2x2:true, isLarge:true, indestructible:true },
 
   // ── 拆遷系新設施 ──
   mobile_city:    { name:'移動都市', emoji:'🏙', desc:'每回合可自由移動周圍8格設施。回合結束未投入廢墟收益歸0', req:'any', out:null, fn:v=>v, special:'mobile_city' },
@@ -1135,7 +1135,7 @@ const BLDG = {
   disaster_bureau:{ name:'災害控管局', emoji:'🛡', desc:'回合結束每消滅一個設施+4收益。此設施不會被消滅', req:'any', out:null, fn:v=>v, special:'disaster_bureau', indestructible:true },
 
   // ── 物流系新設施 ──
-  logistics_hub:  { name:'物流轉運中心', emoji:'🔀', desc:'放置時變成物流中心，可決定方向', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
+  logistics_hub:  { name:'物流轉運中心', emoji:'🔀', desc:'放置時變成物流中心，你可以決定其方向。', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
   logistics_vault_v2:{ name:'物流倉', emoji:'📦', desc:'資源投入時獲得1物流計數。計數≥3時獲得+8收益', req:'any', out:null, fn:v=>v, special:'logistics_vault_v2' },
 
   // ── 人力系新設施 ──
@@ -1148,8 +1148,8 @@ const BLDG = {
 const PARTNERS = {
   poverty_god: {
     id:'poverty_god', name:'貧窮神', emoji:'🪙', isDemon:true,
-    pos:'最終收益為0時 +8 收益，之後效果永久 +8',
-    neg:'收益 >0 時，此效果清空',
+    pos:'最終收益時，如果收益為0，則獲得收益 +8，之後使這個效果 +8。',
+    neg:'如果本回合獲得的收益大於0，則清空這個效果。',
     desc:'貧窮神',
     onSettle(G, profit, el){
       const st = G.partnerState.poverty_god || { bonus:8 };
@@ -1281,7 +1281,7 @@ const PARTNERS = {
   },
   shop_owner: {
     id:'shop_owner', name:'基礎商店老闆', emoji:'🏪',
-    pos:'資源每次經過商店 +1 收益',
+    pos:'資源每次經過商店系設施 +1 收益',
     neg:'無',
     desc:'基礎商店老闆',
     onBuildingHit(G, bId){ if(isShopType(bId)){ G.profit+=1; } }
@@ -1297,18 +1297,18 @@ const PARTNERS = {
   // ── 累積人力流合夥人 ──
   labor_broker: {
     id:'labor_broker', name:'人力仲介', emoji:'📋',
-    pos:'回合開始時獲得人材 +4', neg:'無', desc:'人力仲介',
+    pos:'回合開始時，獲得人材 +4。', neg:'無', desc:'人力仲介',
     onTurnStart(G){ G.talentCards=(G.talentCards||0)+4; addLog('📋 人力仲介：+4人材','g'); if(typeof renderTalentPanel==='function') renderTalentPanel(); },
   },
   union_chief: {
     id:'union_chief', name:'工會主席', emoji:'✊',
-    pos:'持有8+人材時，每次投入人材使其額外投入+2人材', neg:'無', desc:'工會主席',
+    pos:'持有8個人材以上時，每次將人材投入設施時，使其額外投入人材+2。', neg:'無', desc:'工會主席',
     // 效果在人材拖曳系統（onTalentDrop/onTalentDropCell）中實作：
     // 持有8+人材時，每次投入人材額外 +2 人材（即 elementExtraUses += 2）
   },
   labor_minister: {
     id:'labor_minister', name:'勞動部長', emoji:'🎩',
-    pos:'最終收益時失去一半人材，每失去一個 +4', neg:'無', desc:'勞動部長',
+    pos:'最終收益時，失去一半人材，每失去一個獲得+4。', neg:'無', desc:'勞動部長',
     onSettle(G, profit, el){
       const talents=G.talentCards||0;
       if(talents<=0) return;
@@ -1324,7 +1324,7 @@ const PARTNERS = {
   },
   hr_director: {
     id:'hr_director', name:'人力資源總監', emoji:'👔',
-    pos:'每投入2人材，最終收益+2', neg:'無', desc:'人力資源總監',
+    pos:'每投入2人材，最終收益+2。', neg:'無', desc:'人力資源總監',
     onSettle(G, profit, el){
       const used=G._hrTalentUsedCount||0;
       const pairs=Math.floor(used/2);
@@ -1366,7 +1366,7 @@ const PARTNERS = {
   },
   express_master: {
     id:'express_master', name:'快遞達人', emoji:'🚀',
-    pos:'通過4個格子後，每通過一個格子 +4 收益', neg:'無', desc:'快遞達人',
+    pos:'通過4個格子之後，每通過一個格子獲得+4收益。', neg:'無', desc:'快遞達人',
     onSettle(G, profit, el){
       const hits=G.inv.facHit||0;
       if(hits>4){
@@ -1382,7 +1382,7 @@ const PARTNERS = {
   // ── 貿易流合夥人 ──
   forex_trader: {
     id:'forex_trader', name:'外匯交易員', emoji:'💹',
-    pos:'金錢→金錢 +4 或 -2（每投入金錢觸發2次）', neg:'無', desc:'外匯交易員',
+    pos:'金錢→金錢+4 或者 -2 。此回合每投入一次金錢，這個效果就觸發2次。', neg:'無', desc:'外匯交易員',
     onSettle(G, profit, el){
       // 每次投入金錢時觸發2次：隨機+4或-2
       const moneyInputs=G.inv._forexMoneyCount||0;
@@ -1412,7 +1412,7 @@ const PARTNERS = {
   },
   arbitrageur: {
     id:'arbitrageur', name:'套利者', emoji:'⚖️',
-    pos:'金錢→商品且商品→金錢時，該數值+2，並使效果永久+2', neg:'原料→商品不會增加數值', desc:'套利者',
+    pos:'此回合金錢→商品且商品→金錢時，使那個數值+2，之後使這個效果永久+2。', neg:'你的原料→商品不會增加數值。', desc:'套利者',
     onSettle(G, profit, el){
       const hadBoth=G.inv.arbM2G&&G.inv.arbG2M;
       if(hadBoth){
@@ -1428,7 +1428,7 @@ const PARTNERS = {
   },
   monopolist: {
     id:'monopolist', name:'壟斷者', emoji:'🎩',
-    pos:'至少4商店時，每有一個商店最終收益 +6', neg:'少於4商店時，所有商店不參與投入', desc:'壟斷者',
+    pos:'小鎮上至少有4個商店時，每擁有一個商店，在最終收益時獲得額外+6收益。', neg:'當小鎮的商店小於4時，所有商店不參與投入。', desc:'壟斷者',
     onSettle(G, profit, el){
       const shopCount=countAllShops();
       if(shopCount>=4){
@@ -1444,13 +1444,13 @@ const PARTNERS = {
   // ── 拆遷流合夥人 ──
   land_speculator: {
     id:'land_speculator', name:'地皮炒家', emoji:'🏚️',
-    pos:'每次格子變成空格時，該格子永久 +4', neg:'無', desc:'地皮炒家',
+    pos:'每次有格子變成空格時，該格子永久獲得 +4。', neg:'無', desc:'地皮炒家',
     // 正面：設施移走/消滅產生空格時在 onFacilityMoved/destroyFacility 中 cellMods +4
     // 負面已移除（舊：>3回合未移動-1）
   },
   demolition_expert: {
     id:'demolition_expert', name:'爆破工程師', emoji:'🧨', isDemon:true,
-    pos:'每回合可失去收益 8，立即消滅一個設施或廢墟（不產生廢墟）', neg:'每輪目標+10%', desc:'爆破工程師',
+    pos:'每回合，你可以失去收益 +8，立即消滅一個設施或廢墟，使其不產生廢墟。', neg:'每輪目標+10%', desc:'爆破工程師',
     onRoundStart(G){
       if(isDemonNegDisabled('demolition_expert')) return;
       G.goal=Math.ceil(G.goal*1.1);
@@ -1459,7 +1459,7 @@ const PARTNERS = {
   },
   chaos_architect: {
     id:'chaos_architect', name:'混沌建築師', emoji:'🌀',
-    pos:'每回合隨機使最多8個設施交換位置（可移動廢墟）', neg:'被移動時 -5% 收益', desc:'混沌建築師',
+    pos:'每回合隨機使最多8個設施交換位置，視為它們進行移動，此效果可以移動廢墟。', neg:'被移動時 -5% 收益', desc:'混沌建築師',
     onTurnStart(G){
       // 收集所有可交換的格子（設施+廢墟，排除百貨公司2×2）
       const candidates=[];
@@ -1495,14 +1495,14 @@ const PARTNERS = {
   },
   ruin_scavenger: {
     id:'ruin_scavenger', name:'廢墟掠奪者', emoji:'💀',
-    pos:'每回合第一次投入廢墟時，資源 -4 或 -6，之後按照那個數量重疊廢墟至其格子上',
+    pos:'每回合第一次投入時，若為投入廢墟，使資源獲得-4或-6。之後按照那個數量獲得並重疊廢墟至其格子上。',
     neg:'無', desc:'廢墟掠奪者',
     // 效果在 stepWithMover（廢墟通過時）實作
   },
 
   uncrowned_king: {
     id:'uncrowned_king', name:'無冕之王', emoji:'👑',
-    pos:'此回合投入廢墟時，每次投入前使所有廢墟收益 +2（累積）',
+    pos:'此回合，投入廢墟時，每次投入廢墟前，使所有廢墟獲得收益+2。',
     neg:'無',
     desc:'無冕之王',
     // 效果在 stepWithMover（廢墟通過時）實作：
@@ -1518,7 +1518,7 @@ const PARTNERS = {
   },
   yongqing_house: {
     id:'yongqing_house', name:'擁慶記房屋', emoji:'🏠',
-    pos:'每回合可賣出一個設施（不產生廢墟），獲得 +2 收益；每次賣出使效果永久 +2',
+    pos:'每回合可賣出一個設施（不產生廢墟），獲得收益 +2。每次這個效果賣出設施，使這個效果永久+2。',
     neg:'無',
     desc:'擁慶記房屋',
     // bonus = 2 起跳，每次賣出永久 +2（存在 partnerState.yongqing_house.bonus）
@@ -1556,7 +1556,7 @@ const PARTNERS = {
   },
   mayor: {
     id:'mayor', name:'市長', emoji:'🎖',
-    pos:'最終收益時，每有一個設置在中央的設施或中央合夥人觸發效果，+8 收益',
+    pos:'最終收益時，每有一個設置在中央的設施或中央合夥人觸發效果，最終收益+8。',
     neg:'無',
     desc:'市長',
     onSettle(G, profit, el){
@@ -1618,13 +1618,13 @@ const PARTNERS = {
   },
   facility_destroyer: {
     id:'facility_destroyer', name:'設施破壞者', emoji:'💣',
-    pos:'每次設施被消滅時，獲得 +4 收益',
+    pos:'每次設施被消滅時，獲得 +4。',
     neg:'無',
     desc:'設施破壞者',
   },
   wind_master: {
     id:'wind_master', name:'場風大師', emoji:'🌀',
-    pos:'每回合隨機指定投入方向，從該方向投入獲得×2倍率',
+    pos:'每回合指定投入方向，從該方向投入×2；只能從指定方向投入',
     neg:'只能從指定方向投入',
     desc:'場風大師',
     onSettle(G, profit, el){
@@ -1646,7 +1646,7 @@ const PARTNERS = {
   },
   demolition: {
     id:'demolition', name:'拆遷隊', emoji:'🔨',
-    pos:'每3回合獲得並儲存一次免費重新排列設施的機會（可累積）',
+    pos:'每 3 回合獲得並儲存一次免費重新排列設施的機會（可累積）',
     neg:'無',
     desc:'拆遷隊',
   },
@@ -1654,7 +1654,7 @@ const PARTNERS = {
   // ══ 拆遷流新合夥人 ══
   recycle_grandma: {
     id:'recycle_grandma', name:'回收阿罵', emoji:'👵',
-    pos:'回合開始時，所有廢墟重疊至一個小鎮的廢墟上（視為移動）',
+    pos:'回合開始時，所有廢墟重疊至一個小鎮的廢墟上。每重疊一個廢墟，視為移動一次設施。',
     neg:'無', desc:'回收阿罵',
     onTurnStart(G){
       if(!G.ruinCells||G.ruinCells.size<=1) return;
@@ -1687,7 +1687,7 @@ const PARTNERS = {
   },
   ruin_warrior: {
     id:'ruin_warrior', name:'廢品戰士', emoji:'⚔',
-    pos:'回合開始時，將一張廢墟加入手牌',
+    pos:'回合開始時，將一張廢墟加入手牌。',
     neg:'無', desc:'廢品戰士',
     onTurnStart(G){
       addHand('ruin');
@@ -1696,7 +1696,7 @@ const PARTNERS = {
   },
   bomber: {
     id:'bomber', name:'炸彈客', emoji:'💣',
-    pos:'回合開始時，隨機空格設置1~3個爆破裝置，每個+2收益。爆破裝置不產生廢墟',
+    pos:'回合開始時，在小鎮的隨機空格設置1～3個爆破裝置，之後小鎮每有一個爆破裝置，獲得收益 +2。你的爆破裝置與其消滅的設施不會產生廢墟。',
     neg:'無', desc:'炸彈客',
     onTurnStart(G){
       const empties=findCells((r,c,b)=>!b);
@@ -1720,7 +1720,7 @@ const PARTNERS = {
   },
   wanderer: {
     id:'wanderer', name:'流浪漢', emoji:'🚶',
-    pos:'回合開始時，隨機空格設置1個廢墟，每有一個廢墟+2收益',
+    pos:'回合開始時，在小鎮的隨機空格設置 1個廢墟，之後小鎮每有一個廢墟，獲得收益 +2。',
     neg:'無', desc:'流浪漢',
     onTurnStart(G){
       const empties=findCells((r,c,b)=>!b);
@@ -1993,7 +1993,7 @@ const PARTNERS = {
   },
   goods_buyer: {
     id:'goods_buyer', name:'進貨合作員', emoji:'🛒',
-    pos:'回合開始時資源變商品+2；已是商品則+4',
+    pos:'回合開始時，將你的資源變成商品，並使其獲得+2。若你的資源已經是商品，則使其獲得+4。',
     neg:'無', desc:'進貨合作員',
     onTurnStart(G){
       if(!G.card) return;
@@ -5348,6 +5348,25 @@ function doNext(){
   G.buff={};G.sel=null;G.moveMode=false;G.moveSrc=null;
   G._tanyaSwappedThisTurn=false;
 
+  // 達標判定（轉換收益等非投入方式也能觸發過關）
+  if(G.profit>=G.goal){
+    if(!G._goalReachedTurn) G._goalReachedTurn=G.turn;
+    const oldRound=G.round; const oldGoal=G.goal;
+    const turnsUsed=G._goalReachedTurn||G.turn;
+    G.roundHistory.push({round:oldRound, turnsUsed, goal:oldGoal, profit:G.profit});
+    adjustDifficulty();
+    G.round++;
+    const scaledMult=1.4*G.difficultyMult;
+    G.goal=Math.round(oldGoal*scaledMult+8);
+    G._goalReachedTurn=0;
+    G.turn=1; G.buff={}; G.sel=null; G.cellMods={}; G.cellPctMods={};
+    const diffPct=Math.round((G.difficultyMult-1)*100);
+    const diffLabel=diffPct>0?` 📈難度+${diffPct}%`:diffPct<0?` 📉難度${diffPct}%`:'';
+    autoSave();
+    showModal('win',`第 ${oldRound} 輪過關！（${turnsUsed}回合達標）\n達成目標 ${oldGoal}\n\n第 ${G.round} 輪新目標：${G.goal}${diffLabel}`);
+    return;
+  }
+
   // 回合用盡（未達標）→ 失敗
   if(G.turn>=G.maxTurns){
     showModal('lose',`第 ${G.round} 輪失敗！\n收益 ${G.profit} / 目標 ${G.goal}\n差距 ${G.goal-G.profit}`);
@@ -5441,6 +5460,8 @@ function doPermConvert(){
   addLog(`🔄 資源轉換：${TLABEL[oldType]}${oldVal} → +${profit} 收益`,'g');
   render();
   profitFlyFrom(document.getElementById('btn-perm-convert'),profit);
+  // 檢查達標（轉換收益也能觸發過關）
+  if(G.profit>=G.goal&&!G._goalReachedTurn) G._goalReachedTurn=G.turn;
 }
 // 更新常駐按鈕狀態
 function updatePermBtns(){
@@ -6016,7 +6037,7 @@ function showCardChooser(title, cards, onSkip){
     makeSelCard(card.emoji,card.name,card.desc,card.pos,card.neg,card.onclick,'',card.pid||'')
   ).join('');
   const skipBtn=document.getElementById('card-chooser-skip');
-  if(skipBtn){ skipBtn.style.display=''; skipBtn.onclick=()=>{ const fn=_cardChooserSkipFn; closeCardChooser(); if(fn) fn(); }; }
+  if(skipBtn){ skipBtn.style.display=''; skipBtn.textContent='✕ 取消'; skipBtn.onclick=()=>{ const fn=_cardChooserSkipFn; closeCardChooser(); if(fn) fn(); }; }
   el.style.display='flex';
 }
 function closeCardChooser(){
