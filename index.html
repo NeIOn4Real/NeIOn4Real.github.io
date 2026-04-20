@@ -1710,10 +1710,11 @@ const PARTNERS = {
         G.bombTimers[`${r},${c}`]=3;
         placed++;
       }
-      // 每個爆破裝置+2收益
-      const bonus=placed*2;
+      // 之後小鎮每有一個爆破裝置，獲得收益+2（計算全場所有爆破裝置）
+      const allBombs=findCells((r,c,b)=>b==='bomb_device').length;
+      const bonus=allBombs*2;
       G.profit+=bonus;
-      addLog(`💣 炸彈客：設置${placed}個爆破裝置，+${bonus}收益`,'g');
+      addLog(`💣 炸彈客：設置${placed}個爆破裝置，小鎮共${allBombs}個，+${bonus}收益`,'g');
       // 標記炸彈客持有（爆破不產生廢墟）
       G._bomberActive=true;
     },
@@ -6601,6 +6602,11 @@ function onTalentDropCell(e, r, c) {
     const hk=`${r},${c}`;
     G.bldgUpgrades[hk]=(G.bldgUpgrades[hk]||0)+2;
     addLog(`😈 人類惡魔：投入人材，${BLDG[G.grid[r][c]]?.name||'設施'}永久+2`,'g');
+  }
+  // 北漂者：人材投入非中央設施-2
+  if(hasPartner('northbound')&&!isCenterCell(r,c)&&!(G.buff&&G.buff._allCenter)){
+    G.cellMods[`${r},${c}`]=(G.cellMods[`${r},${c}`]||0)-2;
+    addLog(`🧳 北漂者：非中央設施，本回合-2`,'b');
   }
   // Store as cellMod (temporary, cleared each turn)
   const key = `${r},${c}`;
