@@ -1,0 +1,14 @@
+# 第三方參考框架（不納入版控）
+實作規格/Claude-Code-Game-Studios-main/
+
+# Claude Code 本地設定
+.claude/
+
+# 系統檔案
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 備份檔
+*.bak
+*.tmp
