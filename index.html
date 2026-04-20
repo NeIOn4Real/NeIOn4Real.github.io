@@ -1535,7 +1535,7 @@ const PARTNERS = {
       const handCount=G.hand.filter(h=>h.count>0&&!h.compound).length;
       if(handCount<1){
         const pool=Object.keys(BLDG).filter(isPoolableBldg);
-        const pick=pool[Math.floor(Math.random()*pool.length)];
+        const pick=weightedPickN(pool,1)[0];
         addHand(pick);
         addLog(`👩‍💼 譚雅：手牌空空的呢～給你一張 ${BLDG[pick].emoji}${BLDG[pick].name}！`,'g');
       }
@@ -2940,7 +2940,7 @@ function addHandMaybeCompound(id){
   if(Math.random()<1/3){
     const pool=Object.keys(BLDG).filter(bid=>!COMPOUND_EXCLUDE.has(bid)&&bid!==id);
     if(!pool.length){ addHand(id); return; }
-    const partner=pool[Math.floor(Math.random()*pool.length)];
+    const partner=weightedPickN(pool,1)[0];
     const dir=COMPOUND_DIRS[Math.floor(Math.random()*COMPOUND_DIRS.length)];
     G.hand.push({
       id:`compound_${++_compoundSeq}`,
@@ -7253,7 +7253,7 @@ function tanyaDoSwap(giveId, receiveId){
   }
   if(handCount+fieldCount<24){
     const pool=Object.keys(BLDG).filter(isPoolableBldg);
-    const pick=pool[Math.floor(Math.random()*pool.length)];
+    const pick=weightedPickN(pool,1)[0];
     addHand(pick);
     addLog(`👩‍💼 譚雅：設施總數不足24，額外獲得 ${BLDG[pick].emoji}${BLDG[pick].name}！`,'g');
   }
