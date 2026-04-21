@@ -337,7 +337,14 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   animation:upgradeGlow 1.2s ease-in-out infinite;
   cursor:pointer!important;
 }
+.omni-drop-card.omni-hover{
+  transform:scale(1.08)!important;
+  border-color:var(--green)!important;
+  box-shadow:0 0 0 3px var(--green), 0 0 18px rgba(72,133,72,.55)!important;
+  z-index:100!important;
+}
 @keyframes upgradeGlow{0%,100%{box-shadow:0 0 0 2px rgba(176,96,0,.3)}50%{box-shadow:0 0 0 3px rgba(176,96,0,.6),0 0 14px rgba(176,96,0,.3)}}
+@keyframes omniPanelIn{from{opacity:0;transform:translate(-50%,calc(-50% - 8px))}to{opacity:1;transform:translate(-50%,-50%)}}
 /* 事件預告格子高亮 */
 .cell.event-preview{
   border-color:var(--blue)!important;
@@ -464,6 +471,58 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   box-shadow: 0 4px 12px rgba(42,26,8,.13);
 }
 .fan-card.fc-selected { border-color: var(--acc) !important; }
+/* ── 稀有度外框（卡片 / 合夥人牌） ── */
+.fan-card.rarity-n,.joker-card.rarity-n,.acard.rarity-n,.omni-drop-card.rarity-n,.sel-card.rarity-n{border-color:#b0a89a!important;box-shadow:0 2px 8px rgba(176,168,154,.3)!important;}
+.fan-card.rarity-r,.joker-card.rarity-r,.acard.rarity-r,.omni-drop-card.rarity-r,.sel-card.rarity-r{border-color:#4a90c2!important;box-shadow:0 2px 10px rgba(74,144,194,.45)!important;}
+.fan-card.rarity-sr,.joker-card.rarity-sr,.acard.rarity-sr,.omni-drop-card.rarity-sr,.sel-card.rarity-sr{border-color:#c06bd6!important;box-shadow:0 2px 12px rgba(192,107,214,.55)!important;}
+.fan-card.rarity-ssr,.joker-card.rarity-ssr,.acard.rarity-ssr,.omni-drop-card.rarity-ssr,.sel-card.rarity-ssr{border-color:#e8a820!important;box-shadow:0 2px 14px rgba(232,168,32,.6),0 0 18px rgba(232,168,32,.35)!important;animation:rarityGlowSSR 2.4s ease-in-out infinite!important;}
+@keyframes rarityGlowSSR{0%,100%{box-shadow:0 2px 14px rgba(232,168,32,.5),0 0 14px rgba(232,168,32,.3)}50%{box-shadow:0 2px 16px rgba(232,168,32,.75),0 0 24px rgba(232,168,32,.5)}}
+/* ── 譚雅電影式卡牌動畫 ── */
+.tanya-cinematic-card{
+  position:fixed;z-index:9200;pointer-events:none;
+  background:linear-gradient(160deg,#fff9f2,#fcefb0);
+  border:3px solid #e8a820;border-radius:16px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:18px 14px;box-sizing:border-box;
+  box-shadow:0 12px 40px rgba(0,0,0,.45), 0 0 60px rgba(232,168,32,.5);
+  font-family:'Noto Sans TC',sans-serif;color:var(--tx);
+  transition:left .5s cubic-bezier(.3,1.6,.5,1),top .5s cubic-bezier(.3,1.6,.5,1),width .5s,height .5s,transform .5s,opacity .4s;
+}
+.tanya-cinematic-backdrop{
+  position:fixed;z-index:9150;inset:0;background:rgba(0,0,0,.5);
+  opacity:0;transition:opacity .3s;pointer-events:none;
+}
+.tanya-cinematic-backdrop.show{opacity:1;}
+@keyframes tanyaShake{
+  0%,100%{transform:translate(-50%,-50%) rotate(0)}
+  15%{transform:translate(-52%,-50%) rotate(-4deg)}
+  30%{transform:translate(-48%,-50%) rotate(4deg)}
+  45%{transform:translate(-51%,-50%) rotate(-3deg)}
+  60%{transform:translate(-49%,-50%) rotate(3deg)}
+  75%{transform:translate(-50.5%,-50%) rotate(-2deg)}
+  90%{transform:translate(-49.5%,-50%) rotate(2deg)}
+}
+.tanya-cinematic-card.tanya-shake{animation:tanyaShake .6s ease-in-out 2;}
+@keyframes tanyaGlowFlash{
+  0%{filter:brightness(1) saturate(1);box-shadow:0 12px 40px rgba(0,0,0,.45),0 0 60px rgba(232,168,32,.5)}
+  40%{filter:brightness(2.4) saturate(1.6);box-shadow:0 12px 80px rgba(255,230,130,1),0 0 160px rgba(255,215,0,.9)}
+  100%{filter:brightness(1) saturate(1);box-shadow:0 12px 40px rgba(0,0,0,.45),0 0 60px rgba(72,133,72,.6)}
+}
+.tanya-cinematic-card.tanya-glow-flash{animation:tanyaGlowFlash .8s ease-in-out forwards;}
+/* ── 詞條醒目化 ── */
+.tag-chip{display:inline-block;padding:0 4px;margin:0 1px;border-radius:4px;font-weight:700;font-size:.92em;line-height:1.3;vertical-align:baseline;}
+.tag-chip.tag-basic{background:#e8e2d4;color:#5a4a28;}
+.tag-chip.tag-shop{background:#fce8c9;color:#8a5a00;}
+.tag-chip.tag-hr{background:#dceadc;color:#2a5a32;}
+.tag-chip.tag-logistics{background:#d8e6f2;color:#1a4e7a;}
+.tag-chip.tag-trade{background:#f2e0d8;color:#8a3a1a;}
+.tag-chip.tag-demolish{background:#f5d8d0;color:#9a2a1a;}
+.tag-chip.tag-demon{background:#3a1a1a;color:#ffb0a0;}
+.tag-chip.tag-boost{background:#fcefb0;color:#7a5a00;}
+.tag-chip.tag-production{background:#e6dccc;color:#5a4a1a;}
+.tag-chip.tag-unique{background:linear-gradient(100deg,#ffe8a0,#ffd060);color:#6a4500;}
+.tag-chip.tag-electronic{background:#e0dcf8;color:#3a2a7a;}
+.tag-chip.tag-large{background:#2a2a4a;color:#d0e8ff;}
+.tag-chip.tag-center{background:#f8e0d8;color:#7a2a1a;}
 
 .fan-card:hover {
   transform: translateY(-80px) rotate(0deg) scale(1.1) !important;
@@ -1042,8 +1101,8 @@ const BLDG = {
   factory:    { name:'工廠',   emoji:'🏭', desc:'原料→商品 +2。', req:'material', out:'goods',    fn:v=>v+2 },
   shop:       { name:'商店',   emoji:'🏪', desc:'商品→金錢 +2。', req:'goods',    out:'money',    fn:v=>v+2, isShop:true },
   small_shop: { name:'小型販售商', emoji:'🛍️', desc:'視為商店。商品→金錢+2；金錢→商品→金錢+4', req:'any', out:'money', fn:v=>v, special:'small_shop', isShop:true },
-  scalper:    { name:'黃牛販子', emoji:'🎫', desc:'視為商店。商品→金錢→商品(-10%)', req:'goods', out:'goods', fn:v=>v, special:'scalper', isShop:true },
-  bulk_store: { name:'量販店', emoji:'🛒', desc:'視為商店。商品→金錢(+50%,上限10×輪數)→商品', req:'goods', out:'goods', fn:v=>v, special:'bulk_store', isShop:true },
+  scalper:    { name:'黃牛販子', emoji:'🎫', desc:'商店。商品→金錢+1→商品+1。本回合沒有獲得收益時，最終收益-8。', req:'goods', out:'goods', fn:v=>v, special:'scalper', isShop:true },
+  bulk_store: { name:'量販店', emoji:'🛒', desc:'商店。投入商品時失去一半的數量，每失去 4 個商品，獲得 +8 收益，之後使這個收益 +4（永久累積）。當這個設施一次提供 100 收益時，消滅這個設施。', req:'goods', out:'goods', fn:v=>v, special:'bulk_store', isShop:true },
   dept_store: { name:'百貨公司', emoji:'🏬', desc:'大型。商店。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。只能蓋在 2×2 商店上，此設施視為 4 商店。商品→金錢+8→商品+8→金錢+8', req:'goods', out:'money', fn:v=>v, special:'dept_store', isShop:true, needs2x2:true },
   dept_store_part:{ name:'百貨公司', emoji:'🏬', desc:'百貨公司的一部分', req:null, out:null, fn:v=>v, special:'dept_store_part', isShop:true },
   refinery:   { name:'精煉廠', emoji:'🔩', desc:'原料→原料 +4。', req:'material', out:'material', fn:v=>v+4 },
@@ -1064,10 +1123,10 @@ const BLDG = {
   // ── 物流中心流設施 ──
   spiral_hub:     { name:'螺旋物流站',   emoji:'🔄', desc:'商品→商品。資源投入時，之前每通過 1 個設施，這個設施獲得+2收益。', req:'any', out:null, fn:v=>v, special:'spiral_hub' },
   terminal:       { name:'終點站',       emoji:'🏁', desc:'任意→任意。資源投入時，之前每通過 1 個設施，這個設施獲得+4。', req:'any', out:null, fn:v=>v, special:'terminal' },
-  logistics_amp:  { name:'物流放大器',   emoji:'📡', desc:'任意→任意。資源投入時，下一設施這回合獲得+8。', req:'any', out:null, fn:v=>v, special:'logistics_amp' },
+  logistics_amp:  { name:'物流放大器',   emoji:'📡', desc:'任意→任意。資源投入時，下一設施的效果×2。', req:'any', out:null, fn:v=>v, special:'logistics_amp' },
   transfer_hub:   { name:'轉運中心',     emoji:'🔀', desc:'放置時變成物流中心，可決定方向', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
   speed_station:  { name:'速遞站',       emoji:'⚡', desc:'資源投入時，若下一格有設施，使其立即再投入一次。', req:'any', out:null, fn:v=>v, special:'speed_station' },
-  logistics_vault:{ name:'物流倉',       emoji:'🏪', desc:'資源投入時，這個設施獲得1個物流計數。當物流計數大於等於3時，獲得+8收益。', req:'any', out:null, fn:v=>v, special:'logistics_vault' },
+  logistics_vault:{ name:'物流倉',       emoji:'🏪', desc:'資源通過時儲存數值的 50%，下次投入通過時釋放加回數值。', req:'any', out:null, fn:v=>v, special:'logistics_vault' },
   env_sensor:     { name:'環境感應站',   emoji:'📊', desc:'資源投入時，周圍 4 格每有1個設施，這個設施時獲得+2。', req:'any', out:null, fn:v=>v, special:'env_sensor' },
 
   // ── 貿易流設施 ──
@@ -1136,7 +1195,7 @@ const BLDG = {
 
   // ── 物流系新設施 ──
   logistics_hub:  { name:'物流轉運中心', emoji:'🔀', desc:'放置時變成物流中心，你可以決定其方向。', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
-  logistics_vault_v2:{ name:'物流倉', emoji:'📦', desc:'資源投入時獲得1物流計數。計數≥3時獲得+8收益', req:'any', out:null, fn:v=>v, special:'logistics_vault_v2' },
+  logistics_vault_v2:{ name:'物流倉 v2', emoji:'📦', desc:'資源投入時獲得1物流計數。計數≥3時獲得+8收益', req:'any', out:null, fn:v=>v, special:'logistics_vault_v2' },
 
   // ── 人力系新設施 ──
   staff_housing:  { name:'員工住宅', emoji:'🏠', desc:'回合結束時，若沒有資源投入此設施，獲得人材 +4。', req:'any', out:null, fn:v=>v, special:'staff_housing' },
@@ -1531,13 +1590,17 @@ const PARTNERS = {
     neg:'無',
     desc:'譚雅',
     onTurnStart(G){
-      // 手牌為空時自動補牌（保留舊邏輯）
+      // 手牌為空時自動補牌：限制於 N 稀有度，避免跨稀有度送出高稀有設施
       const handCount=G.hand.filter(h=>h.count>0&&!h.compound).length;
       if(handCount<1){
-        const pool=Object.keys(BLDG).filter(isPoolableBldg);
-        const pick=weightedPickN(pool,1)[0];
-        addHand(pick);
-        addLog(`👩‍💼 譚雅：手牌空空的呢～給你一張 ${BLDG[pick].emoji}${BLDG[pick].name}！`,'g');
+        const pool=Object.keys(BLDG).filter(id=>isPoolableBldg(id)&&getBldgRarity(id)==='N');
+        if(pool.length>0){
+          const pick=pool[Math.floor(Math.random()*pool.length)];
+          addHand(pick);
+          addLog(`👩‍💼 譚雅：手牌空空的呢～給你一張 ${BLDG[pick].emoji}${BLDG[pick].name}（N）！`,'g');
+          // 電影式特寫動畫
+          setTimeout(()=>{ tanyaGainCardCinematic(pick, ()=>renderFanHand()); },80);
+        }
       }
     },
   },
@@ -1646,9 +1709,18 @@ const PARTNERS = {
   },
   demolition: {
     id:'demolition', name:'拆遷隊', emoji:'🔨',
-    pos:'每 3 回合獲得並儲存一次免費重新排列設施的機會（可累積）',
+    pos:'每回合開始時，這個合夥人獲得 1 拆遷計數。計數大於等於 3 時，消耗 3 拆遷計數，你可以重新排列小鎮上的設施。',
     neg:'無',
     desc:'拆遷隊',
+    onTurnStart(G){
+      const st=G.partnerState.demolition||{count:0};
+      st.count++;
+      G.partnerState.demolition=st;
+      gainOmniCount('拆遷計數');
+      if(!processCountTrigger('demolition')){
+        addLog(`🔨 拆遷隊：拆遷計數+1（目前${st.count}/3）`);
+      }
+    },
   },
 
   // ══ 拆遷流新合夥人 ══
@@ -1770,14 +1842,11 @@ const PARTNERS = {
     onTurnStart(G){
       const st=G.partnerState.elec_artisan||{count:0};
       st.count++;
-      if(st.count>=3){
-        addHand('elec_factory');
-        addLog(`🔧 電子精工師：電子計數${st.count}≥3，獲得電子工廠！`,'g');
-        st.count=0;
-      } else {
+      G.partnerState.elec_artisan=st;
+      gainOmniCount('電子計數');
+      if(!processCountTrigger('elec_artisan')){
         addLog(`🔧 電子精工師：電子計數+1（目前${st.count}/3）`);
       }
-      G.partnerState.elec_artisan=st;
     },
   },
   thunder_king: {
@@ -1787,27 +1856,11 @@ const PARTNERS = {
     onTurnStart(G){
       const st=G.partnerState.thunder_king||{count:0};
       st.count++;
-      if(st.count>=3){
-        st.count=0;
-        // 消滅隨機設施
-        const facs=findFacilityCells().filter(([r,c])=>{
-          const b=G.grid[r][c];
-          return b!=='dept_store'&&b!=='dept_store_part'&&!(BLDG[b]&&BLDG[b].indestructible);
-        });
-        if(facs.length>0){
-          const [dr,dc]=facs[Math.floor(Math.random()*facs.length)];
-          addLog(`⚡ 雷電法王：雷電計數≥3，消滅 ${BLDG[G.grid[dr][dc]]?.name||'設施'} (${dr+1},${dc+1})！`,'b');
-          destroyFacility(dr,dc);
-        }
-        // 獲得隨機電子設施
-        const elecFacs=['elec_factory','elec_conveyor','elec_shop'];
-        const pick=elecFacs[Math.floor(Math.random()*elecFacs.length)];
-        addHand(pick);
-        addLog(`⚡ 雷電法王：獲得 ${BLDG[pick].emoji}${BLDG[pick].name}！`,'g');
-      } else {
+      G.partnerState.thunder_king=st;
+      gainOmniCount('雷電計數');
+      if(!processCountTrigger('thunder_king')){
         addLog(`⚡ 雷電法王：雷電計數+1（目前${st.count}/3）`);
       }
-      G.partnerState.thunder_king=st;
     },
   },
 
@@ -1819,22 +1872,11 @@ const PARTNERS = {
     onTurnStart(G){
       const st=G.partnerState.relay_station||{count:0};
       st.count++;
-      if(st.count>=3){
-        st.count=0;
-        const ruins=G.ruinCells?[...G.ruinCells]:[];
-        if(ruins.length>0){
-          const pick=ruins[Math.floor(Math.random()*ruins.length)];
-          const [r,c]=pick.split(',').map(Number);
-          G.grid[r][c]='spiral_hub';
-          G.ruinCells.delete(pick);
-          addLog(`🏗 重建驛站：驛站計數≥3，(${r+1},${c+1}) 廢墟→螺旋物流站！`,'g');
-        } else {
-          addLog(`🏗 重建驛站：驛站計數≥3但無廢墟可轉換`);
-        }
-      } else {
+      G.partnerState.relay_station=st;
+      gainOmniCount('驛站計數');
+      if(!processCountTrigger('relay_station')){
         addLog(`🏗 重建驛站：驛站計數+1（目前${st.count}/3）`);
       }
-      G.partnerState.relay_station=st;
     },
   },
   omni_accountant: {
@@ -1854,11 +1896,9 @@ const PARTNERS = {
     onTurnStart(G){
       const st=G.partnerState.spread_demon||{count:0};
       st.count++;
-      if(st.count>=3){
-        st.count=0;
-        G.buff._allCenter=true;
-        addLog(`🌀 擴散惡魔：擴散計數≥3，此回合所有設施視為在中央！`,'g');
-      } else {
+      G.partnerState.spread_demon=st;
+      gainOmniCount('擴散計數');
+      if(!processCountTrigger('spread_demon')){
         addLog(`🌀 擴散惡魔：擴散計數+1（目前${st.count}/3）`);
       }
       // 隨機一個設施與中央格交換
@@ -2021,7 +2061,7 @@ function isDemonNegDisabled(pid){
 }
 
 // 需要隨設施位置交換/轉移的鍵值資料欄位
-const KEYED_DATA_FIELDS=['bldgUpgrades','leyaPctMods','cellMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay','futuresPct'];
+const KEYED_DATA_FIELDS=['bldgUpgrades','leyaPctMods','cellMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay','futuresPct','bulkStoreBonus','vaultV2Counts'];
 const TCOLOR={ money:'var(--money)', material:'var(--mat)', goods:'var(--goods)', diamond:'#5bcefa' };
 const TLABEL={ money:'💰金錢', material:'🪨原料', goods:'📦商品', diamond:'💎鑽石' };
 const N=4; // base grid size
@@ -2041,6 +2081,117 @@ function setOverlays(r,c,arr){
 function isShopType(bId){ return bId&&BLDG[bId]&&BLDG[bId].isShop===true; }
 function clearKeyedData(key){ KEYED_DATA_FIELDS.forEach(f=>{ if(G[f]) delete G[f][key]; }); }
 function hasTag(id,tag){ return TAGS[id]&&TAGS[id].includes(tag); }
+// 詞條中文映射：將 desc 中的中文關鍵字包 chip
+const TAG_KEYWORDS_MAP=[
+  {cn:'基礎',cls:'tag-basic'},
+  {cn:'商店',cls:'tag-shop'},
+  {cn:'人力',cls:'tag-hr'},
+  {cn:'物流',cls:'tag-logistics'},
+  {cn:'貿易',cls:'tag-trade'},
+  {cn:'拆遷',cls:'tag-demolish'},
+  {cn:'惡魔',cls:'tag-demon'},
+  {cn:'強化',cls:'tag-boost'},
+  {cn:'增幅',cls:'tag-boost'},
+  {cn:'生產',cls:'tag-production'},
+  {cn:'獨特',cls:'tag-unique'},
+  {cn:'電子',cls:'tag-electronic'},
+  {cn:'大型',cls:'tag-large'},
+  {cn:'中央',cls:'tag-center'},
+];
+// 把 desc 開頭（以「。」分隔的首幾句）中的詞條關鍵字包成 span
+// 只處理「。」前綴段的單詞（避免誤標後續句子中的一般用字）
+function highlightDescTags(desc){
+  if(!desc||typeof desc!=='string') return desc||'';
+  // 只檢查開頭一段（第一個句號之前的前綴），通常是分號連接的詞條
+  const firstDotIdx=desc.indexOf('。');
+  if(firstDotIdx<=0) return desc;
+  let prefix=desc.slice(0,firstDotIdx);
+  const rest=desc.slice(firstDotIdx);
+  TAG_KEYWORDS_MAP.forEach(({cn,cls})=>{
+    // 使用 split/join 逐次替換，避免已 wrap 過的 span 內容被重複包
+    if(prefix.includes(cn)){
+      prefix=prefix.split(cn).join(`<span class="tag-chip ${cls}">${cn}</span>`);
+    }
+  });
+  return prefix+rest;
+}
+// 全能會計師：玩家持有時，每回合最多 +1 全能計數（避免過易取得）
+function gainOmniCount(sourceLabel){
+  if(!hasPartner('omni_accountant')) return;
+  if(G._omniGainedThisTurn){
+    addLog(`📊 全能會計師：本回合已額滿（${sourceLabel||'計數'}觸發未再疊加）`);
+    return;
+  }
+  const st=G.partnerState.omni_accountant||{count:0};
+  st.count++;
+  G.partnerState.omni_accountant=st;
+  G._omniGainedThisTurn=true;
+  addLog(`📊 全能會計師：${sourceLabel||'計數'}觸發 → 全能計數+1（目前${st.count}，本回合已額滿）`,'g');
+}
+// 有計數狀態的合夥人清單（omni_accountant 可灌注計數的對象）
+const COUNT_PARTNERS=['elec_artisan','thunder_king','relay_station','spread_demon','demolition'];
+// 計數達標觸發：檢查 partnerState[pid].count 是否達門檻，是則執行合夥人效果並消耗計數。
+// 回傳 true 表示已觸發（呼叫方可跳過「計數+1」log）。
+function processCountTrigger(pid){
+  const st=G.partnerState[pid];
+  if(!st) return false;
+  if(pid==='elec_artisan'){
+    if(st.count<3) return false;
+    addHand('elec_factory');
+    addLog(`🔧 電子精工師：電子計數${st.count}≥3，獲得電子工廠！`,'g');
+    st.count=0;
+    return true;
+  }
+  if(pid==='thunder_king'){
+    if(st.count<3) return false;
+    st.count=0;
+    const facs=findFacilityCells().filter(([r,c])=>{
+      const b=G.grid[r][c];
+      return b!=='dept_store'&&b!=='dept_store_part'&&!(BLDG[b]&&BLDG[b].indestructible);
+    });
+    if(facs.length>0){
+      const [dr,dc]=facs[Math.floor(Math.random()*facs.length)];
+      addLog(`⚡ 雷電法王：雷電計數≥3，消滅 ${BLDG[G.grid[dr][dc]]?.name||'設施'} (${dr+1},${dc+1})！`,'b');
+      destroyFacility(dr,dc);
+    }
+    const elecFacs=['elec_factory','elec_conveyor','elec_shop'];
+    const pick=elecFacs[Math.floor(Math.random()*elecFacs.length)];
+    addHand(pick);
+    addLog(`⚡ 雷電法王：獲得 ${BLDG[pick].emoji}${BLDG[pick].name}！`,'g');
+    return true;
+  }
+  if(pid==='relay_station'){
+    if(st.count<3) return false;
+    st.count=0;
+    const ruins=G.ruinCells?[...G.ruinCells]:[];
+    if(ruins.length>0){
+      const pick=ruins[Math.floor(Math.random()*ruins.length)];
+      const [r,c]=pick.split(',').map(Number);
+      G.grid[r][c]='spiral_hub';
+      G.ruinCells.delete(pick);
+      addLog(`🏗 重建驛站：驛站計數≥3，(${r+1},${c+1}) 廢墟→螺旋物流站！`,'g');
+    } else {
+      addLog(`🏗 重建驛站：驛站計數≥3但無廢墟可轉換`);
+    }
+    return true;
+  }
+  if(pid==='spread_demon'){
+    if(st.count<3) return false;
+    st.count=0;
+    if(!G.buff) G.buff={};
+    G.buff._allCenter=true;
+    addLog(`🌀 擴散惡魔：擴散計數≥3，此回合所有設施視為在中央！`,'g');
+    return true;
+  }
+  if(pid==='demolition'){
+    if(st.count<3) return false;
+    st.count-=3;
+    G.demolitionCharges=(G.demolitionCharges||0)+1;
+    addLog(`🔨 拆遷隊：拆遷計數≥3，消耗3，獲得免費重排機會（累積 ${G.demolitionCharges}）`,'g');
+    return true;
+  }
+  return false;
+}
 const BASIC_FACILITIES=['mat_factory','factory','shop','refinery','warehouse','booster','converter'];
 const LOGISTICS_DIRS=['logistics_up','logistics_down','logistics_left','logistics_right'];
 
@@ -2080,14 +2231,12 @@ const BLDG_RARITY={
   logistics_hub:'SR', logistics_vault_v2:'SR',
   // SR（新增）
   elec_factory:'SR', elec_conveyor:'SR', elec_shop:'SR',
-  magnet_plate:'SR', ruin_monument:'SR', demolish_bureau:'SR', dynamic_amp:'SR',
-  mobile_city:'SSR', staff_housing:'SR', scrap_city:'SSR',
-  trade_zone:'SR', clearance:'SR',
+  staff_housing:'SR',
   // SSR
   dept_store:'SSR', dispatch_hq:'SSR', strike_board:'SSR',
   center_trade:'SSR', center_tech:'SSR',
   mega_elec_supply:'SSR', giant_village:'SSR', ancient_factory:'SSR', world_wonder:'SSR',
-  disaster_bureau:'SSR',
+  mobile_city:'SSR', scrap_city:'SSR', disaster_bureau:'SSR',
 };
 // 合夥人稀有度（依 Excel 設計）
 const PARTNER_RARITY={
@@ -2413,12 +2562,27 @@ const EVENTS=[
     id:'pick_fac', title:'🏗 設施補給', onShow:()=>tryDialogue('event_設施補給'), desc:'從以下設施選一個加入手牌：',
     show:(ev)=>{
       if(hasPartner('landlord')){
-        const allFac=[];
-        findCells((r,cc,b)=>isFacility(b)).forEach(([r,cc])=>allFac.push({r,cc}));
-        const handFac=G.hand.filter(h=>h.count>0);
-        if(allFac.length>0||handFac.length>0){
-          addLog('🏗 大地主：設施補給觸發，必須失去一個設施','b');
-          G._landlordPenaltyPending=true;
+        // 大地主負面：設施補給觸發前，隨機消滅一個場上設施或一張手牌設施
+        const gridFac=[];
+        findCells((r,cc,b)=>isFacility(b)&&b!=='dept_store'&&b!=='dept_store_part'&&!(BLDG[b]&&BLDG[b].indestructible))
+          .forEach(([r,cc])=>gridFac.push({r,c:cc}));
+        const handFac=G.hand.filter(h=>h.count>0&&!h.compound);
+        const total=gridFac.length+handFac.length;
+        if(total>0){
+          const pickIdx=Math.floor(Math.random()*total);
+          if(pickIdx<gridFac.length){
+            const {r,c}=gridFac[pickIdx];
+            const bName=BLDG[G.grid[r][c]]?.name||'設施';
+            addLog(`🏗 大地主：設施補給觸發，消滅場上 ${bName} (${r+1},${c+1})`,'b');
+            destroyFacility(r,c);
+          } else {
+            const h=handFac[pickIdx-gridFac.length];
+            h.count--;
+            addLog(`🏗 大地主：設施補給觸發，消滅手牌 ${BLDG[h.id].emoji}${BLDG[h.id].name}`,'b');
+            renderFanHand();
+          }
+        } else {
+          addLog('🏗 大地主：無可消滅的設施（全為不可消滅或手牌空），事件繼續','w');
         }
       }
       let pool;
@@ -2838,6 +3002,8 @@ function newGame(){
     inv:{}, // 每次投入重置的臨時 flags（sendEl 初始化）
     logisticsVault:{},  // 物流倉儲存值
     futuresPct:{},      // 期貨交易所本回合百分比 {'r,c': pct}
+    bulkStoreBonus:{},  // 量販店每格每組獎勵值（初始 8，每次觸發 +4 累積）
+    vaultV2Counts:{},   // 物流倉 v2 每格計數（隨設施搬移/清理）
     talentBankStored:0, // 人力銀行儲存值
     tempShedMoves:{},   // 臨時工棚移動次數
     partners:[],         // 當前持有的合夥人 [{id, state}]
@@ -2856,6 +3022,13 @@ function newGame(){
     _permShopUsed:false, // 本回合是否已使用常駐商店
     _freeMoveLogistics:false, // 路線規劃師免費移動
     _freeMoveLogisticsSrc:null,
+    _mobileCityMode:false, // 移動都市模式
+    _mobileCitySrc:null,
+    _mobileCityUsedThisTurn:false,
+    _ruinPassedThisTurn:false, // 移動都市：本回合是否投入過廢墟
+    _omniDragging:false, // 全能會計師拖曳中
+    _omniGainedThisTurn:false, // 全能會計師本回合是否已獲得計數（每回合上限 1）
+    _dispatchHqFiredThisTurn:false, // 派遣總部本回合是否已觸發
     _extraUsePhase:false, // 人材額外投入階段
     _tanyaSwappedThisTurn:false, // 譚雅交換防重複
     _hrTalentUsedCount:0, // 人力資源總監人材投入計數
@@ -3140,6 +3313,15 @@ function tryPlaceAtCell(r,c,bldgId){
     }
   }
 
+  // ── 大型設施數量限制（isLarge）：小鎮中只能存在一個大型設施，惡魔巨人豁免 ──
+  if(BLDG[bldgId]&&BLDG[bldgId].isLarge&&!hasPartner('demon_giant')){
+    const hasOtherLarge=findCells((rr,cc,bb)=>bb&&BLDG[bb]&&BLDG[bb].isLarge).length>0;
+    if(hasOtherLarge){
+      addLog(`🚫 ${BLDG[bldgId].name}：小鎮中只能存在一個大型設施（惡魔巨人可豁免）`,'b');
+      return false;
+    }
+  }
+
   // ── 百貨公司 2×2（只能蓋在一般商店上）──
   if(BLDG[bldgId]&&BLDG[bldgId].needs2x2){
     const anchor=findShop2x2(r,c);
@@ -3271,6 +3453,38 @@ function onCell(r,c){
     if(!G.grid[r][c]){addLog('請點擊有設施的格子','b');return;}
     upgradeCell(r,c);
     return;
+  }
+
+  // 移動都市：周圍 8 格兩兩交換（每回合一次）
+  if(G._mobileCityMode){
+    const mcCells=findCells((rr,cc,bb)=>bb==='mobile_city');
+    const gn=GN();
+    const inRangeOfAny=(rr,cc)=>mcCells.some(([mr,mc])=>Math.abs(rr-mr)<=1&&Math.abs(cc-mc)<=1&&!(rr===mr&&cc===mc));
+    const bId=G.grid[r][c];
+    if(!G._mobileCitySrc){
+      if(!isFacility(bId)){addLog('🏙 請點擊移動都市周圍 8 格內的設施','b');return;}
+      if(!inRangeOfAny(r,c)){addLog('🏙 該格不在任何移動都市周圍 8 格內','b');return;}
+      if(bId==='mobile_city'){addLog('🏙 不能選擇移動都市本身','b');return;}
+      if(bId==='dept_store'||bId==='dept_store_part'){addLog('🏙 百貨公司不可移動','b');return;}
+      G._mobileCitySrc=[r,c];
+      addLog(`🏙 選中 ${BLDG[bId].emoji}${BLDG[bId].name} (${r+1},${c+1})，再點擊目標格（周圍 8 格內的空地/廢墟/設施）`);
+      render(); return;
+    } else {
+      const [sr,sc]=G._mobileCitySrc;
+      if(r===sr&&c===sc){G._mobileCitySrc=null;addLog('🏙 取消選擇');render();return;}
+      if(!inRangeOfAny(r,c)){addLog('🏙 目標格不在任何移動都市周圍 8 格內','b');return;}
+      if(bId==='mobile_city'){addLog('🏙 不能覆寫移動都市本身','b');return;}
+      if(bId==='dept_store'||bId==='dept_store_part'){addLog('🏙 百貨公司不可移動','b');return;}
+      const srcId=G.grid[sr][sc];
+      swapCellData(sr,sc,r,c);
+      onFacilityMoved(r,c,sr,sc);
+      if(isFacility(bId)) onFacilityMoved(sr,sc,r,c);
+      addLog(`🏙 移動都市：交換 ${BLDG[srcId].emoji}${BLDG[srcId].name} (${sr+1},${sc+1}) ↔ (${r+1},${c+1})`,'g');
+      G._mobileCityMode=false;
+      G._mobileCitySrc=null;
+      G._mobileCityUsedThisTurn=true;
+      pulse(r,c); render(); return;
+    }
   }
 
   // 路線規劃師：免費移動一個物流中心
@@ -3576,21 +3790,42 @@ const FACILITY_FX={
     fx.hit();
   },
   scalper(fx){
+    // 商品→金錢+1→商品+1（兩段鍊）
     if(fx.el.type!=='goods') return;
-    const prev=fx.el.value, money=prev+2;
-    const nv2=Math.max(1,Math.floor(money*0.9));
+    const prev=fx.el.value;
+    const money=prev+1;
+    const nv2=money+1;
     fx.el={value:nv2,type:'goods'};
-    addLog(`  🎫 黃牛販子: 📦${prev}→💰${money}→📦${nv2} (-10%)`);
+    addLog(`  🎫 黃牛販子: 📦${prev}→💰${money}→📦${nv2}`);
+    // 標記：本次投入有經過黃牛販子；finish() 時若無收益則 -8
+    if(!G.inv._scalperHits) G.inv._scalperHits=0;
+    G.inv._scalperHits++;
     fx.hit();
   },
   bulk_store(fx){
     if(fx.el.type!=='goods') return;
     const prev=fx.el.value;
-    const cap=10*G.round;
-    const bonus=Math.min(Math.floor(prev*0.5),cap);
-    const nv2=Math.max(1,prev+bonus);
-    fx.el={value:nv2,type:'goods'};
-    addLog(`  🛒 量販店: 📦${prev}→💰(+${bonus},上限${cap})→📦${nv2}`);
+    const lost=Math.floor(prev/2);
+    const kept=prev-lost;
+    const k=`${fx.r},${fx.c}`;
+    if(!G.bulkStoreBonus) G.bulkStoreBonus={};
+    if(G.bulkStoreBonus[k]===undefined) G.bulkStoreBonus[k]=8;
+    const bonusPer=G.bulkStoreBonus[k];
+    const groups=Math.floor(lost/4);
+    const totalBonus=groups*bonusPer;
+    fx.el={value:Math.max(1,kept),type:'goods'};
+    if(totalBonus>0){
+      G.profit+=totalBonus;
+      G.bulkStoreBonus[k]+=4;
+      addLog(`  🛒 量販店: 📦${prev}→${kept}（失去${lost}），${groups}組×${bonusPer} = +${totalBonus}收益（下次每組+${bonusPer+4}）`,'g');
+      profitFlyFromCell(fx.r,fx.c,totalBonus);
+      if(totalBonus>=100){
+        addLog(`  🛒 量販店：單次 +${totalBonus} ≥ 100，消滅自身`,'b');
+        setTimeout(()=>destroyFacility(fx.r,fx.c),250);
+      }
+    } else {
+      addLog(`  🛒 量販店: 📦${prev}→${kept}（失去${lost}，不足4組無加成）`);
+    }
     fx.hit();
   },
   dept_store(fx){
@@ -3696,15 +3931,17 @@ const FACILITY_FX={
     fx.hit();
   },
   strike_board(fx){
+    // 投入資源時失去一半人材，每個 +8 數值（依 xlsx 新規格）
     const talents=G.talentCards||0;
-    if(talents>0){
-      const bonus=talents*10;
-      G.talentCards=0;
+    const lost=Math.floor(talents/2);
+    if(lost>0){
+      G.talentCards-=lost;
+      const bonus=lost*8;
       fx.el={...fx.el,value:fx.el.value+bonus};
-      addLog(`  📢 集體罷工台：消耗${talents}人材，+${bonus}→${fx.el.value}`,'g');
+      addLog(`  📢 集體罷工台：失去${lost}人材（剩${G.talentCards}），每個+8 → +${bonus}→${fx.el.value}`,'g');
       renderTalentPanel();
     } else {
-      addLog(`  📢 集體罷工台：無人材可消耗`);
+      addLog(`  📢 集體罷工台：人材不足無法觸發`);
     }
     fx.hit();
   },
@@ -3831,9 +4068,20 @@ const FACILITY_FX={
     fx.hit();
   },
   dispatch_hq(fx){
+    // 依 xlsx 新規格：此回合投入 8 人材以上時，通過此設施觸發「場上所有設施本回合 +2 加成」（每回合最多一次）
     if(fx.el.type!=='goods') return;
-    G.talentCards=(G.talentCards||0)+2;
-    addLog(`  🏢 派遣總部: +2人材（共${G.talentCards}）`,'g');
+    if((G._hrTalentUsedCount||0)>=8 && !G._dispatchHqFiredThisTurn){
+      G._dispatchHqFiredThisTurn=true;
+      let count=0;
+      eachCell((r,c,b)=>{
+        if(!isFacility(b)) return;
+        G.cellMods[`${r},${c}`]=(G.cellMods[`${r},${c}`]||0)+2;
+        count++;
+      });
+      addLog(`  🏢 派遣總部：本回合已投入 ${G._hrTalentUsedCount} 人材，觸發！場上 ${count} 個設施 +2`,'g');
+    } else {
+      addLog(`  🏢 派遣總部：通過（目前投入 ${G._hrTalentUsedCount||0}/8 人材${G._dispatchHqFiredThisTurn?'，本回合已觸發過':''}）`);
+    }
     fx.hit();
   },
   env_sensor(fx){
@@ -4081,14 +4329,15 @@ const FACILITY_FX={
 
   // ══ 物流系新設施 ══
   logistics_vault_v2(fx){
-    // 獲得1物流計數，≥3時+8收益（用 v2_ prefix 避免與舊 logistics_vault 衝突）
-    const k=`v2_${fx.r},${fx.c}`;
-    if(!G._vaultV2Counts) G._vaultV2Counts={};
-    G._vaultV2Counts[k]=(G._vaultV2Counts[k]||0)+1;
-    const cnt=G._vaultV2Counts[k];
+    // 獲得1物流計數，≥3時+8收益（計數納入 KEYED_DATA_FIELDS 隨格子轉移/清理）
+    const k=`${fx.r},${fx.c}`;
+    if(!G.vaultV2Counts) G.vaultV2Counts={};
+    G.vaultV2Counts[k]=(G.vaultV2Counts[k]||0)+1;
+    gainOmniCount('物流倉計數');
+    const cnt=G.vaultV2Counts[k];
     if(cnt>=3){
       G.profit+=8;
-      G._vaultV2Counts[k]=0;
+      G.vaultV2Counts[k]=0;
       addLog(`  📦 物流倉：計數${cnt}≥3，+8收益！計數重置`,'g');
       profitFlyFromCell(fx.r,fx.c,8);
     } else {
@@ -4159,6 +4408,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
   };
   // ── 廢墟：資源直接通過，不產生任何交互 ──
   if(bId==='ruin'){
+    G._ruinPassedThisTurn=true; // 移動都市負面檢查用
     // 無冕之王：每次投入廢墟前，所有廢墟收益+2（累積）
     if(hasPartner('uncrowned_king')){
       const ruinCount=G.ruinCells?G.ruinCells.size:0;
@@ -4672,6 +4922,13 @@ function finish(el,startVal){
     if(envyCells.length>0) setTimeout(()=>profitFlyFromCell(envyCells[0][0],envyCells[0][1],-cut),150);
     G.inv.envyPen=false;
   }
+  // 黃牛販子：本次投入有經過且最終收益為 0 時 -8
+  if((G.inv._scalperHits||0)>0 && profit<=0){
+    G.profit-=8;
+    addLog(`🎫 黃牛販子：本回合沒有獲得收益，-8`,'b');
+    const scCells=findCells((r,c,b)=>b==='scalper');
+    if(scCells.length>0) setTimeout(()=>profitFlyFromCell(scCells[0][0],scCells[0][1],-8),150);
+  }
   // 勞工保險：最終收益扣除 人材數×2%
   if(G.buff&&G.buff.laborInsurance&&profit>0){
     const talents=G.talentCards||0;
@@ -4680,6 +4937,16 @@ function finish(el,startVal){
       const cut=Math.ceil(profit*pct/100);
       G.profit-=cut;
       addLog(`📋 勞工保險：人材${talents}×2=${pct}%，收益-${cut}`,'b');
+    }
+  }
+  // 移動都市負面：本回合若沒有投入過廢墟，最終收益變為 0
+  if(findCells((r,c,b)=>b==='mobile_city').length>0 && !G._ruinPassedThisTurn){
+    const cut=G.profit-profitAtStart;
+    if(cut>0){
+      G.profit=profitAtStart;
+      addLog(`🏙 移動都市：本回合未投入廢墟，最終收益歸 0（-${cut}）`,'b');
+      const mcCells=findCells((r,c,b)=>b==='mobile_city');
+      if(mcCells.length>0) setTimeout(()=>profitFlyFromCell(mcCells[0][0],mcCells[0][1],-cut),150);
     }
   }
   addLog(`💰 結算：${TLABEL[el.type]}${el.value} → 入帳${finalMoney}，+${profit}收益`,'g');
@@ -4723,6 +4990,7 @@ function finish(el,startVal){
   checkHeatwave();
 
   G.phase='done';
+  G._turnInvested=true; // 旗標：本回合已完成投入（供按鈕容錯）
   updateCard(el);
   render();
 
@@ -5140,6 +5408,16 @@ function startTurn(){
   G._yongqingSellUsed = false;
   G._hrUsedThisTurn = false; // 人力資源總監每回合重置
   G._hrTalentUsedCount = 0; // 人力資源總監：每回合人材投入計數重置
+  G._mobileCityMode = false;
+  G._mobileCitySrc = null;
+  G._mobileCityUsedThisTurn = false;
+  G._ruinPassedThisTurn = false;
+  G._omniGainedThisTurn = false;
+  G._dispatchHqFiredThisTurn = false;
+  // 防呆：每回合開始時保證 元素卡額外投入狀態 歸零，避免上一輪殘留導致按鈕失效
+  G.elementExtraUses = 0;
+  G._extraUsePhase = false;
+  G._turnInvested = false;
   // 莫菲定律：追蹤未移動設施的回合數（跨輪累計，但新輪第 1 回合不計）
   if(!G._murphyTrack) G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
   if(G.turnFacMoved===0&&G.turn>1) G._murphyTrack.noMove++;
@@ -5339,6 +5617,10 @@ function doNext(){
     addLog('⏩ 跳過剩餘人材投入','w');
     render();
   }
+  // 容錯：本回合已投入且非其他互動模式，強制進入 done
+  if(G.phase!=='done'&&G._turnInvested&&!G.freeRearrange&&!G.moveMode&&!G._yongqingSellMode&&!G._demoExpertMode&&!G._omniDragging&&G.phase!=='event'&&G.phase!=='animating'){
+    G.phase='done';
+  }
   if(G.phase!=='done')return;
 
   // 儲存本回合 log 到歷史
@@ -5376,11 +5658,7 @@ function doNext(){
 
   G.turn++;
 
-  // 拆遷隊：每3回合獲得並儲存一次免費重排機會
-  if(hasPartner('demolition') && G.turn > 0 && G.turn % 3 === 0){
-    G.demolitionCharges = (G.demolitionCharges||0) + 1;
-    addLog(`🔨 拆遷隊：第${G.turn}回合，獲得免費重排機會！（累積 ${G.demolitionCharges} 次）`,'g');
-  }
+  // 拆遷隊：已改為計數制（在 PARTNERS.demolition.onTurnStart 實作）
 
   // 達到預定回合時觸發事件（延遲事件可能提前至 turn 2 或 1）
   if(G.nextEvent && G.turn>=G.nextEventTurn){
@@ -5589,7 +5867,13 @@ function render(){
   }
 
   const _btnNext=document.getElementById('btn-next');
-  _btnNext.disabled=G.phase!=='done'&&!(G.phase==='place'&&G._extraUsePhase);
+  // 按鈕 enable 條件：
+  // 1. phase='done'（正常投入完成）
+  // 2. phase='place' 且 _extraUsePhase（額外投入階段可跳過）
+  // 3. 容錯：本回合已投入過（_turnInvested），且不在其他互動模式（排列/移動/售出/摧毀等）→ 即使 phase 被其他邏輯回寫為 'place'，仍允許結束
+  const _inOtherMode=G.freeRearrange||G.moveMode||G._yongqingSellMode||G._demoExpertMode||G._omniDragging||G.phase==='event'||G.phase==='animating';
+  const _canEnd=G.phase==='done' || (G.phase==='place'&&G._extraUsePhase) || (G._turnInvested&&!_inOtherMode);
+  _btnNext.disabled=!_canEnd;
   _btnNext.textContent=G._extraUsePhase?'⏩ 跳過額外投入':'⏩ 結束回合';
   updatePermBtns();
 
@@ -5622,22 +5906,220 @@ function renderPartners(){
     const expertClickable=isDemoExpert&&G.phase==='place'&&G.profit>=2;
     const isYongqing=pid==='yongqing_house';
     const yqClickable=isYongqing&&G.phase==='place'&&!G._yongqingSellMode;
-    const clickable=(isDemo&&charges>0)||expertClickable||yqClickable;
+    // Omni accountant：顯示全能計數（點擊開啟灌注面板）
+    const isOmni=pid==='omni_accountant';
+    const omniCount=isOmni?(G.partnerState?.omni_accountant?.count||0):0;
+    const omniClickable=isOmni&&omniCount>0&&G.phase==='place';
+    // 計數合夥人：顯示自身計數
+    const partnerCount=COUNT_PARTNERS.includes(pid)?(G.partnerState?.[pid]?.count||0):-1;
+    const clickable=(isDemo&&charges>0)||expertClickable||yqClickable||omniClickable;
     const emojiHtml = p.avatar
       ? `<img src="${p.avatar}" class="jc-avatar" alt="${p.name}">`
       : `<div class="jc-emoji">${p.emoji}</div>`;
-    return `<div class="joker-card${isDemon}" style="z-index:${i+1};${clickable?'cursor:pointer;':''}"
-      data-tip="${tip}"
+    let onclickAttr='';
+    if(isDemo&&charges>0) onclickAttr='onclick="useDemolition()"';
+    else if(expertClickable) onclickAttr='onclick="useDemoExpert()"';
+    else if(yqClickable) onclickAttr='onclick="useYongqingSell()"';
+    else if(omniClickable) onclickAttr='onclick="useOmniAccountant()"';
+    const rarityClass=PARTNER_RARITY[pid]?' rarity-'+PARTNER_RARITY[pid].toLowerCase():'';
+    return `<div class="joker-card${isDemon}${rarityClass}" style="z-index:${i+1};${clickable?'cursor:pointer;':''}"
+      data-tip="${tip}" data-pid="${pid}"
       onmouseenter="tipFromAttr(event,this); DM.onPartnerHover('${p.name}'); showPartnerFloat(event)"
       onmouseleave="hideTooltip(); hidePartnerFloat(event)"
-      ${isDemo&&charges>0?`onclick="useDemolition()"`:''} ${expertClickable?`onclick="useDemoExpert()"`:''} ${yqClickable?`onclick="useYongqingSell()"`:''}>
+      ${onclickAttr}>
       ${emojiHtml}
       <div class="jc-name">${p.name}</div>
       ${isDemo&&charges>0?`<div style="font-size:9px;font-weight:700;background:var(--acc);color:#fff;border-radius:99px;padding:1px 6px;margin-top:2px;">×${charges}</div>`:''}
       ${expertClickable?`<div style="font-size:8px;font-weight:700;color:var(--red);margin-top:1px;">-2💰摧毀</div>`:''}
       ${yqClickable?`<div style="font-size:8px;font-weight:700;color:var(--money);margin-top:1px;">賣出設施</div>`:''}
+      ${isOmni&&omniCount>0?`<div style="font-size:9px;font-weight:700;background:var(--money);color:#fff;border-radius:99px;padding:1px 6px;margin-top:2px;line-height:1.2;">📊×${omniCount}</div>${omniClickable?'<div style="font-size:8px;color:var(--money);font-weight:700;margin-top:1px;line-height:1.1;">點擊灌注</div>':''}`:''}
+      ${(partnerCount>=0&&partnerCount>0)?`<div style="font-size:8px;font-weight:700;color:var(--hi);margin-top:1px;">計數 ${partnerCount}</div>`:''}
     </div>`;
   }).join('');
+}
+
+// ─── 全能會計師：點擊開啟灌注面板，面板內拖曳 omni 卡到目標 ───
+function useOmniAccountant(){
+  if(!hasPartner('omni_accountant')) return;
+  const st=G.partnerState.omni_accountant||{count:0};
+  if(st.count<=0){ addLog('📊 全能計數為 0','b'); return; }
+  showOmniDragPanel();
+}
+
+function showOmniDragPanel(){
+  hideOmniDragPanel();
+  const targets=G.partners.filter(pid=>COUNT_PARTNERS.includes(pid));
+  const st=G.partnerState.omni_accountant||{count:0};
+  const omniCount=st.count||0;
+
+  if(targets.length===0){
+    const panel=document.createElement('div');
+    panel.id='omni-drag-panel';
+    panel.style.cssText=`position:fixed;z-index:9500;top:50%;left:50%;transform:translate(-50%,-50%);
+      background:rgba(255,248,232,.98);border:3px solid var(--red);border-radius:14px;
+      padding:16px 20px;box-shadow:0 12px 36px rgba(0,0,0,.38);
+      font-family:'Noto Sans TC',sans-serif;color:var(--tx);text-align:center;
+      max-width:min(480px,92vw);animation:omniPanelIn .18s ease-out;`;
+    panel.innerHTML=`
+      <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:6px;">📊 目前沒有可灌注的合夥人</div>
+      <div style="font-size:10px;color:var(--mu);line-height:1.6;margin-bottom:10px;">
+        全能計數可灌注給以下合夥人（請先招募其中一位）：<br>
+        🔧 電子精工師・⚡ 雷電法王・🏗 重建驛站・🌀 擴散惡魔・🔨 拆遷隊
+      </div>
+      <button class="abtn" style="padding:6px 20px;" onclick="closeOmniPanel()">關閉</button>`;
+    document.body.appendChild(panel);
+    installOmniPanelCloser(panel);
+    return;
+  }
+
+  const panel=document.createElement('div');
+  panel.id='omni-drag-panel';
+  panel.style.cssText=`position:fixed;z-index:9500;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:rgba(255,248,232,.98);border:3px solid var(--money);border-radius:14px;
+    padding:14px 16px;box-shadow:0 12px 36px rgba(0,0,0,.38);
+    font-family:'Noto Sans TC',sans-serif;color:var(--tx);
+    display:flex;flex-direction:column;gap:10px;width:400px;max-width:94vw;
+    animation:omniPanelIn .18s ease-out;`;
+
+  const targetsHtml=targets.map(pid=>{
+    const p=PARTNERS[pid];
+    const tgt=(G.partnerState&&G.partnerState[pid])||{count:0};
+    const curr=tgt.count||0;
+    const projected=curr+1;
+    const willTrigger=projected>=3;
+    const triggerLabel={
+      elec_artisan:'獲得電子工廠',
+      thunder_king:'消滅設施＋獲電子設施',
+      relay_station:'廢墟→螺旋物流站',
+      spread_demon:'全設施視為中央',
+      demolition:'獲得 1 次免費重排'
+    }[pid]||'觸發效果';
+    const triggerTitle=willTrigger?` title="✨ ${triggerLabel}"`:'';
+    const rarityClass=PARTNER_RARITY[pid]?' rarity-'+PARTNER_RARITY[pid].toLowerCase():'';
+    return `<div class="omni-drop-card${rarityClass}" data-pid="${pid}"${triggerTitle}
+      ondragover="onOmniDragOverPanel(event,'${pid}')"
+      ondragleave="onOmniDragLeavePanel(event)"
+      ondrop="onOmniDropPanel(event,'${pid}')"
+      style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+      border:2px solid ${willTrigger?'var(--green)':'var(--hi)'};border-radius:8px;padding:4px 3px;
+      width:80px;height:80px;flex-shrink:0;text-align:center;box-sizing:border-box;
+      background:#fff;cursor:copy;transition:all .15s;${willTrigger?'box-shadow:0 0 10px rgba(72,133,72,.35);':''}">
+      <div style="font-size:22px;line-height:1;">${p.emoji}</div>
+      <div style="font-size:8px;font-weight:700;line-height:1.15;">${p.name}</div>
+      <div style="font-size:8px;color:var(--hi);line-height:1.1;">${curr}/3→<b style="color:${willTrigger?'var(--green)':'var(--tx)'}">${projected}</b>${willTrigger?'✨':''}</div>
+    </div>`;
+  }).join('');
+
+  const omniHtml=`<div id="omni-source-card" draggable="true"
+    ondragstart="onOmniDragStart(event)" ondragend="onOmniDragEnd(event)"
+    style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    border:2px solid var(--money);border-radius:8px;padding:4px 3px;
+    width:80px;height:80px;text-align:center;box-sizing:border-box;
+    background:#fff;cursor:grab;transition:transform .15s;box-shadow:0 2px 8px rgba(176,96,0,.25);">
+    <div style="font-size:22px;line-height:1;">📊</div>
+    <div style="font-size:8px;font-weight:700;line-height:1.15;">全能會計師</div>
+    <div style="font-size:8px;font-weight:700;background:var(--money);color:#fff;border-radius:99px;padding:0 5px;line-height:1.2;">×${omniCount}</div>
+  </div>`;
+
+  panel.innerHTML=`
+    <div style="font-size:13px;font-weight:700;text-align:center;color:var(--money);">📊 拖曳下方卡片至目標合夥人給予計數</div>
+    <div id="omni-targets-row" style="display:flex;flex-direction:row;gap:8px;justify-content:center;align-items:stretch;overflow-x:auto;padding:4px 2px;">${targetsHtml}</div>
+    <div style="text-align:center;font-size:10px;color:var(--mu);margin:2px 0;">↑ 拖曳到上方 ↑</div>
+    <div style="display:flex;justify-content:center;padding:4px 2px;">${omniHtml}</div>
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:2px;">
+      <button class="abtn" style="padding:4px 18px;" onclick="closeOmniPanel()">關閉</button>
+    </div>`;
+  document.body.appendChild(panel);
+  installOmniPanelCloser(panel);
+}
+
+function hideOmniDragPanel(){
+  const p=document.getElementById('omni-drag-panel');
+  if(p){
+    if(p._cleanup) p._cleanup();
+    p.remove();
+  }
+}
+function closeOmniPanel(){ hideOmniDragPanel(); }
+
+function installOmniPanelCloser(panel){
+  // ESC 或點擊面板外部 → 關閉；面板內部點擊不關閉
+  const onKey=(ev)=>{ if(ev.key==='Escape') closeOmniPanel(); };
+  const onDocDown=(ev)=>{ if(!panel.contains(ev.target)) closeOmniPanel(); };
+  // 延遲掛載，避免觸發 useOmniAccountant 的 click 事件連帶關閉。
+  // 若面板在 setTimeout 觸發前被關閉（例如快速 drop 重建面板），cleanup 會先執行；
+  // 此時 attached=false，setTimeout 回呼需檢查 panel 是否仍在 DOM 中才掛載。
+  let attached=false;
+  const timerId=setTimeout(()=>{
+    if(!document.body.contains(panel)) return; // panel 已被移除，不掛載
+    document.addEventListener('keydown',onKey);
+    document.addEventListener('mousedown',onDocDown,true);
+    attached=true;
+  },150);
+  panel._cleanup=()=>{
+    clearTimeout(timerId);
+    if(attached){
+      document.removeEventListener('keydown',onKey);
+      document.removeEventListener('mousedown',onDocDown,true);
+    }
+  };
+}
+
+// 面板內 omni source card 拖曳
+function onOmniDragStart(e){
+  G._omniDragging=true;
+  try{
+    e.dataTransfer.effectAllowed='move';
+    e.dataTransfer.setData('text/plain','omni');
+  }catch(_){}
+  const src=document.getElementById('omni-source-card');
+  if(src) src.style.opacity='0.5';
+}
+
+function onOmniDragEnd(e){
+  G._omniDragging=false;
+  const src=document.getElementById('omni-source-card');
+  if(src) src.style.opacity='';
+  document.querySelectorAll('.omni-drop-card.omni-hover').forEach(el=>el.classList.remove('omni-hover'));
+}
+
+function onOmniDragOverPanel(e,pid){
+  if(!G._omniDragging) return;
+  if(!COUNT_PARTNERS.includes(pid)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  const card=e.currentTarget;
+  if(card) card.classList.add('omni-hover');
+}
+
+function onOmniDragLeavePanel(e){
+  const card=e.currentTarget;
+  if(card) card.classList.remove('omni-hover');
+}
+
+function onOmniDropPanel(e,pid){
+  if(!G._omniDragging) return;
+  if(!COUNT_PARTNERS.includes(pid)) return;
+  e.preventDefault();
+  G._omniDragging=false;
+  document.querySelectorAll('.omni-drop-card.omni-hover').forEach(el=>el.classList.remove('omni-hover'));
+  // 直接套用計數
+  const st=G.partnerState.omni_accountant||{count:0};
+  if(st.count<=0){ closeOmniPanel(); return; }
+  const tgt=G.partnerState[pid]||{count:0};
+  tgt.count++;
+  st.count--;
+  G.partnerState[pid]=tgt;
+  G.partnerState.omni_accountant=st;
+  addLog(`📊 全能會計師：${PARTNERS[pid].name} 計數+1（目前 ${tgt.count}）`,'g');
+  processCountTrigger(pid);
+  // 如果 omni 還有計數，刷新面板內容讓玩家繼續；否則關閉
+  if(st.count>0){
+    showOmniDragPanel(); // 重建面板（含新計數、willTrigger 狀態）
+  } else {
+    closeOmniPanel();
+  }
+  render();
 }
 
 let _partnerFloatTimer=null;
@@ -5674,7 +6156,9 @@ function hidePartnerFloat(e){
   const pf=document.getElementById('partner-float');
   if(!pf) return;
   // 延遲隱藏，讓鼠標可以移到浮動面板上
-  _partnerFloatTimer=setTimeout(()=>{pf.style.display='none';},200);
+  _partnerFloatTimer=setTimeout(()=>{
+    pf.style.display='none';
+  },200);
 }
 // 浮動面板本身的 hover 保持顯示
 document.addEventListener('DOMContentLoaded',()=>{
@@ -5852,6 +6336,26 @@ function renderGrid(){
         h+=`<div class="cemoji">${b.emoji}</div>`;
         h+=`<div style="font-size:11px;font-weight:900;color:${fpColor};line-height:1;">${fpct>=0?'+':''}${fpct}%</div>`;
         h+=`<div class="cname">${b.name}</div>`;
+      } else if(bId==='logistics_vault_v2'){
+        const vCnt=(G.vaultV2Counts&&G.vaultV2Counts[`${r},${c}`])||0;
+        h+=`<div class="cemoji">${b.emoji}</div>`;
+        h+=`<div class="cname">${b.name}</div>`;
+        h+=`<div style="position:absolute;top:2px;right:2px;font-size:9px;font-weight:900;color:#fff;background:var(--money);border-radius:99px;padding:1px 5px;line-height:1.2;">${vCnt}/3</div>`;
+      } else if(bId==='logistics_vault'){
+        const stored=(G.logisticsVault&&G.logisticsVault[`${r},${c}`])||0;
+        h+=`<div class="cemoji">${b.emoji}</div>`;
+        h+=`<div class="cname">${b.name}</div>`;
+        if(stored>0) h+=`<div style="position:absolute;top:2px;right:2px;font-size:9px;font-weight:900;color:#fff;background:var(--mu);border-radius:99px;padding:1px 5px;line-height:1.2;">💼${stored}</div>`;
+      } else if(bId==='elec_conveyor'){
+        const active=!!(G.inv&&G.inv._elecConveyorActive);
+        h+=`<div class="cemoji">${b.emoji}</div>`;
+        h+=`<div class="cname">${b.name}</div>`;
+        if(active) h+=`<div style="position:absolute;top:2px;right:2px;font-size:9px;font-weight:900;color:#fff;background:#09f;border-radius:99px;padding:1px 5px;line-height:1.2;">⚡ON</div>`;
+      } else if(bId==='scrap_city'){
+        const sx=(G.partnerState&&G.partnerState._scrapCity&&G.partnerState._scrapCity.x)||0;
+        h+=`<div class="cemoji">${b.emoji}</div>`;
+        h+=`<div class="cname">${b.name}</div>`;
+        h+=`<div style="position:absolute;top:2px;right:2px;font-size:9px;font-weight:900;color:#fff;background:#a33;border-radius:99px;padding:1px 5px;line-height:1.2;">x=${sx}</div>`;
       } else {
         h+=`<div class="cemoji">${b.emoji}</div>`;
         h+=`<div class="cname">${b.name}</div>`;
@@ -5896,6 +6400,21 @@ function renderGrid(){
     h+=`<div style="display:flex;gap:6px;margin-top:6px;">
       <button class="abtn" style="flex:1;text-align:center;" onclick="G._freeMoveLogistics=false;G._freeMoveLogisticsSrc=null;addLog('🗺️ 跳過移動物流中心');render();">🗺️ 跳過移動</button>
     </div>`;
+  }
+  // 移動都市：每回合一次交換周圍 8 格
+  {
+    const _mcN=findCells((r,c,b)=>b==='mobile_city').length;
+    if(_mcN>0){
+      if(G._mobileCityMode){
+        h+=`<div style="display:flex;gap:6px;margin-top:6px;">
+          <button class="abtn" style="flex:1;text-align:center;" onclick="G._mobileCityMode=false;G._mobileCitySrc=null;addLog('🏙 取消移動都市操作');render();">🏙 取消移動</button>
+        </div>`;
+      } else if(!G._mobileCityUsedThisTurn){
+        h+=`<div style="display:flex;gap:6px;margin-top:6px;">
+          <button class="abtn" style="flex:1;text-align:center;" onclick="G._mobileCityMode=true;G._mobileCitySrc=null;addLog('🏙 移動都市：點擊周圍 8 格內要交換的兩格');render();">🏙 移動都市交換（未使用）</button>
+        </div>`;
+      }
+    }
   }
   area.innerHTML=h;
 }
@@ -6014,14 +6533,22 @@ function makeSelCard(emoji,name,desc,pos,neg,onclick,extraClass='',pid='',hoverF
     ? `<img src="${pDef.avatar}" class="sel-card-avatar" alt="${name}">`
     : `<div class="sel-card-emoji">${emoji}</div>`;
   const hoverCall = hoverFn || `DM.onPartnerHover(this.querySelector('.sel-card-name').textContent); DM.onBldgHover(Object.keys(BLDG).find(k=>BLDG[k].name===this.querySelector('.sel-card-name').textContent)||'');`;
-  return `<div class="sel-card ${extraClass}" onclick="${onclick}"
+  // 稀有度：pid 優先從 PARTNER_RARITY 取；若非合夥人則以 name 反查 BLDG id
+  let rarity='';
+  if(pid&&PARTNER_RARITY[pid]) rarity=PARTNER_RARITY[pid];
+  else{
+    const matchBid=Object.keys(BLDG).find(k=>BLDG[k].name===name);
+    if(matchBid&&BLDG_RARITY[matchBid]) rarity=BLDG_RARITY[matchBid];
+  }
+  const rarityClass=rarity?' rarity-'+rarity.toLowerCase():'';
+  return `<div class="sel-card ${extraClass}${rarityClass}" onclick="${onclick}"
     data-tip="${tipAttr}"
     onmouseenter="tipFromAttr(event,this); ${hoverCall}"
     onmouseleave="hideTooltip()">
     ${emojiHtml}
     <div class="sel-card-name">${name}</div>
-    <div class="sel-card-desc">${desc||''}</div>
-    ${pos?`<div class="sel-card-pos">✓ ${pos}</div>`:''}
+    <div class="sel-card-desc">${highlightDescTags(desc||'')}</div>
+    ${pos?`<div class="sel-card-pos">✓ ${highlightDescTags(pos)}</div>`:''}
     ${negLine}
   </div>`;
 }
@@ -6342,7 +6869,7 @@ function renderFanHand() {
     } else if (card.type === 'bldg') {
       frontHTML = `<div class="fc-emoji">${card.emoji}</div>
         <div class="fc-name">${card.name}</div>
-        <div class="fc-desc">${card.desc}</div>`;
+        <div class="fc-desc">${highlightDescTags(card.desc)}</div>`;
     } else {
       frontHTML = `<div class="fc-emoji">${card.emoji || '🎴'}</div>
         <div class="fc-name">${card.name}</div>
@@ -6361,7 +6888,16 @@ function renderFanHand() {
       ? `draggable="true" ondragstart="onBldgDragStart(event,'${card.id}')" ondragend="onBldgDragEnd(event)"`
       : '';
 
-    return `<div class="fan-card${typeClass}${selClass}" id="fancard-${i}"
+    // 稀有度 class：設施卡才套用（複合設施取第一部分；事件/元素卡不套用）
+    let rarityClass='';
+    if(card.type==='bldg'&&card.id&&BLDG_RARITY[card.id]) rarityClass=' rarity-'+BLDG_RARITY[card.id].toLowerCase();
+    else if(card.type==='compound'&&card.id){
+      // 複合卡：用第一段設施稀有度
+      const hSlot=G.hand.find(h=>h.id===card.id);
+      if(hSlot&&hSlot.parts&&hSlot.parts[0]&&BLDG_RARITY[hSlot.parts[0]]) rarityClass=' rarity-'+BLDG_RARITY[hSlot.parts[0]].toLowerCase();
+    }
+    return `<div class="fan-card${typeClass}${selClass}${rarityClass}" id="fancard-${i}"
+      ${card.id?`data-bid="${card.id}"`:''}
       style="transform:translateY(${sinkY}px) rotate(${angle}deg);z-index:${zi}"
       onclick="fanCardClick(${i})"
       onmouseenter="fanCardHover(${i},true,event)"
@@ -6406,6 +6942,164 @@ function profitFlyFromPartner(pid, amount){
 function profitFlyFromCell(r, c, amount){
   const cellEl=cellQ(r,c);
   profitFlyFrom(cellEl, amount);
+}
+
+// ── 譚雅手牌動畫（電影式特寫） ──
+function getPartnerCardEl(pid){
+  const row=document.getElementById('partner-row');
+  if(!row) return null;
+  const cards=row.querySelectorAll('.joker-card');
+  for(let i=0;i<G.partners.length;i++){
+    if(G.partners[i]===pid) return cards[i];
+  }
+  return null;
+}
+// 關閉可能干擾 Tanya 動畫的 UI overlays
+function closeUIForCinematic(){
+  try{ document.getElementById('card-chooser').style.display='none'; }catch(_){}
+  try{ document.getElementById('action-chooser').style.display='none'; }catch(_){}
+  const omniP=document.getElementById('omni-drag-panel');
+  if(omniP){ if(omniP._cleanup) omniP._cleanup(); omniP.remove(); }
+  const confirmBox=document.getElementById('omni-confirm-box');
+  if(confirmBox){ if(confirmBox._cleanup) confirmBox._cleanup(); confirmBox.remove(); }
+  const pf=document.getElementById('partner-float');
+  if(pf) pf.style.display='none';
+}
+// 製作電影式卡片 DOM（大尺寸特寫）
+function _makeCinematicCardContent(bldgId){
+  const b=BLDG[bldgId]; if(!b) return '';
+  const rarity=BLDG_RARITY[bldgId]||'N';
+  const rarityColor={N:'#b0a89a',R:'#4a90c2',SR:'#c06bd6',SSR:'#e8a820'}[rarity];
+  return `<div style="font-size:56px;line-height:1;">${b.emoji}</div>
+    <div style="font-size:18px;font-weight:700;letter-spacing:2px;">${b.name}</div>
+    <div style="font-size:10px;color:var(--mu);text-align:center;line-height:1.5;padding:0 6px;max-height:110px;overflow:hidden;">${highlightDescTags(b.desc||'')}</div>
+    <div style="font-size:10px;font-weight:700;padding:2px 10px;border-radius:99px;background:${rarityColor};color:#fff;">${rarity}</div>`;
+}
+function _showCinematicBackdrop(){
+  const bd=document.createElement('div');
+  bd.className='tanya-cinematic-backdrop';
+  document.body.appendChild(bd);
+  requestAnimationFrame(()=>bd.classList.add('show'));
+  return bd;
+}
+// 情境 A：直接獲得卡牌（onTurnStart 補牌 / swap 補牌）
+// → 卡牌出現在畫面中央特寫 → 飛入手牌
+function tanyaGainCardCinematic(bldgId, onComplete){
+  const b=BLDG[bldgId];
+  if(!b){ onComplete&&onComplete(); return; }
+  closeUIForCinematic();
+  const backdrop=_showCinematicBackdrop();
+  const card=document.createElement('div');
+  card.className='tanya-cinematic-card';
+  const cardW=200, cardH=280;
+  const cx=window.innerWidth/2-cardW/2;
+  const cy=window.innerHeight/2-cardH/2;
+  card.style.left=cx+'px'; card.style.top=cy+'px';
+  card.style.width=cardW+'px'; card.style.height=cardH+'px';
+  card.style.transform='scale(.3) rotate(-10deg)'; card.style.opacity='0';
+  card.innerHTML=_makeCinematicCardContent(bldgId);
+  document.body.appendChild(card);
+  // Phase 1: 彈出放大（0-500ms）
+  requestAnimationFrame(()=>{
+    card.style.transform='scale(1) rotate(0deg)';
+    card.style.opacity='1';
+  });
+  // Phase 2: 特寫停留（500~1500ms）
+  // Phase 3: 飛向手牌（1500~2100ms）
+  setTimeout(()=>{
+    const handArea=document.getElementById('hand-fan-area');
+    if(handArea){
+      const dst=handArea.getBoundingClientRect();
+      card.style.transition='left .6s cubic-bezier(.4,0,.2,1),top .6s cubic-bezier(.4,0,.2,1),width .6s,height .6s,transform .6s,opacity .4s';
+      card.style.left=(dst.left+dst.width/2-38)+'px';
+      card.style.top=(dst.top+20)+'px';
+      card.style.width='76px'; card.style.height='96px';
+      card.style.transform='scale(.5) rotate(8deg)';
+      card.style.opacity='0';
+    }
+    backdrop.classList.remove('show');
+  },1500);
+  setTimeout(()=>{
+    card.remove(); backdrop.remove();
+    onComplete&&onComplete();
+  },2200);
+}
+// 情境 B：交換卡牌
+// → 交出卡從手牌飛到畫面中央 → 顫抖 → 發光變成新卡 → 特寫 → 飛入手牌
+function tanyaSwapCardCinematic(giveId, receiveId, onComplete){
+  const giveB=BLDG[giveId], recvB=BLDG[receiveId];
+  if(!giveB||!recvB){ onComplete&&onComplete(); return; }
+  closeUIForCinematic();
+  // 找手牌中 give 卡位置（呼叫時應尚未 renderFanHand）
+  const handArea=document.getElementById('hand-fan-area');
+  const giveEl=handArea?.querySelector(`.fan-card[data-bid="${giveId}"]`);
+  const srcRect=giveEl?giveEl.getBoundingClientRect():null;
+  // 隱藏原手牌卡（視覺上移交給 cinematic 卡）
+  if(giveEl) giveEl.style.opacity='0';
+  // 包裝 onComplete：確保無論動畫成敗，原手牌卡的 opacity 會被還原（renderFanHand 也會替換 DOM，雙保險）
+  const safeComplete=()=>{
+    if(giveEl&&document.body.contains(giveEl)) giveEl.style.opacity='';
+    onComplete&&onComplete();
+  };
+  const backdrop=_showCinematicBackdrop();
+  const card=document.createElement('div');
+  card.className='tanya-cinematic-card';
+  const cardW=200, cardH=280;
+  const startW=srcRect?srcRect.width:76;
+  const startH=srcRect?srcRect.height:96;
+  const startL=srcRect?srcRect.left:window.innerWidth/2-startW/2;
+  const startT=srcRect?srcRect.top:window.innerHeight/2-startH/2;
+  card.style.left=startL+'px'; card.style.top=startT+'px';
+  card.style.width=startW+'px'; card.style.height=startH+'px';
+  card.style.transform='none'; card.style.opacity='1';
+  card.innerHTML=_makeCinematicCardContent(giveId);
+  document.body.appendChild(card);
+  const cx=window.innerWidth/2-cardW/2;
+  const cy=window.innerHeight/2-cardH/2;
+  // Phase 1: 飛到中央放大（0~500ms）
+  requestAnimationFrame(()=>{
+    card.style.left=cx+'px'; card.style.top=cy+'px';
+    card.style.width=cardW+'px'; card.style.height=cardH+'px';
+  });
+  // Phase 2: 顫抖（500~1700ms，2 次各 600ms）
+  setTimeout(()=>{
+    // 將 left/top 轉為 center transform 以便 shake 動畫
+    const centerL=window.innerWidth/2, centerT=window.innerHeight/2;
+    card.style.left=centerL+'px'; card.style.top=centerT+'px';
+    card.style.marginLeft='0'; card.style.marginTop='0';
+    card.style.transform='translate(-50%,-50%)';
+    card.style.transition='none';
+    card.classList.add('tanya-shake');
+  },550);
+  // Phase 3: 發光 + 變身（1700~2500ms）
+  setTimeout(()=>{
+    card.classList.remove('tanya-shake');
+    card.classList.add('tanya-glow-flash');
+    // 在發光高峰時切換內容
+    setTimeout(()=>{
+      card.innerHTML=_makeCinematicCardContent(receiveId);
+      card.style.borderColor='#72bd72';
+    },320);
+  },1700);
+  // Phase 4: 特寫停留（2500~3000ms）+ 飛向手牌（3000~3600ms）
+  setTimeout(()=>{
+    card.classList.remove('tanya-glow-flash');
+    const handArea2=document.getElementById('hand-fan-area');
+    if(handArea2){
+      const dst=handArea2.getBoundingClientRect();
+      card.style.transition='left .6s cubic-bezier(.4,0,.2,1),top .6s cubic-bezier(.4,0,.2,1),width .6s,height .6s,transform .6s,opacity .4s';
+      card.style.left=(dst.left+dst.width/2)+'px';
+      card.style.top=(dst.top+24)+'px';
+      card.style.width='76px'; card.style.height='96px';
+      card.style.transform='translate(-50%,-50%) scale(.6)';
+      card.style.opacity='0';
+    }
+    backdrop.classList.remove('show');
+  },3000);
+  setTimeout(()=>{
+    card.remove(); backdrop.remove();
+    safeComplete();
+  },3700);
 }
 
 function useDemolition(){
@@ -6608,6 +7302,29 @@ function onTalentDropCell(e, r, c) {
     G.cellMods[`${r},${c}`]=(G.cellMods[`${r},${c}`]||0)-2;
     addLog(`🧳 北漂者：非中央設施，本回合-2`,'b');
   }
+  // 分身大師：人材投入時，周遭（8方向）隨機一格設施額外 +2
+  if(hasPartner('clone_master')){
+    const gn=GN();
+    const adj=[];
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      if(dr===0&&dc===0) continue;
+      const ar=r+dr, ac=c+dc;
+      if(ar<0||ar>=gn||ac<0||ac>=gn) continue;
+      if(isFacility(G.grid[ar][ac])) adj.push([ar,ac]);
+    }
+    if(adj.length>0){
+      const [tr,tc]=adj[Math.floor(Math.random()*adj.length)];
+      G.cellMods[`${tr},${tc}`]=(G.cellMods[`${tr},${tc}`]||0)+2;
+      const tb=BLDG[G.grid[tr][tc]];
+      addLog(`👥 分身大師：${tb.emoji}${tb.name} (${tr+1},${tc+1}) 本回合額外+2`,'g');
+      const tEl=cellQ(tr,tc);
+      if(tEl){
+        tEl.style.outline='3px solid #a8f';
+        tEl.style.boxShadow='0 0 14px rgba(170,136,255,.55)';
+        setTimeout(()=>{ tEl.style.outline=''; tEl.style.boxShadow=''; },800);
+      }
+    }
+  }
   // Store as cellMod (temporary, cleared each turn)
   const key = `${r},${c}`;
   G.cellMods[key] = (G.cellMods[key]||0) + 1;
@@ -6681,6 +7398,23 @@ function destroyFacility(r, c){
       for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
         const cr=ar+dr, cc=ac+dc, ck=`${cr},${cc}`;
         if(cr<GN()&&cc<GN()&&G.grid[cr]&&(G.grid[cr][cc]==='dept_store'||G.grid[cr][cc]==='dept_store_part')){
+          // 先處理該格上的疊加設施
+          const _deptOvs=getOverlays(cr,cc);
+          if(_deptOvs.length>0){
+            _deptOvs.forEach(ovId=>{
+              const ovName=BLDG[ovId]?.name||'疊加設施';
+              addLog(`🗑 疊加設施 ${BLDG[ovId]?.emoji||''}${ovName} 隨百貨公司一同消滅`,'b');
+              if(hasPartner('facility_destroyer')){
+                G.profit+=4;
+                addLog(`💣 設施破壞者：${ovName}（疊加）被消滅，+4收益！`,'g');
+                setTimeout(()=>profitFlyFromPartner('facility_destroyer',4),100);
+              }
+              if(G.partnerState._scrapCity){
+                G.partnerState._scrapCity.x=(G.partnerState._scrapCity.x||0)+2;
+              }
+              G.inv._facilitiesDestroyedThisTurn=(G.inv._facilitiesDestroyedThisTurn||0)+1;
+            });
+          }
           G.grid[cr][cc]='ruin';
           if(!G.ruinCells) G.ruinCells=new Set();
           G.ruinCells.add(ck);
@@ -6697,6 +7431,24 @@ function destroyFacility(r, c){
     }
     if(hasPartner('ruin_scavenger')) addLog(`💀 廢墟掠奪者：百貨公司成為廢墟`,'g');
     renderFanHand(); render(); return;
+  }
+  // 疊加設施（cellOverlay）：每個疊加設施也視為一次消滅，觸發設施破壞者/廢鐵城/災害控管局/廢墟掠奪者
+  const _ovList=getOverlays(r,c);
+  if(_ovList.length>0){
+    _ovList.forEach(ovId=>{
+      const ovName=BLDG[ovId]?.name||'疊加設施';
+      addLog(`🗑 疊加設施 ${BLDG[ovId]?.emoji||''}${ovName} 隨底層一同消滅`,'b');
+      if(hasPartner('facility_destroyer')){
+        G.profit+=4;
+        addLog(`💣 設施破壞者：${ovName}（疊加）被消滅，+4收益！`,'g');
+        setTimeout(()=>profitFlyFromPartner('facility_destroyer',4),100);
+      }
+      if(G.partnerState._scrapCity){
+        G.partnerState._scrapCity.x=(G.partnerState._scrapCity.x||0)+2;
+        addLog(`🏚 廢鐵城：疊加設施消滅，累積+2（x=${G.partnerState._scrapCity.x}）`,'g');
+      }
+      G.inv._facilitiesDestroyedThisTurn=(G.inv._facilitiesDestroyedThisTurn||0)+1;
+    });
   }
   // 設施破壞者：+4 收益
   if(hasPartner('facility_destroyer')){
@@ -7242,29 +7994,40 @@ function tanyaSelectGive(giveId){
 
 function tanyaDoSwap(giveId, receiveId){
   closeCardChooser();
-  // Remove one from hand
+  // 狀態立即更新（動畫視覺層以 DOM 操作處理原手牌卡透明度）
   const slot = G.hand.find(h=>h.id===giveId);
   if(slot && slot.count>0) slot.count--;
-  // Add received
   const existing = G.hand.find(h=>h.id===receiveId);
   if(existing) existing.count++;
   else G.hand.push({id:receiveId, count:1});
   addLog(`👩‍💼 譚雅：交出 ${BLDG[giveId].emoji}${BLDG[giveId].name}（${getBldgRarity(giveId)}），換入 ${BLDG[receiveId].emoji}${BLDG[receiveId].name}（${getBldgRarity(receiveId)}）！`,'g');
-  // 交換後：手牌設施+場上設施總和<24時，獲得隨機一張
+  // 計算補牌
   const handCount=G.hand.reduce((s,h)=>s+(h.compound?h.parts.length:h.count),0);
   const gn=GN(); let fieldCount=0;
   for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
     if(isFacility(G.grid[r][c])) fieldCount++;
     const ovs=getOverlays(r,c); fieldCount+=ovs.length;
   }
+  let refillPick=null;
   if(handCount+fieldCount<24){
-    const pool=Object.keys(BLDG).filter(isPoolableBldg);
-    const pick=weightedPickN(pool,1)[0];
-    addHand(pick);
-    addLog(`👩‍💼 譚雅：設施總數不足24，額外獲得 ${BLDG[pick].emoji}${BLDG[pick].name}！`,'g');
+    const pool=Object.keys(BLDG).filter(id=>isPoolableBldg(id)&&getBldgRarity(id)==='N');
+    if(pool.length>0){
+      refillPick=pool[Math.floor(Math.random()*pool.length)];
+      addHand(refillPick);
+      addLog(`👩‍💼 譚雅：設施總數不足24，額外獲得 ${BLDG[refillPick].emoji}${BLDG[refillPick].name}（N）！`,'g');
+    }
   }
-  renderFanHand();
-  tanyaSwapDone();
+  // 電影式交換動畫（會關閉彈窗、blocking 期間玩家不能操作）
+  tanyaSwapCardCinematic(giveId, receiveId, ()=>{
+    renderFanHand();
+    if(refillPick){
+      tanyaGainCardCinematic(refillPick, ()=>{
+        tanyaSwapDone();
+      });
+    } else {
+      tanyaSwapDone();
+    }
+  });
 }
 
 function tanyaSwapDone(){
@@ -7859,9 +8622,12 @@ function deserializeGame(save){
   // 清除不應持久化的臨時狀態（每回合重置 / UI 模式 / 快照）
   data.inv={};
   data.sel=null;
-  data.phase='place';
+  // phase 白名單化：'done' 代表已完成投入、等待結束回合 → 保留；'place' 直接採用；
+  // 其他中間態（'animating'/'event' 等）強制 reset 為 'place' 避免卡在進行中的動畫/事件
+  if(data.phase!=='done'&&data.phase!=='place') data.phase='place';
   data.buff={};
-  data.elementExtraUses=0;
+  // elementExtraUses 僅在 `phase='place' && _extraUsePhase` 合法組合下保留，避免 UI 顯示「跳過」但底層數量為 0
+  if(!(data.phase==='place'&&data._extraUsePhase)) data.elementExtraUses=0;
   data.actionOptions=[];
   data.turnFacMoved=0;
   data.moveMode=false; data.moveSrc=null;
@@ -7869,6 +8635,10 @@ function deserializeGame(save){
   data.freeRearrange=false;
   data._futuresMoveNext=[];
   delete data._freeMoveLogistics; delete data._freeMoveLogisticsSrc;
+  delete data._mobileCityMode; delete data._mobileCitySrc; delete data._mobileCityUsedThisTurn; delete data._ruinPassedThisTurn;
+  delete data._omniDragging; delete data._omniGainedThisTurn; delete data._dispatchHqFiredThisTurn;
+  // _turnInvested 只在 phase='done' 時有意義（代表本回合已投入），保留以確保按鈕可用
+  if(data.phase!=='done') delete data._turnInvested;
   delete data._demoExpertMode; delete data._yongqingSellMode; delete data._yongqingSellUsed;
   delete data._demolitionRearrange; delete data._laborMinisterUsed; delete data._hrTalentUsedCount;
   delete data._gridSnapshot; delete data._keyedSnapshot; delete data._ruinCellsSnapshot;
@@ -7876,7 +8646,8 @@ function deserializeGame(save){
   delete data._tanyaSwapPending; delete data._tanyaSwapPool;
   delete data._permShopUsed;
   delete data._industrializing;
-  delete data._extraUsePhase;
+  // _extraUsePhase：僅在 phase='place' 且確實處於額外投入階段時保留，其他狀態下清除
+  if(!(data.phase==='place'&&data._extraUsePhase)) delete data._extraUsePhase;
   delete data._cardBeforeIndustrialize;
   G=data;
   _lastStartedTurn=-1; // 重置防重入標記，確保讀檔後 startTurn 正常執行
@@ -8022,21 +8793,26 @@ const MEGA_SIM_FX={
   scalper(sim){
     if(sim.type==='goods'){const m=sim.value+1;sim.value=Math.max(1,Math.ceil(m*0.9));} // goods→money+1→goods(-10%)
   },
-  bulk_store(sim,mega){
-    if(sim.type==='goods'){const cap=10*(mega.round||1);sim.value+=Math.min(Math.floor(sim.value*0.5),cap);}
+  bulk_store(sim,mega,ctx){
+    if(sim.type!=='goods') return;
+    const prev=sim.value;
+    const lost=Math.floor(prev/2);
+    sim.value=Math.max(1,prev-lost);
+    const groups=Math.floor(lost/4);
+    if(groups>0) ctx.bonusProfit+=groups*8; // 模擬簡化：每組固定+8（不累積成長）
   },
   dept_store(sim){
     if(sim.type==='goods'){sim.value=Math.floor(sim.value*2);sim.type='money';}
   },
   spiral_hub(sim,mega,ctx){sim.value+=2;}, // 簡化：每次通過+2
-  terminal(sim,mega,ctx){sim.value+=ctx.facHit*2;},
+  terminal(sim,mega,ctx){sim.value+=ctx.facHit*4;},
   env_sensor(sim,mega,ctx){
     // 計算快照中相鄰設施數
     const[r,c]=ctx.cell;const gn=mega.gridSize;let adj=0;
     [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([ar,ac])=>{
       if(ar>=0&&ar<gn&&ac>=0&&ac<gn){const bid=mega.grid[ar]&&mega.grid[ar][ac];if(bid&&bid!=='ruin'&&BLDG[bid]) adj++;}
     });
-    sim.value+=adj;
+    sim.value+=adj*2;
   },
   trade_zone(sim,mega,ctx){
     // 計算快照中相鄰商店數

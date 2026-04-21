@@ -24,20 +24,20 @@
 - 回合結束點擊「結束回合」推進
 
 ### 勝敗條件
-- **過關**：累計收益 ≥ 當輪目標（第 1 輪目標 = 30）
+- **過關**：累計收益 ≥ 當輪目標（第 1 輪目標 = 20）
 - **失敗**：10 回合用盡仍未達目標
-- 過關後進入下一輪，新目標 = `round(舊目標 × (1.8 × difficultyMult) + 15)`
+- 過關後進入下一輪，新目標 = `round(舊目標 × (1.4 × difficultyMult) + 8)`
 
 ### 動態難度系統
-系統追蹤玩家每輪的達標速度和收益超額比率，自動調整難度倍率 `difficultyMult`（範圍 0.6~2.5，初始 1.0）：
+系統追蹤玩家每輪的達標速度和收益超額比率，自動調整難度倍率 `difficultyMult`（範圍 0.5~3.0，初始 1.0）：
 
 | 條件 | 倍率變化 |
 |------|----------|
-| 平均 ≤2 回合達標 | +25% |
-| 平均 ≤4 回合達標 | +15% |
-| 平均 ≤6 回合達標 | +5% |
-| 平均 ≤8 回合達標 | 不變 |
-| 平均 >8 回合達標 | -8% |
+| 平均 ≤3 回合達標 | +25% |
+| 平均 ≤5 回合達標 | +15% |
+| 平均 ≤7 回合達標 | +5% |
+| 平均 ≤9 回合達標 | 不變 |
+| 平均 >9 回合達標 | -8% |
 | 連續 2 輪 ≤3 回合瞬殺 | 額外 +10% |
 | 連續 3 輪 ≤3 回合瞬殺 | 額外 +20% |
 | 收益 ≥2 倍目標 | 額外 +8% |
@@ -82,12 +82,13 @@
 | 設施 | Emoji | 特殊效果 |
 |------|-------|----------|
 | 螺旋物流站 | 🔄 | 每通過 1 個設施 +2 |
-| 終點站 | 🏁 | 資源通過時 +(已通過設施數×2) |
-| 物流放大器 | 📡 | 通過物流後下一設施效果×2 |
+| 終點站 | 🏁 | 資源通過時 +(已通過設施數×4) |
+| 物流放大器 | 📡 | 下一設施效果×2 |
 | 轉運中心 | 🔀 | 放置時決定方向（可選 4 向） |
 | 速遞站 | ⚡ | 通過後若下一格有設施立即再觸發一次 |
 | 物流倉 | 🏪 | 儲存通過時數值的 50%，下次投入時釋放 |
-| 環境感應站 | 📊 | 周圍 4 格每有一個設施 +1 |
+| 物流倉 v2 | 📦 | 資源投入時獲得 1 物流計數，計數 ≥3 時 +8 收益 |
+| 環境感應站 | 📊 | 周圍 4 格每有一個設施 +2 |
 
 ### 貿易流設施
 | 設施 | Emoji | 特殊效果 |
@@ -117,7 +118,7 @@
 |------|-------|----------|
 | 小型販售商 | 🛍️ | 商品→金錢+1；金錢→商品→金錢+2 |
 | 黃牛販子 | 🎫 | 商品→金錢+1→商品(-10%) |
-| 量販店 | 🛒 | 商品→金錢(+50%,上限 10×輪數)→商品 |
+| 量販店 | 🛒 | 投入商品時失去一半數量，每失去 4 個商品 +8 收益（每次觸發 +4 永久累積），單次 ≥100 自毀 |
 | 百貨公司 | 🏬 | 只能蓋在 2×2 商店上（佔 4 格，視為 4 商店）。商品→×2金錢→+2%商品→金錢 |
 
 ### 其他特殊設施
@@ -189,7 +190,7 @@
 ### 獨特合夥人
 | 合夥人 | Emoji | 效果 |
 |--------|-------|------|
-| 譚雅 | 👩‍💼 | 每回合可用手牌與隨機 3 設施之一交換，所得 +1 |
+| 譚雅 | 👩‍💼 | 每回合可用手牌設施交換一張稀有度高一級的設施；手牌為空、或手牌+場上設施 <24 時自動補 1 張 **N 稀有度** 設施 |
 | 蕾雅 | 👩‍🔧 | 可將手牌相同設施蓋在小鎮設施上，視為升級並額外+2%（可累積）；重新排列時可合併同類設施升級 |
 | 阿北，物流之王 | 🚛 | 可將設施蓋在物流中心上，同時獲得轉向+輸出 |
 | 市長 | 🎖 | 每筆資源經過中央格子時最終收益 +5%（可累積） |
@@ -197,7 +198,7 @@
 | 設施破壞者 | 💣 | 任何機制消滅設施時 +50 收益 |
 | 場風大師 | 🌀 | 每回合指定投入方向，從該方向投入×2；只能從指定方向投入 |
 | 大地主 | 🏗 | 地圖擴大為 5×5 格；設施補給事件時必須失去一個設施 |
-| 拆遷隊 | 🔨 | 每 3 回合獲得並儲存一次免費重新排列設施的機會（可累積） |
+| 拆遷隊 | 🔨 | 每回合開始 +1 拆遷計數，計數 ≥3 時消耗 3 獲得 1 次免費重排機會（可累積）；受全能會計師灌注 |
 | 無冕之王 | 👑 | 每有 x 個廢墟，收益 +(x²/2)%；每有人材 45% 機率重複觸發，上限人材數次 |
 | 擁慶記房屋 | 🏠 | 每回合可賣出一個設施（不產生廢墟），獲得 0.1×x%×已過回合數 收益，每次賣出 x+1 |
 
@@ -245,16 +246,16 @@
 
 | 行動 | 基礎費用 | 效果 |
 |------|----------|------|
-| 🏗 購買設施 | 4 | 從設施池隨機取 3 選 1 加入手牌 |
-| ⚡ 觸發隨機事件 | 2 | 立即觸發一個隨機事件 |
-| 🔧 重新排列設施 | 2 | 自由移動所有設施後鎖定 |
-| 🤝 招募合夥人 | 5 | 隨機 3 選 1 招募合夥人 |
-| ⬆ 提升設施數值 | 3 | 選一個設施永久 +1 輸出 |
-| ✨ 下次輸出加成 | 3 | 下次元素以特定類型輸出時 +3 |
-| 🔄 更換預告事件 | 1 | 重新抽一個下回合的隨機事件 |
+| 🏗 購買設施 | 6 | 從設施池隨機取 3 選 1 加入手牌 |
+| ⚡ 觸發隨機事件 | 3 | 立即觸發一個隨機事件 |
+| 🔧 重新排列設施 | 4 | 自由移動所有設施後鎖定 |
+| 🤝 招募合夥人 | 8 | 隨機 3 選 1 招募合夥人 |
+| ⬆ 提升設施數值 | 5 | 選一個設施永久 +1 輸出 |
+| ✨ 下次輸出加成 | 4 | 下次元素以特定類型輸出時 +3 |
+| 🔄 更換預告事件 | 2 | 重新抽一個下回合的隨機事件 |
 | 😴 什麼也沒發生 | 0 | 跳過行動 |
 
-行動費用公式：`ceil(基礎費用 × max(1, 1 + (輪數-1) × 0.5))`
+行動費用公式：`ceil(基礎費用 × max(1, 1 + (輪數-1) × 0.35))`
 
 ---
 
@@ -394,7 +395,7 @@
 
 ## 技術細節
 
-- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~8441 行）
+- **單檔架構**：所有 HTML / CSS / JS 寫在同一個 `index.html`（~9564 行）
 - **無框架**：純 vanilla JS，直接操作 DOM
 - **字體**：Noto Sans TC（中文）、DM Mono（數值）
 - **配色**：暖色系牛皮紙風格，CSS 變數控制主題色
@@ -404,24 +405,25 @@
 
 ### 檔案結構
 ```
-E:\VT\
-├── index.html              ← 主檔，所有邏輯
-├── venture-town.html       ← 同步副本
-├── venture-town.html.bak   ← 最初備份（含 base64，833KB）
+VT/
+├── index.html              ← 主檔，所有邏輯（~9564 行）
 ├── VentureTown_GameDoc.md  ← 本文件
+├── CLAUDE.md               ← 專案設定
+├── 新合夥人表.xlsx          ← Excel 設計稿
 ├── img/C_1~C_6.png         ← 角色表情立繪
+├── 實作規格/                ← 補充設計文件
 └── 圖片參考/                ← 原始素材
 ```
 
-### 程式碼架構概覽
-| 區塊 | 行號（約） | 說明 |
-|------|-----------|------|
-| CSS | 8~600 | inline style + CSS 變數 + event-preview 高亮 |
-| HTML DOM | 597~695 | header（含存檔按鈕）/grid/panels/modal/overlay |
-| BLDG | 699~768 | 50 種設施定義 |
-| PARTNERS | 767~1260 | 30 位合夥人（含 onSettle/onTurnStart/onRoundStart hook） |
-| 工具函數 | 1270~1285 | KEYED_DATA_FIELDS/rollWindDir/hasPartner/isFacility/isShopType/GN/eachCell/findCells |
-| EVENTS | 1283~1640 | 19 種隨機事件（含預計算 + 地震滑動機制） |
+### 程式碼架構概覽（行號為粗略近似，以 Session 14 為準）
+| 區塊 | 說明 |
+|------|------|
+| CSS | inline style + CSS 變數 + event-preview 高亮 |
+| HTML DOM | header（含存檔按鈕）/grid/panels/modal/overlay |
+| BLDG | 79 種設施定義（含新增 26） |
+| PARTNERS | 56 位合夥人（含 onSettle/onTurnStart/onRoundStart/onRecruit hook） |
+| 工具函數 | KEYED_DATA_FIELDS/COUNT_PARTNERS/gainOmniCount/rollWindDir/hasPartner/isFacility/isShopType/isPoolableBldg/hasTag/clearKeyedData/GN/eachCell/findCells |
+| EVENTS | 19 種隨機事件（含預計算 + 地震滑動機制） |
 | 格子修正 helper | 1642~1670 | applyRowColPctMod/apply2x2PctMod/flash 函數 |
 | newGame() | 1668~1720 | G 物件初始化（含 `inv:{}`） |
 | startRound() | 1724~1765 | 每輪開始（合夥人 onRoundStart hook → startTurn()） |
@@ -1643,3 +1645,164 @@ E:\VT\
 #### 總行數
 - Session 12 結束：~8100 行
 - Session 13 結束：~8478 行（+378 行：26 設施 + 18 合夥人 + 稀有度系統 + 數值調整 + Bug 修復 - 精簡）
+
+### Session 14（2026-04-21）— 未實作項目補齊 + 資料/文件同步修復
+
+#### 譚雅手牌電影式動畫（改版）
+舊版的「從 Tanya 合夥人卡飛一張 76×96 小卡到手牌 + 燒毀舊卡」改為電影式特寫：
+
+- **`closeUIForCinematic()`**：關閉 card-chooser / action-chooser / omni-drag-panel / omni-confirm-box / partner-float，確保中央特寫不被其他 UI 遮蓋
+- **`_makeCinematicCardContent(bldgId)`**：200×280 大卡內容 — 56px emoji + 18px 名稱 + 說明（含 `highlightDescTags`）+ 稀有度徽章
+- **半透明背幕**：`.tanya-cinematic-backdrop`（`rgba(0,0,0,.5)`，z-index 9150）
+- **情境 A - 直接獲得（`tanyaGainCardCinematic`）**：
+  1. Pop in：從 `scale(.3) rotate(-10deg)` 彈出放大到原大（500ms，彈性曲線）
+  2. 特寫停留（500~1500ms）
+  3. 飛向手牌 + 縮小至 76×96 + 淡出（1500~2100ms）
+- **情境 B - 交換（`tanyaSwapCardCinematic`）**：
+  1. 找出手牌中 give 卡位置 → 將原卡 `opacity:0` 隱藏
+  2. 新建 cinematic 卡從 give 位置飛到畫面中央 + 放大到 200×280（0~500ms）
+  3. 顫抖 `tanya-shake` keyframe（2×600ms，~550~1700ms）含左右搖晃 + 旋轉
+  4. 發光閃爍 `tanya-glow-flash` keyframe（800ms）+ 高峰 320ms 切換內容為 receive 卡（邊框轉綠）
+  5. 特寫停留 + 飛向手牌（3000~3700ms）
+- **使用時機**：
+  - `tanya.onTurnStart` 手牌空補牌 → 情境 A
+  - `tanyaDoSwap` → 情境 B；若有 `refillPick`（hand+grid<24）→ 情境 A 接續
+  - 完成後 `tanyaSwapDone()` 才會開啟 action overlay
+- **防呆**：`tanyaSwapCardCinematic` 使用 `safeComplete()` 包裝 callback，確保即使動畫異常中斷，手牌中被隱藏的原卡（`giveEl.style.opacity='0'`）會被還原；同時 `renderFanHand` 在 callback 中執行會完全替換 DOM，雙保險
+
+#### 譚雅手牌動畫（新增）
+- 新增 helper：
+  - `getPartnerCardEl(pid)`：取得合夥人卡 DOM
+  - `tanyaFlyCardToHand(bldgId, delay)`：從譚雅位置飛一張 76×96 設施卡到 `#hand-fan-area`（兩段：先 pop 放大 scale(1.15)→ 飛向手牌區 scale(.7) 淡出；譚雅卡片同步向上彈跳強調）
+  - `tanyaBurnHandCard(bldgId)`：尋找手牌中對應設施卡加上 `.burning` class（沿用既有 `@keyframes burnAway` 動畫）
+- `renderFanHand` 為 `.fan-card` 加入 `data-bid` 屬性，方便 `tanyaBurnHandCard` 查找
+- `tanya.onTurnStart` 補牌時：呼叫 `renderFanHand()` + `tanyaFlyCardToHand(pick)`
+- `tanyaDoSwap` 完整序列（重要：state 立即更新、動畫 deferred，避免 race condition）：
+  1. 先對要交出的手牌卡播放燃燒動畫（純視覺：對當前 DOM 卡片加 `.burning` class）
+  2. **立即**更新 `G.hand`（移除 give、加入 receive、計算 `hand+grid<24` 補牌）+ 立即呼叫 `tanyaSwapDone()` → `openActionOverlay()`（phase 與狀態正確）
+  3. **延遲 700ms** 後才 `renderFanHand()` 並對換入卡 + 補牌卡各播放 `tanyaFlyCardToHand`（補牌卡延遲 450ms 接續）
+  - 這樣玩家在 burn 動畫期間仍可選擇行動；若玩家在延遲時間內進行其他操作，遊戲狀態已是最新的
+- **防呆**：`startTurn` 強制重置 `G.elementExtraUses=0` 與 `G._extraUsePhase=false`，避免上一輪殘留狀態導致「結束回合」按鈕失效
+- **讀檔 `elementExtraUses` 與 `_extraUsePhase` 不同步**：前次修復讓 `_extraUsePhase` 在合法組合下保留，但 `elementExtraUses` 仍無條件設 0，導致讀檔後 UI 顯示「跳過額外投入」按鈕但底層額外次數為 0。修復：`elementExtraUses` 僅在 `phase='place' && _extraUsePhase` 組合下保留
+- **`_inOtherMode` 加入 `_omniDragging`**：防禦性擴充，確保全能會計師拖曳中不允許結束回合（雙重保障，雖然拖曳期間玩家其實無法點按鈕）
+- **`landlord` 邊界處理**：`pick_fac` 事件中若場上全為不可消滅設施且手牌空，新增 log 提示「無可消滅的設施，事件繼續」避免靜默無效
+- **🎯 根因定位：讀檔強制 phase='place' + 刪除 `_turnInvested`**
+  - `deserializeGame` 先前無條件 `data.phase='place'` 並 `delete data._turnInvested`；若玩家在「投入完成、phase='done'、尚未點結束回合」的狀態下存檔（手動匯出、或在此狀態被 autoSave 觸發），讀檔後狀態被重置為 `phase='place'` + `_turnInvested=undefined`，按鈕三個 enable 條件全部不成立 → **死鎖：投入已完成，但遊戲以為未投入，且無法再投一次**
+  - 修復：phase 白名單化 `'done' | 'place'` 保留原值、其他中間態（`animating`/`event`）才強制 reset 為 `'place'`；`_turnInvested` 只在 `phase!=='done'` 時刪除；`_extraUsePhase` 僅當 `phase='place'&&_extraUsePhase` 的合法組合時保留
+  - 此 bug 可能先前被觀察為「重玩後卡住」或「讀取存檔後結束回合失效」
+- **容錯旗標 `G._turnInvested`**：先前仍無法定位的「投入後按鈕殘留 disabled」bug 加入終極保險：
+  - `finish()` 於 `G.phase='done'` 後設 `G._turnInvested=true`
+  - `startTurn` 與 `deserializeGame` 重置該旗標
+  - 按鈕 enable 條件擴充：`phase==='done' || (phase==='place' && _extraUsePhase) || (_turnInvested && !互動模式)`
+  - `doNext` 加入容錯：若 `_turnInvested` 為 true 且不在互動模式（排列/移動/賣出/摧毀/event/animating）中，強制把 phase 設為 `'done'` 讓流程正常進入
+  - 即使 phase 被未知路徑回寫為 `'place'`，只要已完成本回合投入且非其他互動中，玩家仍可正常結束回合
+
+#### 黃牛販子規格更新（依 xlsx）
+- 舊：商品→金錢→商品(-10%)
+- 新：商品→金錢+1→商品+1；本回合沒有獲得收益時，最終收益 -8
+- FX 實作：兩段鍊（+1 → +1）、標記 `G.inv._scalperHits`；`finish()` 檢查該標記且 `profit<=0` 時 -8 收益（含飛行動畫）
+
+#### 卡片稀有度外框
+- 新增 CSS class：`rarity-n`（灰）/ `rarity-r`（藍）/ `rarity-sr`（紫）/ `rarity-ssr`（金＋發光脈衝）
+- 套用至：`fan-card`（手牌）、`joker-card`（合夥人）、`sel-card`（選擇器）、`omni-drop-card`（全能會計師面板）
+- SSR 額外 `rarityGlowSSR` keyframe 發光動畫
+
+#### 詞條醒目化
+- 新增 `TAG_KEYWORDS_MAP` 映射（基礎/商店/人力/物流/貿易/拆遷/惡魔/強化/增幅/生產/獨特/電子/大型/中央）
+- `highlightDescTags(desc)` 函數：在 desc 首段（第一個句號前）將詞條關鍵字包成 `<span class="tag-chip tag-xxx">`
+- 各詞條有專屬色票（如「惡魔」深色底紅字、「大型」深藍底、「獨特」金色漸層）
+- 套用至 `fan-card` 設施卡 desc、`sel-card` desc 與 pos
+
+#### 既有 Bug / 不一致修復
+- **`landlord`（大地主）負面效果 flag 設置但未消耗**：`_landlordPenaltyPending` 在 `pick_fac` 事件 `show` 中被設為 `true`，但全檔無任何位置讀取該 flag，實際上未消滅任何設施。改為直接在事件 `show` 中同步執行消滅邏輯（grid + hand 隨機一個，排除 `dept_store`/`dept_store_part`/`indestructible`/複合卡）；移除殘留 flag
+- **`strike_board`（集體罷工台）實作與 xlsx 新規格不符**：原 impl「消耗所有人材×10」→ 改為「失去**一半**人材×**8**」
+- **`dispatch_hq`（派遣總部）實作與 xlsx 新規格不符**：原 impl「商品通過時 +2 人材」→ 改為「本回合投入 ≥8 人材時，通過此設施觸發『場上所有設施 cellMods +2』，每回合最多一次」；新增 `G._dispatchHqFiredThisTurn` flag，startTurn 重置、deserialize 清理
+- **`vaultV2Counts` 鍵格式與生命週期 bug**：`logistics_vault_v2` 的計數原用 `v2_r,c` 前綴鍵、存於 `G._vaultV2Counts`，未納入 `KEYED_DATA_FIELDS`。設施被消滅 / 交換位置時 `clearKeyedData` / `swapCellData` 無法處理，導致舊計數殘留。改為 `r,c` 鍵、改名為 `G.vaultV2Counts`、加入 `KEYED_DATA_FIELDS`，與 `bulkStoreBonus` 同待遇
+- **確認對話框 click 競爭**：`showOmniConfirm` 的外部點擊偵測原用 `click` 事件 + 10ms 延遲，在 drop 釋放瞬間的事件流可能導致彈出即關閉。改用 `mousedown`（capture phase）+ 180ms 延遲；ESC 及按鈕 onclick 不受影響
+- **連續拖曳殘留**：`onOmniDragStart` 補上清理前次未關閉的 `#omni-confirm-box`，避免快速重新拖曳時舊確認框殘留
+- **全能會計師無目標時面板不顯示**：`showOmniDragPanel()` 原本在 `G.partners.filter(COUNT_PARTNERS).length===0` 時直接 return → 玩家看不到任何面板、以為功能壞掉。改為顯示紅框提示面板「目前沒有可灌注的合夥人」，並列出應招募的 5 位計數合夥人清單
+- **從合夥人浮動面板拖曳 omni 時 drag session 被中斷**：`onOmniDragStart` 原本立即 `partner-float.style.display='none'` 或 `pointer-events:none`，若拖曳來源位於該浮動面板內，這些操作都會讓瀏覽器中斷 drag session → dragend 立即觸發 → 專用面板瞬閃即關。最終解決方案：drag 期間**只對浮動面板做 `opacity:0.35` 淡化**（不觸動 display/pointer-events/DOM），所有關閉延遲到 `onOmniDragEnd` 才執行 `display:none`
+- **`partner-float` 自身 mouseleave listener 與 `hidePartnerFloat` 計時器在拖曳時仍會觸發 `display:none`**：上一條修復後仍失敗，因為 dragstart 會讓滑鼠「離開」浮動面板的 hit area → 觸發 pf 的 `mouseleave` listener（以及卡片 onmouseleave 透過 `hidePartnerFloat` 排的 200ms 計時器）→ 兩者都把 pf 設 `display:none` 中斷 drag。最終在這兩處都加入 `if(G._omniDragging) return;` 守衛
+- **mouseleave 在 dragstart 之前同步觸發的 race condition**：部分瀏覽器 event 順序使 pf 的 `mouseleave` 在 `onOmniDragStart` 將 `_omniDragging=true` 之前就跑完，守衛永遠看到 false。解法：pf 的 mouseleave 改為 `setTimeout(..., 80)` 延遲關閉，讓 `dragstart` 有機會先設好 flag；延遲後再檢查 `_omniDragging` 才真正執行 `display:none`
+- **最終解法：禁止從浮動面板 clone 拖曳**：前幾輪繞著 mouseleave/display:none race 打轉仍不穩定，改採根本解：`showPartnerFloat` 為所有 clone 執行 `removeAttribute('draggable'|'ondragstart'|'ondragend')`，強制拖曳只能由主合夥人列卡片觸發（那裡沒有會互相干擾的父層 listener）。omni clone 底部追加小字提示「請從左側列拖曳」指引玩家
+- **MEGA_SIM_FX 落差**：`terminal` 由 `facHit*2`→`facHit*4`、`env_sensor` 由 `adj*1`→`adj*2`（對齊 Session 12 正式 FX 改動，使巨型設施/戰鬥系統模擬收益與實際一致）
+- **`logistics_amp` 描述錯誤**：BLDG.desc 從「下一設施這回合獲得+8」改回「下一設施的效果×2」以匹配實作
+- **`logistics_vault` 描述錯誤**：BLDG.desc 從誤植的「計數 ≥3 時 +8」改回「儲存 50%，下次釋放」以匹配實作
+- **`logistics_vault_v2` 同名衝突**：name 由「物流倉」→「物流倉 v2」，避免與 `logistics_vault` UI 顯示混淆
+- **`BLDG_RARITY` 重複鍵值清理**：`magnet_plate`/`ruin_monument`/`demolish_bureau`/`dynamic_amp`/`trade_zone`/`clearance` 6 組重複鍵移除，`mobile_city`/`scrap_city`/`disaster_bureau` 重新歸入 SSR 區
+
+#### 未實作 UI 補齊
+- **`clone_master`（分身大師）**：`onTalentDropCell` 加入投入人材時周遭 8 格隨機一格設施 `cellMods+2`，附紫色高光視覺提示
+- **`mobile_city`（移動都市）**：
+  - `G._mobileCityMode`/`_mobileCitySrc`/`_mobileCityUsedThisTurn`/`_ruinPassedThisTurn` 四個 state flag 加入 newGame 與 startTurn 重置、deserializeGame 清理
+  - `info-area` 新增「🏙 移動都市交換（未使用）」按鈕 → 兩段式點擊：選周圍 8 格內設施 → 選目標格（可空、廢墟或另一設施，支援交換）
+  - 整合 `swapCellData`+`onFacilityMoved` 觸發連鎖效果
+  - 排除百貨公司（`dept_store`/`dept_store_part`）與自身
+  - `stepWithMover` 廢墟分支設 `_ruinPassedThisTurn=true`；`finish()` 檢查若有 `mobile_city` 且本回合未投入廢墟 → 本次收益歸零（含飛行動畫）
+- **`omni_accountant`（全能會計師）**：
+  - 新增 helper `gainOmniCount(label)`（持有時自動 +1，**每回合最多 +1**；`G._omniGainedThisTurn` flag 於 startTurn 重置、deserialize 清理，避免過易取得）
+  - 5 處計數來源掛鉤：`elec_artisan`/`thunder_king`/`relay_station`/`spread_demon` 的 `onTurnStart` + `logistics_vault_v2` FX + `demolition` `onTurnStart`
+  - `renderPartners` 顯示「📊×N 拖曳給予」橘色 badge 與其他計數合夥人的「計數 N」文字
+  - 新增 `COUNT_PARTNERS` 常數定義可接收灌注的合夥人清單
+  - **點擊式互動（最終採用）**：當 omni 有計數時，主合夥人列的卡片 `onclick="useOmniAccountant()"`（不再使用從主列拖曳的方式，避免各種浮動面板 mouseleave race condition）
+    - `useOmniAccountant()`：呼叫 `showOmniDragPanel()` 建立中央面板
+    - **面板佈局（400px 寬、高度自適應）**：
+      1. 標題「📊 拖曳下方卡片至目標合夥人給予計數」
+      2. **上排**：玩家持有的計數合夥人目標卡（80×80 方卡：emoji + 名稱 + `curr/3→next✨` 單行計數），`overflow-x:auto` 橫向捲動支援超過 5 張；觸發效果預告改為 HTML `title` tooltip
+      3. 分隔提示「↑ 拖曳到上方 ↑」
+      4. **下方**：omni 源卡（同樣 80×80、`draggable=true`）顯示目前全能計數 `×N`
+      5. 關閉按鈕
+    - 互動：拖曳下方 omni 源卡 → 上方目標卡（`ondragover`/`ondrop` 接收）→ 釋放後**直接套用計數**（無另外確認對話框，因開啟面板+拖曳已是雙重確認）
+    - 套用邏輯：`partnerState[pid].count++`、`omni.count--`、`processCountTrigger(pid)` 即刻觸發達標效果
+    - 套用後：若 omni 仍有計數 → `showOmniDragPanel()` 重建面板（目標 counts 更新、willTrigger 重算）；count 歸 0 → `closeOmniPanel()`
+    - 關閉方式：`installOmniPanelCloser` 掛載 ESC + `mousedown`（capture phase）外部點擊監聽，延遲 150ms 以避開開啟當下的 click 事件
+    - 面板 source 與 target 都在 body 層同一容器內，`draggable` 源在本身 panel DOM 裡、無 partner-float/浮動面板干擾 → **drag session 完全不受外部 listener 影響**
+    - 達門檻即將觸發的目標卡：預先呈綠框微發光 + 觸發效果預告（如「✨ 獲得電子工廠」）
+    - 拖曳懸停目標時 `.omni-hover` class 放大 1.08× + 亮綠外框
+    - 無可灌注目標時顯示紅框提示面板（含關閉按鈕）
+    - 主合夥人列 badge 改為「📊×N」+「點擊灌注」提示
+    - **移除**舊版從主列拖曳/浮動面板 clone 拖曳的所有相關處理、confirm 對話框（`showOmniConfirm`/`confirmOmniGive`/`cancelOmniGive`）、`showPartnerFloat` 的各種 drag 守衛
+    - **Listener 洩漏修復**：`installOmniPanelCloser` 的 `setTimeout(150ms)` 在面板快速關閉/重建時會造成 listener 殘留（面板已消失但 listener 仍掛在 document 上）。修復為：`attached` 狀態旗標 + `clearTimeout(timerId)` + 回呼內檢查 `document.body.contains(panel)`，兩重保險確保不會有孤兒 listener
+    - **清理 dead CSS**：刪除 `.joker-card.upgrade-glow` 與 `.joker-card.omni-hover`（已不再套用到 joker-card；前者為舊版主列拖曳提示、後者為舊版目標高亮，均已無使用點）
+  - **計數給予後立即觸發達標效果**：抽出共用函數 `processCountTrigger(pid)`，5 位計數合夥人的 `onTurnStart` 與 `confirmOmniGive` 共用；灌注計數後若達門檻（≥3）即刻執行對應效果（獲得設施/消滅設施/廢墟轉物流/全設施視為中央/+1 重排），不必等到下回合
+
+#### 拆遷隊技能改版（依 xlsx 設計同步）
+- 舊：`startTurn` 中每 3 回合自動 +1 charge
+- 新：`PARTNERS.demolition.onTurnStart` 使用計數制（+1/回合，≥3 消耗 3 → 獲 1 charge）
+- 加入 `COUNT_PARTNERS`，`omni_accountant` 可灌注
+- `startTurn` 中的 `turn % 3` 邏輯移除
+
+#### 譚雅補牌 bug 修復（跨稀有度）
+- `onTurnStart` 手牌空補牌與 `tanyaDoSwap` 中 `hand+grid<24` 補牌皆改為**限 N 稀有度**，避免隨機送出 SR/SSR
+- log 顯示「（N）」標記以利辨識
+
+#### 量販店改版（依 xlsx 新規格）
+- 舊：商品 →金錢(+50%,上限 10×輪數)→商品
+- 新：投入商品時失去一半數量，每失去 4 個商品獲得 +8 收益（每次觸發使 `bonusPer +4` 永久累積），單次提供 ≥100 收益時自毀
+- 新增 `G.bulkStoreBonus:{}` 每格追蹤獎勵值（預設 8），加入 `KEYED_DATA_FIELDS` 以跟隨設施位置搬遷
+- `MEGA_SIM_FX.bulk_store` 同步簡化為 +8/組（不模擬累積）
+
+#### `demon_giant` 大型設施數量限制系統
+- `tryPlaceAtCell` 加入前置檢查：`isLarge` 設施（`giant_village`/`ancient_factory`/`world_wonder`）在場上已存在時擋下
+- 持有 `demon_giant` 豁免限制（該合夥人正面描述本就註明）
+
+#### 疊加設施消滅時 `facility_destroyer` 觸發
+- `destroyFacility` 在 `clearKeyedData` 前先遍歷 `cellOverlay` 疊加設施，每個觸發：設施破壞者 +4、廢鐵城 `x+=2`、災害控管局消滅數 +1
+- 百貨公司 2×2 消滅路徑同步處理 4 格各自的疊加設施
+
+#### 格子計數視覺
+`renderGrid` 於有計數/狀態的設施格子右上角加 badge：
+- `logistics_vault_v2`：橘色 `N/3`（計數進度）
+- `logistics_vault`：灰色 `💼N`（目前儲存值，>0 才顯示）
+- `elec_conveyor`：藍色 `⚡ON`（下一個電子設施永久 +2 預載中）
+- `scrap_city`：紅色 `x=N`（累積消滅獎勵）
+
+#### 文件同步更新（`VentureTown_GameDoc.md`）
+- 概述目標公式、難度範圍、行動費用、費用公式修正為 Session 13 實際值
+- 商店系/物流系設施表更新：量販店新規格、終點站 ×4、環境感應站 +2、新增物流倉 v2、修正物流放大器
+- 獨特合夥人表：譚雅、拆遷隊更新
+- 技術細節：行數、路徑、移除不存在的 `venture-town.html`
+
+#### 總行數
+- Session 13 結束：~8478 行
+- Session 14 結束：~9564 行（+~1086 行：UI 補齊 + 量販店改版 + 多項 Bug 修復 + 計數視覺 + 歷次增補）
