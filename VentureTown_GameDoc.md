@@ -27,6 +27,7 @@
 - **過關**：累計收益 ≥ 當輪目標（第 1 輪目標 = 20）
 - **失敗**：10 回合用盡仍未達目標
 - 過關後進入下一輪，新目標 = `round(舊目標 × (1.4 × difficultyMult) + 8)`
+- **連續結算**：單次結算時若 `G.profit` 同時超越當輪與下一輪（或更多輪）目標，會一次連過多輪；Modal 顯示過關鏈與累計輪數（上限 20 輪）
 
 ### 動態難度系統
 系統追蹤玩家每輪的達標速度和收益超額比率，自動調整難度倍率 `difficultyMult`（範圍 0.5~3.0，初始 1.0）：
@@ -70,35 +71,35 @@
 | 設施 | Emoji | 特殊效果 |
 |------|-------|----------|
 | 人力訓練中心 | 🎓 | 每回合開始產生 1 人材 |
-| 勞動轉換站 | ⚙️ | 消耗 2 人材，資源×2 |
+| 勞動轉換站 | ⚙️ | 本回合每投入 2 人材，資源通過時 +4 |
 | 人材倉庫 | 🗃️ | 持有 5+ 人材時額外 +5 |
 | 人才市場 | 🏦 | 金錢通過時消耗 3% 獲得 2 人材 |
-| 加班辦公室 | 💼 | 資源通過時 +人材數量一半% |
-| 人力銀行 | 🏧 | 金錢通過時儲存 10% 為加成，下次投入釋放 |
-| 派遣總部 | 🏢 | 商品通過時獲得 2 人材 |
-| 集體罷工台 | 📢 | 消耗所有人材，每個 +10 數值（主動觸發） |
+| 加班辦公室 | 💼 | 本回合每投入 2 人材，資源通過時 +8 |
+| 人力銀行 | 🏧 | 投入 2 人材，下回合開始時獲得人材 +4 |
+| 派遣總部 | 🏢 | 本回合投入 8 人材時觸發：場上所有設施 cellMods +2（每回合最多一次） |
+| 集體罷工台 | 📢 | 投入資源時失去一半人材，每個 +8 數值 |
 
 ### 物流中心流設施
 | 設施 | Emoji | 特殊效果 |
 |------|-------|----------|
 | 螺旋物流站 | 🔄 | 每通過 1 個設施 +2 |
 | 終點站 | 🏁 | 資源通過時 +(已通過設施數×4) |
-| 物流放大器 | 📡 | 下一設施效果×2 |
+| 物流放大器 | 📡 | 資源投入時，下一設施這回合獲得 +8 |
 | 轉運中心 | 🔀 | 放置時決定方向（可選 4 向） |
 | 速遞站 | ⚡ | 通過後若下一格有設施立即再觸發一次 |
-| 物流倉 | 🏪 | 儲存通過時數值的 50%，下次投入時釋放 |
-| 物流倉 v2 | 📦 | 資源投入時獲得 1 物流計數，計數 ≥3 時 +8 收益 |
+| 物流倉 | 🏪 | 資源投入時 +1 物流計數，計數 ≥3 時 +8 收益並重置 |
+| 物流倉 v2 | 📦 | （舊版，已併入物流倉；新局不再出現） |
 | 環境感應站 | 📊 | 周圍 4 格每有一個設施 +2 |
 
 ### 貿易流設施
 | 設施 | Emoji | 特殊效果 |
 |------|-------|----------|
 | 外貿港口 | ⚓ | 商品數量每 10 個 +1% |
-| 匯率波動板 | 📈 | 不參與路徑；每次投入結算時隨機 ±3~15% |
+| 匯率波動板 | 📈 | 資源通過時，隨機 ±2 × 場上設施數量次（加到該設施輸出） |
 | 期貨交易所 | 🏛 | 放置時鎖定當前倍率，永久使用 |
 | 貿易特區 | 🌏 | 周圍 4 格有商店系設施時輸出×1.5 |
 | 清倉拍賣場 | 🏷️ | 商品通過時獲得數值×4 收益，商品變成 1 |
-| 進出口稅站 | 🧾 | 扣除 1 收益；通過 4+ 物流中心後×2 |
+| 進出口稅站 | 🧾 | 商品↔金錢 +4；此回合每通過 1 個物流中心 +2 |
 | 自由市場 | 🗽 | 任意資源進入，輸出金錢（當前數值） |
 
 ### 拆遷流設施
@@ -109,7 +110,7 @@
 | 臨時工棚 | 🛖 | 每移動一次輸出 +1（最高 +5） |
 | 磁力板 | 🧲 | 每回合開始與相鄰隨機設施交換位置 |
 | 廢墟紀念碑 | 🗿 | 只能放在廢墟上，輸出 +5；消滅後還原為空地（不變廢墟） |
-| 拆遷補償局 | 🏢 | 每次移動或消滅設施 +1 收益 |
+| 拆遷補償局 | 🏢 | 設施更動位置或被消滅時 +4 收益（排列模式整段視為 1 次，×補償局數量） |
 | 動態加強器 | 🔋 | 本回合設施被移動過，此設施輸出×2 |
 | 地基不穩定站 | ⚠️ | 相鄰有減益時輸出翻倍；相鄰有增益時 -1 |
 
@@ -121,6 +122,36 @@
 | 量販店 | 🛒 | 投入商品時失去一半數量，每失去 4 個商品 +8 收益（每次觸發 +4 永久累積），單次 ≥100 自毀 |
 | 百貨公司 | 🏬 | 只能蓋在 2×2 商店上（佔 4 格，視為 4 商店）。商品→×2金錢→+2%商品→金錢 |
 
+### 電子流設施
+| 設施 | Emoji | 稀有度 | 特殊效果 |
+|------|-------|--------|----------|
+| 電子工廠 | ⚡ | SR | 原料→金錢。場上每有一個電子設施，這個設施**設置時**永久 +2 |
+| 電子輸送帶 | ⚡ | SR | 原料投入時，下一個電子設施永久 +2 |
+| 電子商店 | ⚡ | SR | 金錢→原料、商品→原料、原料→金錢 +2 |
+| 大型電子供給站 | 🔋 | SSR | 大型。金錢→原料 +4、商品→原料 +4；回合開始若本格沒被重疊過，自動疊加 大型電子供給站 於自身 |
+| 中央電子網路 | 💻 | R | 中央專屬。中央建築可蓋在此設施上（電子 tag） |
+
+### 中央流設施
+| 設施 | Emoji | 稀有度 | 特殊效果 |
+|------|-------|--------|----------|
+| 中央貿易代理 | 🌐 | SSR | 中央專屬。金錢→原料 +4、原料→金錢 +4、商品→金錢 +4 |
+| 中央科技研發 | 🔬 | SSR | 中央專屬。原料→商品 +8、商品→商品 +8 |
+| 公路之星 | 🌟 | SR | 中央隨機 2 格 +2；該格被投入則 +2 變永久；未投入中央收益減半 |
+| 中央工廠監督局 | 🏛 | R | 中央專屬。此回合沒投入時，每經過一個工廠最終收益 +2 |
+| 中央商店監督局 | 🏛 | R | 中央專屬。此回合沒投入時，每經過一個商店最終收益 +2 |
+| 中央原料監督局 | 🏛 | R | 中央專屬。此回合沒投入時，每經過一個原料廠最終收益 +2 |
+
+### 大型設施（2×2，各僅能 1 個，除非有惡魔巨人/大地主擴張）
+| 設施 | Emoji | 稀有度 | 特殊效果 |
+|------|-------|--------|----------|
+| 百貨公司 | 🏬 | SSR | 大型商店。只能蓋在 2×2 商店上，視為 4 商店。商品→金錢 +8→商品 +8→金錢 +8 |
+| 巨人村 | 🏰 | SSR | 大型。回合開始人材歸 0，獲得 +8 人材 |
+| 古代的機械工廠 | 🏛 | SSR | 大型工廠。只能蓋在 2×2 工廠上，視為 4 工廠。所有工廠被投入時 +8，原料→商品 |
+| 世界奇觀 | 🏟 | SSR | 大型。最終收益時每有 1 人材 +8 |
+| 移動都市 | 🏙 | SSR | 每回合可自由移動周圍 8 格設施；本回合未投入廢墟則最終收益變 0 |
+| 廢鐵城 | 🏚 | SSR | 任意→金錢 +8 +x；每消滅一個設施使 x 永久 +2；回合結束消滅所有廢墟並獲得 +x |
+| 災害控管局 | 🛡 | SSR | 此回合結束時，每消滅一個設施 +4；此設施不會被消滅 |
+
 ### 其他特殊設施
 | 設施 | Emoji | 特殊效果 |
 |------|-------|----------|
@@ -128,18 +159,15 @@
 | 物流方向 ↑↓←→ | ⬆️⬇️⬅️➡️ | 資源轉向指定方向 |
 | 員工食堂 | 🍱 | 投入商品時額外獲得 1 人材 |
 | 人力派遣 | 🏢 | 金錢投入時獲得 1 人材 |
-| 貿易代理 | 🌐 | 中央專屬。金錢→1% 原料；商品→1% 金錢 |
-| 科技研發 | 🔬 | 中央專屬。商品投入時獲得 2% 商品 |
 | 稅務局 | 🏛 | 每回合開始隨機設施升級，最終收益 -10% |
 
 ---
 
 ## 合夥人系統
 
-### 惡魔系合夥人（有正面也有負面效果）
+### 惡魔系合夥人（isDemon 標記者，受傲慢惡魔增益/保護）
 | 合夥人 | Emoji | 正面效果 | 負面效果 |
 |--------|-------|----------|----------|
-| 貧窮神 | 🪙 | 收益為零時 +bonus（逐次累積） | 獲得收益時 bonus 重置為 1 |
 | 暴食惡魔 | 👹 | 投入時原料視為商品，商品視為原料 | 回合開始時原料/商品 -10% |
 | 怠惰惡魔 | 😴 | 行動選項可放棄選擇，2/3 機率資源 +10 | 1/3 機率資源變成 1 |
 | 慾望惡魔 | 💘 | 僅經過 2 設施時輸出×2 | 經過 2+ 設施時資源÷設施數 |
@@ -148,7 +176,12 @@
 | 貪婪惡魔 | 💰 | 每回合結束額外獲得收益 50% | 每輪開始目標 +50% |
 | 傲慢惡魔 | 👑 | 惡魔系（`isDemon:true`）合夥人負面效果不生效，每個惡魔 +10% | 無 |
 | 黑市商人 | 🕶️ | 每輪第一次商品→金錢×125% | 之後每次倍率 -0.5（最低×1） |
-| 爆破工程師 | 🧨 | 消耗 2 收益可主動摧毀設施 | 每輪目標 +10% |
+| 電子放電惡魔 | ⚡ | 每次投入電子設施 +2 收益 | 每經過一個非電子設施 -2 |
+| 擴散惡魔 | 🌀 | 中央計數 ≥3 時此回合所有設施視為在中央 | 每回合開始隨機設施與中央交換 |
+| 惡魔巨人 | 👹 | 大型、獲得時地圖 +1 級、大型設施不限數量 | 市場事件後玩家挑選一個其他合夥人消滅 |
+| 人類惡魔 | 😈 | 投入人材時其 +2 永久 | 回合結束若人材 0，所有設施永久 -2 |
+
+> 註：`爆破工程師`、`貧窮神` 已依 xlsx 移除 `isDemon` 標記，見 拆遷流/獨特 區段。
 
 ### 基礎合夥人
 | 合夥人 | Emoji | 效果 |
@@ -158,49 +191,82 @@
 | 基礎工廠主 | 🏭 | 資源每次經過工廠 +1 收益 |
 
 ### 人力流合夥人
-| 合夥人 | Emoji | 正面 | 負面 |
-|--------|-------|------|------|
-| 人力仲介 | 📋 | 每回合開始 +1 人材 | 每輪目標 +5% |
-| 工會主席 | ✊ | 持有 3+ 人材時輸出 +50% | 少於 3 人材時 -20% |
-| 勞動部長 | 🎩 | 使用人材後下次投入 +5 | 未使用每回合 -5% |
-| 人力資源總監 | 👔 | 一次全用人材時每個 +15 | 每次只能使用 1 個人材 |
+| 合夥人 | Emoji | 稀有度 | 正面 | 負面 |
+|--------|-------|--------|------|------|
+| 人力仲介 | 📋 | SR | 回合開始時 +4 人材 | 無 |
+| 工會主席 | ✊ | SR | 持有 8+ 人材時，投入人材額外 +2 人材 | 無 |
+| 勞動部長 | 🎩 | SSR | 最終收益時，失去一半人材，每失去一個 +4 | 無 |
+| 人力資源總監 | 👔 | SR | 每投入 2 人材，最終收益 +2 | 無 |
+| 人類惡魔 | 😈 | SSR | 投入人材時其獲得 +2 永久 | 回合結束時若人材為 0，所有設施永久 -2 |
+| 分身大師 | 👥 | SSR | 人材投入設施時，周遭隨機一格設施 +2 | 無 |
 
 ### 物流流合夥人
-| 合夥人 | Emoji | 正面 | 負面 |
-|--------|-------|------|------|
-| 運輸大亨 | 🚢 | 每次通過物流中心 +3 | 未通過物流中心收益 -50% |
-| 倉儲女王 | 👑 | 物流中心可疊加 2 層設施 | 每個疊加行動費 +2 |
-| 路線規劃師 | 🗺️ | 每回合可免費移動物流中心 | 物流 <2 個時輸出 -30% |
-| 快遞達人 | 🚀 | 通過 4+ 格時 +10% | 少於 4 格收益減半 |
+| 合夥人 | Emoji | 稀有度 | 正面 | 負面 |
+|--------|-------|--------|------|------|
+| 運輸大亨 | 🚢 | SSR | 每次通過物流中心 +3 | 未通過物流中心收益 -50% |
+| 倉儲女王 | 👑 | SSR | 可將 2 個設施蓋在物流中心上 | 無 |
+| 阿北，物流之王 | 🚛 | SR | 可將 1 個設施蓋在物流中心上 | 無 |
+| 快遞達人 | 🚀 | SR | 通過 4 個格子之後，每通過一個格子 +4 收益 | 無 |
+| 重建驛站 | 🏗 | SR | 回合開始 +1 計數，≥3 時消耗所有，此設施獲得一次「廢墟→螺旋物流站」 | 無 |
+| 路線規劃師 | 🗺️ | R | 回合開始時可免費移動一個物流中心 | 無 |
 
 ### 貿易流合夥人
-| 合夥人 | Emoji | 正面 | 負面 |
-|--------|-------|------|------|
-| 外匯交易員 | 💹 | 金錢↔商品轉換差值 10% 作收益 | 原料時輸出 -50% |
-| 套利者 | ⚖️ | 同回合金→商→金時 +20% | 單向轉換 -20% |
-| 壟斷者 | 🎩 | 每 3 個商店系設施，商品→金錢時 +5% | 少於 3 商店時每少一個 -10% |
+| 合夥人 | Emoji | 稀有度 | 正面 | 負面 |
+|--------|-------|--------|------|------|
+| 外匯交易員 | 💹 | SSR | 金錢→金錢隨機 +4 或 -2；每投入一次金錢觸發 2 次 | 無 |
+| 套利者 | ⚖️ | SR | 同回合金→商且商→金時，+2 收益，之後效果永久 +2 | 原料→商品不會增加數值 |
+| 壟斷者 | 🎩 | SR | 小鎮上 4+ 商店時，每個商店最終收益 +6 | 少於 4 商店時，所有商店不參與投入 |
+| 進貨合作員 | 🛒 | R | 回合開始資源變商品 +2；若已是商品則 +4 | 無 |
+| 擁慶記房屋 | 🏠 | R | 每回合可賣出一個設施（不產生廢墟），+2 收益；每次賣出使此效果永久 +2 | 無 |
 
 ### 拆遷流合夥人
-| 合夥人 | Emoji | 正面 | 負面 |
-|--------|-------|------|------|
-| 地皮炒家 | 🏚️ | 移動設施後下次該位置 +20 | 設施 >3 回合未移動輸出 -1 |
-| 混沌建築師 | 🌀 | 每回合隨機移動設施到空格 | 被移動時 -5% 收益 |
-| 廢墟掠奪者 | 💀 | 資源通過廢墟時，每個廢墟隨機 +5%~23% | 廢墟 >3 格每格 -2% 收益 |
+| 合夥人 | Emoji | 稀有度 | 正面 | 負面 |
+|--------|-------|--------|------|------|
+| 回收阿罵 | 👵 | SSR | 回合開始時所有廢墟重疊至一廢墟格；每重疊視為一次移動 | 無 |
+| 無冕之王 | 👑 | SSR | 此回合每次投入廢墟前，所有廢墟獲得收益 +2（累積） | 無 |
+| 廢品戰士 | ⚔ | SR | 回合開始時將一張廢墟加入手牌 | 無 |
+| 地皮炒家 | 🏚️ | SR | 格子變空時該格永久 +4 | 無 |
+| 混沌建築師 | 🌀 | SR | 每回合隨機使最多 8 個設施交換位置（含廢墟） | 無（已對齊 xlsx） |
+| 廢墟掠奪者 | 💀 | SR | 每回合第一次投入若為廢墟，資源 -4 或 -6；之後按該數量獲得/重疊廢墟 | 無 |
+| 炸彈客 | 💣 | R | 回合開始隨機空格放 1~3 個爆破裝置，每個 +2；爆破裝置與被消滅的設施不產生廢墟 | 無 |
+| 流浪漢 | 🚶 | R | 回合開始隨機空格放 1 廢墟，每個廢墟 +2 | 無 |
+| 設施破壞者 | 💣 | R | 每次設施被消滅時 +4 | 無 |
+| 爆破工程師 | 🧨 | R | 每回合可消耗 8 收益消滅一個設施或廢墟（不產生廢墟） | 無 |
+
+### 中央流合夥人
+| 合夥人 | Emoji | 稀有度 | 正面 | 負面 |
+|--------|-------|--------|------|------|
+| 市長 | 🎖 | SSR | 中央每觸發一次，最終收益 +8 | 無 |
+| 擴散惡魔 | 🌀 | SSR | 每回合 +1 擴散計數，≥3 時消耗所有，此回合所有設施視為在中央 | 每回合開始隨機設施與中央交換 |
+| 中央秘書 | 📋 | SR | 中央每有設施 +4；中央 4 設施時中央外每個 +2 | 未投入中央時，每經過一格 -2 |
+| 北漂者 | 🧳 | SR | 回合開始中央每有設施 +1 人材 | 人材投入中央以外設施時，該設施本回合 -2 |
+| 訪問網路碼語者 | 💻 | R | 回合開始獲得中央電子網路 | 最終收益 -4 |
+
+### 大型流合夥人
+| 合夥人 | Emoji | 稀有度 | 正面 | 負面 |
+|--------|-------|--------|------|------|
+| 大地主 | 🏗 | SSR | 獲得時小鎮永久擴大一級 | 每次「設施補給」前隨機消滅一個小鎮上的設施 |
+| 惡魔巨人 | 👹 | SSR | 獲得時小鎮擴大；大型設施不限數量 | 每次市場事件後，玩家挑選除自身外的一個合夥人消滅 |
+| 大財團 | 🏢 | SSR | 獲得時小鎮擴大；大型設施可取代非大型 2×2 區域；每有一個大型設施 +8 收益 | 無 |
+
+### 電子流合夥人
+| 合夥人 | Emoji | 稀有度 | 正面 | 負面 |
+|--------|-------|--------|------|------|
+| 電子放電惡魔 | ⚡ | SSR | 每次投入電子設施 +2 收益 | 每經過一個非電子設施 -2 |
+| 電子精工師 | 🔧 | SSR | 每回合 +1 電子計數，≥3 時消耗所有，獲得一張電子工廠 | 無 |
+| 雷電法王 | ⚡ | SR | 每回合 +1 雷電計數，≥3 時消耗所有，消滅隨機設施並獲得一張電子設施 | 無 |
 
 ### 獨特合夥人
-| 合夥人 | Emoji | 效果 |
-|--------|-------|------|
-| 譚雅 | 👩‍💼 | 每回合可用手牌設施交換一張稀有度高一級的設施；手牌為空、或手牌+場上設施 <24 時自動補 1 張 **N 稀有度** 設施 |
-| 蕾雅 | 👩‍🔧 | 可將手牌相同設施蓋在小鎮設施上，視為升級並額外+2%（可累積）；重新排列時可合併同類設施升級 |
-| 阿北，物流之王 | 🚛 | 可將設施蓋在物流中心上，同時獲得轉向+輸出 |
-| 市長 | 🎖 | 每筆資源經過中央格子時最終收益 +5%（可累積） |
-| 公路之星 | 🌟 | 每回合中央 2 格隨機 +2；未經中央收益減半 |
-| 設施破壞者 | 💣 | 任何機制消滅設施時 +50 收益 |
-| 場風大師 | 🌀 | 每回合指定投入方向，從該方向投入×2；只能從指定方向投入 |
-| 大地主 | 🏗 | 地圖擴大為 5×5 格；設施補給事件時必須失去一個設施 |
-| 拆遷隊 | 🔨 | 每回合開始 +1 拆遷計數，計數 ≥3 時消耗 3 獲得 1 次免費重排機會（可累積）；受全能會計師灌注 |
-| 無冕之王 | 👑 | 每有 x 個廢墟，收益 +(x²/2)%；每有人材 45% 機率重複觸發，上限人材數次 |
-| 擁慶記房屋 | 🏠 | 每回合可賣出一個設施（不產生廢墟），獲得 0.1×x%×已過回合數 收益，每次賣出 x+1 |
+| 合夥人 | Emoji | 稀有度 | 效果 |
+|--------|-------|--------|------|
+| 譚雅 | 👩‍💼 | R | 每回合可用手牌設施交換一張稀有度高一級的設施；手牌空或手牌+場上 <24 時自動補 1 張 N 設施 |
+| 蕾雅 | 👩‍🔧 | R | 可將手牌相同設施蓋在小鎮設施上，視為不同建築；每次疊加永久 +2 |
+| 場風大師 | 🌀 | R | 每回合指定投入方向，從該方向投入 ×2（只能從該方向投入） |
+| 拆遷隊 | 🔨 | R | 每回合 +1 拆遷計數，≥3 時消耗 3 獲得 1 次免費重排（可累積）；受全能會計師灌注 |
+| 貧窮神 | 🪙 | R | 收益為 0 時 +8，效果累積 +8；收益 >0 時效果清空 |
+| 全能會計師 | 📊 | SSR | 每獲得一個計數，本合夥人 +1 全能計數；可拖曳到有計數的合夥人使其計數 +1 |
+| 黃牛販子 | 🎫 | R（注：code 作為設施） | 商品→金錢 +1→商品 +1；本回合沒有收益時 -8 |
+| 公路之星 | 🌟 | SR（建築，暫列此） | 每回合中央隨機 2 格 +2；投入該格後變永久；未投入中央時最終收益減半 |
 
 ---
 
@@ -1730,6 +1796,7 @@ VT/
 - **`logistics_vault` 描述錯誤**：BLDG.desc 從誤植的「計數 ≥3 時 +8」改回「儲存 50%，下次釋放」以匹配實作
 - **`logistics_vault_v2` 同名衝突**：name 由「物流倉」→「物流倉 v2」，避免與 `logistics_vault` UI 顯示混淆
 - **`BLDG_RARITY` 重複鍵值清理**：`magnet_plate`/`ruin_monument`/`demolish_bureau`/`dynamic_amp`/`trade_zone`/`clearance` 6 組重複鍵移除，`mobile_city`/`scrap_city`/`disaster_bureau` 重新歸入 SSR 區
+- **`union_chief`（工會主席）8+ 人材判定 off-by-one**：`onTalentDrop`（投入資源卡）與 `onTalentDropCell`（投入設施）兩處在 `G.talentCards--` 之後才檢查 `(G.talentCards||0)>=8`，導致實際需要 9+ 人材才能觸發「持有 8+ 人材額外投入+2」。修復為在扣除前以 `const talentBefore = G.talentCards||0` 記錄，改用 `talentBefore>=8` 判定，符合設計文件「持有 8 個人材以上時」語意
 
 #### 未實作 UI 補齊
 - **`clone_master`（分身大師）**：`onTalentDropCell` 加入投入人材時周遭 8 格隨機一格設施 `cellMods+2`，附紫色高光視覺提示
@@ -1806,3 +1873,448 @@ VT/
 #### 總行數
 - Session 13 結束：~8478 行
 - Session 14 結束：~9564 行（+~1086 行：UI 補齊 + 量販店改版 + 多項 Bug 修復 + 計數視覺 + 歷次增補）
+
+### Session 15（2026-04-22）— 大型電子供給站改版 + 9 項 Bug 修復
+
+本輪對 index.html 進行一次全面 bug 掃描並修復。Bug 1 由大型電子供給站改版一併解決。
+
+#### 大型電子供給站改版（修復 Bug 1：指數爆增）
+- **舊行為（bug）**：`startTurn` 中每個 `mega_elec_supply` 在空格放置新的 `mega_elec_supply`，新設施下回合也會觸發 → 數量每回合翻倍，4×4 棋盤約 4 回合內被填滿
+- **新行為**：每回合開始檢查自身是否已有疊加（`getOverlays(r,c).length>0`），若無則透過 `setOverlays` 在自身疊加一層 `mega_elec_supply`；有疊加則略過
+- `BLDG.mega_elec_supply.desc` 文字同步更新為「…回合開始時，如果這個設施此回合沒有被重疊過，這個設施將自動設置一個大型電子供給站於自身。」
+- 設置前確保 `G.cellOverlay` 已初始化，避免舊存檔讀入時 `setOverlays` 存取 `undefined` 崩潰
+
+#### Bug 修復列表
+
+| # | 位置 | 類型 | 變更 |
+|---|------|------|------|
+| 1 | `startTurn` mega_elec_supply 處理 | Critical | 改為自身疊加（見上） |
+| 2 | `deserializeGame` KEYED_DATA_FIELDS 清理 | Critical | 迴圈跳過 `cellMods`（空格上合法：地皮炒家+4、公路之星+2、廢墟紀念碑消滅後+4） |
+| 3 | `EVENTS.murphy.show` 清理區塊 | High | 補清 `logisticsVault`/`tempShedMoves`/`bulkStoreBonus`/`vaultV2Counts`，避免設施打亂後記憶錯位 |
+| 4 | `finish()` 稅務局扣稅基數 | High | 改用 `G.profit - profitAtStart` 作 10% 基數，與文件「最終收益-10%」一致（舊版只對投入差值課稅，漏掉 onSettle 合夥人加成） |
+| 5 | `setOverlays()` 防禦 | High | 首行加 `if(!G.cellOverlay) G.cellOverlay={};`，避免舊存檔缺欄位時 `delete`/`=` undefined 崩潰 |
+| 6 | `precomputeEventData` + `area_buff.show` 2×2 選取 | Medium | 從非重疊位置集合中隨機挑，僅無候選時 fallback，避免 +10%/-10% 在重疊格互相抵消 |
+| 7 | `deserializeGame` buff 清理 | Medium | 由無條件 `data.buff={}` 改為「欄位損壞才重置」，保留本回合事件 buff（原料大降/颱風/商品熱銷等） |
+| 8 | `startTurn` 磁力板交換 | Low | 對方若也是磁力板時，雙方格子皆獲得 +2 cellMods；非磁力板維持原本「被交換設施 +2」 |
+| 9 | `rebuildDeptStore()` | Low | 重建完映射後清理孤立 `dept_store_part`（格子改 null + `clearKeyedData`），避免斷裂 2×2 留下殭屍格 |
+
+#### 審查過程備註
+- 初次自動掃描回報 12 項可疑點，親自驗證後剔除 3 項誤判（`findShop2x2` 邊界、`area_buff` `gn-1` 範圍、`destroyFacility` 百貨公司 `facility_destroyer` 誤判重複），剩下 9 項皆屬可重現問題
+- Bug 8 原報告標為「可能符合設計」，與使用者確認後採「兩磁力板對撞雙方 +2」的對稱行為
+- `BLDG.mega_elec_supply.desc` / `EVENTS.murphy.show` 的清理範圍 / `deserializeGame` 的 cellMods 與 buff 保留策略均已落檔
+
+### Session 16（2026-04-22）— 第二輪審查 + 永久格子加成系統 + 磁力板永久化
+
+第二輪全面審查由 Explore agent 掃描 8 條候選（BATTLE/MEGA/動畫/拖曳/TUT 等前次未細看區域），親自驗證後 8 條全數為誤判或設計一致性議題。再以人工審查補齊真正 bug 5 條（標 A–E），本輪全部修復（E 屬設計層，暫保留）。
+
+#### 永久格子加成系統（修復 Bug A）
+
+##### 動機
+`G.cellMods` 在 `doNext()` 回合結束 + `startRound()` 輪開始會各清空一次。多項設計上標註「永久」的效果在實作上卻寫進 `cellMods`，下回合就消失：
+- **地皮炒家**：空格永久 +4（xlsx/doc 明確標示「永久」）— 真 bug
+- 公路之星：「投入則變永久」已透過 `bldgUpgrades` 路徑實現；初始 +2 為本回合效果，不算 bug
+- 分身大師 / 磁力板 / 工會主席 / 北漂者 / 人材強化：程式碼原本明確註解「本回合」或「暫時」，屬設計意圖的暫時加成
+
+##### 新欄位 `G.permCellMods`
+| 屬性 | 說明 |
+|------|------|
+| 初始化 | `newGame()` 回傳物件新增 `permCellMods:{}` |
+| 生命週期 | 永久保留；**不**在 `doNext`/`startRound` 清除 |
+| 位置綁定 | 不進 `KEYED_DATA_FIELDS`，**不**跟隨設施移動（swapCellData 不轉移）；也不會被 `clearKeyedData` 在設施消滅時清除 |
+| 用途 | 存放真正的「永久、綁定格子」加成（目前僅地皮炒家空格 +4 使用） |
+
+##### 讀取點（6 處）
+全部由 `cellMods[k]` 改為 `(cellMods[k]||0)+(permCellMods[k]||0)`：
+- `stepWithMover` 通用轉換 Step 3 格子固定加成
+- `dept_store` FX 2×2 四格 totalMod 聚合
+- `unstable_base` FX 相鄰 4 格判定
+- `renderGrid` 格子 badge 顯示
+- `simFacilityPath`（MEGA/戰鬥模擬系統）
+- cell 懸停 tooltip：改為分兩行顯示「本回合加成」與「永久加成」
+
+##### 寫入點（地皮炒家 3 處）
+- `destroyFacility` 廢墟紀念碑消滅分支
+- `destroyFacility` 炸彈客爆破不留廢墟分支
+- `onFacilityMoved` 來源格變成空格
+
+##### 存檔相容
+- `deserializeGame`：舊存檔未含此欄位時自動初始化 `data.permCellMods={}`
+- `createMegaFacilityFromRun`：快照深拷貝 `permCellMods`，`simFacilityPath` 從 mega 上下文讀取
+
+#### 磁力板改為永久 +2
+
+##### 規格調整（依使用者指示）
+- 舊：「每回合開始與相鄰隨機設施交換位置，並使其獲得+2。」（本回合效果，cellMods 每回合清除）
+- 新：「每回合開始與相鄰隨機設施交換位置，並使其**永久**獲得+2。」
+
+##### 實作
+- 寫入欄位由 `G.cellMods` 改為 `G.bldgUpgrades`（設施永久升級值，在 `KEYED_DATA_FIELDS` 內 → 跟隨設施之後的搬移、地震、混沌建築師等機制移動）
+- 兩磁力板互換時：雙方 `bldgUpgrades` 各 +2（Session 15 的對稱行為保留）
+- `addLog` 訊息同步加上「永久」字樣
+
+##### 為什麼不用 permCellMods
+`permCellMods` 是格子綁定（不跟設施移動），而磁力板規格明確講「使其（被交換設施）」永久 +2 — 主詞是設施，所以用設施綁定的 `bldgUpgrades`。
+
+#### 其他 Bug 修復（B–D）
+
+| # | 位置 | 嚴重度 | 變更 |
+|---|------|--------|------|
+| B | `onCell()` 爆破工程師分支 | Medium | 先讀 `bId`，擋掉空格/`ruin`/`indestructible` 後才扣 8 收益，避免點錯白損收益 |
+| C | `BATTLE.redraw()` | Medium | 開頭檢查 `_returnNeeded>0` 擋住連續重抽；`_returnNeeded` 改為 `+=returnCount` 累加懲罰 |
+| D | `PARTNERS.wrath` | Low | 計數從 `onSettle`（每次投入）移到 `onTurnStart`（每回合一次）；新增時檢查 `cellMods`+`permCellMods`+`cellPctMods` 是否有負值；`onSettle` 僅保留 `>5` 扣 33% 的邏輯 |
+| E | `FACILITY_FX` 各 handler 的 facHit 一致性 | Low | **不修**：`staffing` 不計入 hit 可能是為了避免觸發 lust `>2 ÷N` 懲罰、`tax_office` 刻意計入、中央監督局刻意不計（onSettle 條件需要）— 設計層議題，需個別決策 |
+
+#### 第二輪 Agent 誤判紀錄（不入庫）
+1. BATTLE `_returnNeeded` 累積 — Agent 判斷方向錯誤，真正問題在 Bug C 修復描述
+2. MEGA `futures_market` 不一致 — MEGA 為純模擬系統，每次投入重抽百分比本就是設計
+3. `_dispatchHqFiredThisTurn` 跨投入 — 文件規格本就是「每回合一次」，現行行為正確
+4. `_futuresMoveNext` 洩漏 — 每次 startTurn 都已處理並 `=[]` 清空
+5. MEGA `_megaDragging` upgrade-glow 殘留 — `open()` 會 `render()` 重建 DOM
+6. `G.tutorialMode` 洩漏 — 全檔只寫不讀，死碼不是 bug
+7. `profit-fly` DOM 洩漏 — 各元素有獨立 `setTimeout remove`
+8. BATTLE `_fieldDragSrc`/`_battleDragging` 不對稱 — `onFieldCellDragStart` 已主動清理
+
+### Session 17（2026-04-22）— 音效升級 + 疊加 pipeline + 放置特效 + 規格調整
+
+本輪聚焦體驗層級（音效、視覺回饋、疊加機制一致性）與幾個規格調整。
+
+#### SFX 連續投入音調遞升（爽感）
+
+##### 問題
+單次投入內每過一個設施音調會 +1 半音（`SFX.hit(step)` 用 `G.inv.facHit-1`），但每次投入結束 `G.inv.facHit` 歸零 → 下次投入又從 C4 起跳，失去連續投入的爽感。
+
+##### 實作
+- 新增 `G._turnPitchOffset`（newGame 初始化 0），`startTurn` 每回合歸零
+- `finish()` 每次投入結束累加 `G.inv.facHit` 到 offset
+- `SFX.hit` / `SFX.convert` 從 `G._turnPitchOffset` 讀取並加到 step（由 `pitchOffset()` helper 封裝），上限 36 半音（3 個八度）避免尖銳
+- 效果：第一次投入 3 設施 C4→D4→D#4，offset=3；下次投入第一個設施從 D#4 起跳，一路往上
+
+##### 存檔相容
+`deserializeGame` 將 `_turnPitchOffset` 重置為 0（saves 都是 startTurn 時的乾淨狀態，重置不會造成音階錯亂）
+
+#### 放置設施 SFX + 視覺特效
+
+##### 新增資源
+- **`SFX.place()`**：雙 oscillator 疊加
+  - 低頻 square wave 180→80 Hz「咔」
+  - 高頻 triangle wave 880→1760 Hz 琶音「叮」
+- **CSS 動畫**（三層疊加）：
+  - `.place-spawn`：scale(.2) rotate(-8deg) → 1.22× rotate(4deg) 過衝 → 回正（彈性曲線）
+  - `.place-ring`：橘色外框光環 0.6× → 1.8× 淡出
+  - `.place-sparkle`：6 顆 ✨ 從中心向 6 個方向飛散（`--sx`/`--sy` CSS 變數）
+
+##### `placeEffect(r,c)` 統一 helper
+呼叫於 `tryPlaceAtCell` 7 個放置成功路徑：
+- 一般放置
+- 蕾雅一般設施疊加 / 蕾雅百貨公司疊加
+- 物流之王/倉儲女王 overlay
+- 百貨公司 2×2 取代
+- 廢墟紀念碑
+- 轉運中心放置
+
+重新排列（onRearrangeDrop）、移動模式等非「新放置」情境保留原本 `pulse` 以區分。
+
+#### 疊加設施 pipeline（`applyOverlayPipeline`）
+
+##### 舊行為
+- `cellOverlay` 只在 `redirect` 分支有被 `stepWithMover` 處理
+- 各 overlay 的 `FACILITY_FX` 會執行，但 `bldgUpgrades` 加成只套用一次（`_ovUpgApplied` flag）
+- 其他加成（`cellMods`/`permCellMods`/`cellPctMods`/`leyaPctMods`）完全不作用到 overlay
+
+##### 新行為（依使用者指示）
+「重疊的設施視為不同的建築，遇到重新排列與更換位置的效果時必須一起移動；另外給予加成的效果也會同時作用在那些設施上」
+
+- **共同移動**：已成立（`cellOverlay` 在 `KEYED_DATA_FIELDS` 裡，`swapCellData` / 地震 / 混沌建築師 都會連同 overlay 一起搬）
+- **加成同時作用**：新增 `applyOverlayPipeline(el, r, c, cellEl)`，每個 overlay 依序：
+  1. 執行其 `FACILITY_FX[special]` 或 `fn(value)` 轉換（帶暴食惡魔類型互換）
+  2. 套用與 base 相同的 `cellMod + permCellMod + bldgUpgrades` 固定加成
+  3. 套用 `cellPctMods` 百分比 + `leyaPctMods` 蕾雅百分比
+  4. `facHit++` 並推入 `facPath`（供終點站 / 快遞達人 / 大熱波等計數）
+
+##### 三處 pipeline 整合
+- `_hit` helper（FACILITY_FX 基座路徑）：base 處理完後呼叫，跳過 `redirect` 基座（因為 redirect 分支已自己 call pipeline）
+- redirect 分支：取代原本有 `_ovUpgApplied` 旗標的手寫 overlay 迴圈，改為統一呼叫 pipeline
+- general conversion path：base 轉換完成後呼叫
+
+##### MEGA 模擬尚未套用
+`simFacilityPath` 目前沒呼叫 pipeline，如果要讓巨型設施模擬也一致需另外處理（目前 scope 外）
+
+#### 蕾雅疊加規格（Session 16 後續補強）
+
+配合 overlay pipeline，蕾雅的疊加現在真正有功能：
+- 手牌同類設施放到場上同類 → 加入 `cellOverlay` + `bldgUpgrades[cell] += 2`（永久）
+- `countAllShops` / `countAdjacentFacilities` / `env_sensor` 等已經會計入 overlay 設施 → 「視為不同的建築」成立
+- 每次資源通過該 cell，base 轉換一次 + 每個 overlay 也各轉換一次，且都吃同樣加成
+
+#### 臨時工棚規格改版
+
+##### 舊行為
+- `FACILITY_FX.temp_shed`：資源通過時 `+min(tempShedMoves, 5)` 的加成
+- `G.tempShedMoves` 計數由 `onFacilityMoved` 累加
+
+##### 新行為（依使用者指示）
+「回合結束時，自動賣出自己獲得+2收益；若場上有廢墟，隨機賣出一個廢墟並獲得+2收益。」
+
+- **`BLDG.temp_shed.desc`** 文字更新
+- **`FACILITY_FX.temp_shed`** 改為通過 log 不加成
+- **`doNext`** 在 `commitTurnLog` 之後新增臨時工棚結算：
+  1. 每個 `temp_shed`：`G.grid[r][c]=null` + `clearKeyedData` + `G.profit+=2` + `profitFlyFromCell`
+  2. 若 `G.ruinCells.size>0`：隨機挑一個廢墟 → `G.grid[rr][rc]=null` + `G.ruinCells.delete` + `clearKeyedData` + `G.profit+=2` + 動畫
+- 由於 `G.tempShedMoves` 不再有寫入來源（FX 不寫、`onFacilityMoved` 也沒意義了），此欄位變成長期空物件，未來可清理
+
+#### 達標立即觸發過關（doPermConvert）
+
+##### 問題
+使用者反映「使用轉換收益時，收益超過目標不會立刻達成目標」：`doPermConvert()` 只設 `G._goalReachedTurn`，不觸發 win modal，必須點結束回合才會過關。
+
+##### 實作
+`doPermConvert` 在 `G.profit>=G.goal` 時加上與 `finish()` 完全一致的 600 ms 延遲 → `showModal('win', ...)` 流程（`roundHistory` 記錄、`adjustDifficulty`、round++、goal 重算、autoSave、modal）
+
+##### `G._winPending` 重入保護
+兩處都加 `G._winPending` 旗標：
+- `finish()`：`if(G.profit>=G.goal&&!G._winPending){ G._winPending=true; setTimeout(...) }`，callback 內先 `G._winPending=false`
+- `doPermConvert()`：同模式
+- 防止「投入剛達標、600 ms 延遲期間再按轉換」造成 modal 被觸發兩次
+- `deserializeGame` 重置 `data._winPending=false`，避免跨存檔旗標殘留
+
+#### 合夥人 hook 防禦性 try-catch
+
+##### 動機
+使用者回報「繼續遊戲後還可以投入、但結束回合按鈕按了沒反應」。這種「流程在中途靜默中斷」的現象最常見成因是 `startTurn` 中某個合夥人 `onTurnStart` 拋例外，整個函式中止、`render()` 不更新，外顯即為「按了沒反應」。
+
+##### 實作
+三處 `G.partners.forEach` 對 hook 的呼叫包 try-catch：
+- `startTurn` 的 `onTurnStart` 迴圈
+- `startRound` 的 `onRoundStart` 迴圈
+- `finish` 的 `onSettle` 迴圈
+
+單一合夥人拋錯只 `console.warn('partner.onXxx 失敗:', pid, e)`，不影響其他合夥人與後續流程。
+
+---
+
+### 【本次更新】對齊「新合夥人表.xlsx」機制
+
+依 `新合夥人表.xlsx`「新合夥人機制」分頁為基準，全面對齊現行實作。
+
+#### 設施機制修復
+
+| 設施 | 舊行為 | 新行為（xlsx） | 位置 |
+|------|--------|----------------|------|
+| **物流放大器** `logistics_amp` | 下一設施效果 ×2 | 下一設施這回合 **+8** 絕對值 | `FACILITY_FX` + stepWithMover |
+| **加班辦公室** `overtime` | 依持有人材百分比 `floor(talents/2)%` | **本回合已投入人材**每 2 個 → **+8** 絕對值 | 改用 `G._hrTalentUsedCount` |
+| **勞動轉換站** `labor_convert` | 消耗 2 持有人材 → 資源 ×2 | **本回合已投入人材**每 2 個 → **+4** 絕對值 | 改用 `G._hrTalentUsedCount`，不再消耗 |
+| **人力銀行** `talent_bank` | 金錢通過時儲存 10%、下次釋放（與人材無關） | 消耗 2 人材 → 下回合開始 **+4 人材**（新增 `G._talentBankPending` 累計，`startTurn` 發放） | `req/out` 也從 `money` 改為 `any/null` |
+| **進出口稅站** `import_tax` | ≥4 物流中心時 ×2，且 -1 收益 | **商品↔金錢 +4 轉換**；每通過一個物流中心 **+2**（絕對），無門檻、無扣收益 | FX 直接做類型轉換 + 物流加成 |
+| **物流倉** `logistics_vault` | 儲存數值 50%、下次釋放 | **投入時 +1 物流計數，計數 ≥3 時 +8 收益並重置**（與 xlsx 一致） | 新增 `G.vaultCounts` 鍵入 `KEYED_DATA_FIELDS` |
+| **物流倉 v2** `logistics_vault_v2` | （獨立設施）計數版 | v1 已併入 v2 行為，v2 從 `BLDG_RARITY` 移除（新局不再出現；既有存檔仍可運作），desc 加註「已合併至物流倉」 | BLDG_RARITY 移除 |
+
+#### 合夥人機制修復
+
+| 合夥人 | 問題 | 修復 |
+|--------|------|------|
+| **工會主席** `union_chief` | 人材 8+ 判定在 `G.talentCards--` 之後才跑，實際需要 9+ 才能觸發 | `onTalentDrop`/`onTalentDropCell` 改用 `talentBefore` 記錄扣除前值 |
+
+#### 其他玩法 / UX bug
+
+| 項目 | 問題 | 修復 |
+|------|------|------|
+| **拆遷隊排列可交換廢墟位置** | 拖設施到廢墟格會觸發 swap，把廢墟移到原設施位置 | `onRearrangeDrop` 拒絕 `dstId==='ruin'`；`onRearrangeDragOver` 對廢墟不 preventDefault，不顯示可投放提示 |
+| **拆遷補償局排列模式多段結算** | 排列中每次 swap 都觸發 +4，多步交換會累積超量 | 引入 `G._demolishBureauPending` flag：`onFacilityMoved` 在 `G.freeRearrange` 期間只設 flag 不結算；`confirmRearrange` 結算一次（`1 × 補償局數 × 4`）；`cancelRearrange` 清 flag |
+
+#### 新增 / 變動的 G 狀態
+
+- `G._talentBankPending`：人力銀行預約 +N 人材（下回合開始釋放），跨回合持續，無需 deserialize 清除
+- `G._demolishBureauPending`：排列模式期間的延遲結算 flag，`confirmRearrange`/`cancelRearrange` 清除
+- `G.vaultCounts`：物流倉每格計數，納入 `KEYED_DATA_FIELDS`（隨設施搬移/清理）
+
+#### 備註：xlsx 比對中未處理項目
+
+- agent 初判報告中多個「完全缺失」實為已實作（如人類惡魔、北漂者、分身大師、擴散惡魔、市長、全能會計師、電子放電惡魔 等），驗證後確認 code 已有對應邏輯
+- logistics_vault_v2 被標註為舊版，但 BLDG 定義與 `vaultV2Counts` 機制保留以相容既有存檔
+
+#### 合夥人對齊 xlsx（第二輪）
+
+用 Python 腳本逐一比對 xlsx 47 位合夥人與 code `PARTNERS`/`PARTNER_RARITY`，確認 46/47 文字（pos/neg）已與 xlsx 一致（黃牛販子 scalper 為設施而非合夥人）。
+
+**移除 code 中 xlsx 沒有的額外負面效果：**
+
+| 合夥人 | 移除的額外負面 | 修改 |
+|--------|---------------|------|
+| **爆破工程師** `demolition_expert` | `neg:'每輪目標+10%'`、`onRoundStart` 中 `G.goal *= 1.1` | 清除整個 `onRoundStart`，`neg:'無'`；併同移除 `isDemon:true` 與 tags 的 `demon`（xlsx 未歸為惡魔） |
+| **混沌建築師** `chaos_architect` | `neg:'被移動時 -5% 收益'`、`onTurnStart` 結尾 `G.profit -= floor(profit*0.05)` | 清除該 penalty 區塊，`neg:'無'` |
+
+**稀有度對齊（6 合夥人 + 5 建築）：**
+
+合夥人 `PARTNER_RARITY` 調整：
+- `labor_broker`（人力仲介）：R → SR
+- `storage_queen`（倉儲女王）：SR → SSR
+- `forex_trader`（外匯交易員）：SR → SSR
+- `mayor`（市長）：SR → SSR
+- `clone_master`（分身大師）：SR → SSR
+- `yongqing_house`（擁慶記房屋）：SSR → R
+
+建築 `BLDG_RARITY` 調整：
+- `spiral_hub`（螺旋物流站）：SR → SSR
+- `terminal`（終點站）：SR → SSR
+- `speed_station`（速遞站）：SR → SSR
+- `trade_port`（外貿港口）：SR → SSR
+- `talent_training`（人力訓練中心）：N → R
+
+**仍未處理項目（需後續處理）：**
+
+1. xlsx「物流中心」(R)「每回合一次，資源投入時改變方向」的 once-per-turn 機制在 code 中缺失。code 只有 `logistics_up/down/left/right`（R, 每次通過都轉向）與 `transfer_hub`/`logistics_hub`（placement-time 決定方向），語意與 xlsx R 版不符
+2. `highway_star`（公路之星）xlsx 歸類為建築但 code 置於 `PARTNERS` 作 onTurnStart 合夥人效果；機制完整，僅類別框架不同，未更動
+3. `scalper`（黃牛販子）xlsx 歸類為合夥人（R）但 code 作設施（SR），機制已符合 xlsx 文字，暫不更動類別
+
+#### 合夥人實作核驗（第三輪）
+
+逐一讀取 onTurnStart / onSettle / onRoundStart / onRecruit 實作，與 xlsx 比對。
+
+**已修復（4 項）**
+
+| 合夥人 | 舊實作問題 | 修復 |
+|--------|------------|------|
+| **大地主** `landlord` | `pick_fac` 事件前會消滅「場上 **或 手牌**」設施；xlsx 只寫「小鎮上的設施」 | 移除手牌消滅分支，只從 `gridFac` 隨機選 |
+| **中央秘書** `center_secretary` | 負面懲罰 `G.inv.facHit×2`（只算設施）；xlsx 寫「每經過一個格子」 | 改用 `G.inv.cellPath.length×2`（含空格） |
+| **快遞達人** `express_master` | 用 `facHit` 計算「超過 4 格後每格 +4」；xlsx 寫「格子」 | 改用 `G.inv.cellPath.length` |
+| **貧窮神** `poverty_god` | 標註 `isDemon:true`；xlsx 未歸為惡魔 | 移除 `isDemon` flag |
+
+**核驗通過（機制已符 xlsx）**
+
+`monopolist`、`forex_trader`、`arbitrageur`、`wind_master`、`spread_demon`、`northbound`、`cyber_coder`、`human_demon`、`clone_master`、`goods_buyer`、`elec_discharge_demon`、`elec_artisan`、`thunder_king`、`relay_station`、`ruin_warrior`、`bomber`、`wanderer`、`recycle_grandma`、`ruin_scavenger`、`uncrowned_king`、`yongqing_house`、`tanya`、`omni_accountant`、`demolition`、`labor_broker`、`labor_minister`、`hr_director`、`union_chief`（本 session 稍早已修）
+
+**技術備註**
+
+- `G.inv.cellPath` 於 `sendEl()`（line 3830）初始化為 `[]`，於 stepWithMover 中每一格 push `[r,c]`（line 4500），故 `cellPath.length` 即為本次投入通過的格子數（含空格）
+
+#### 新增合夥人規格實作（第四輪）
+
+**大財團 `big_corp`：大型設施可取代 2×2 非大型**
+
+- 新增 helper `_isEmptyOrNonLargeDestructible(bId)`：判定格子是空 / 非大型可消滅設施（排除 isLarge / indestructible / dept_store* / ruin）
+- 新增 `findAny2x2(r,c)`：找出包含 `(r,c)` 的 2×2，4 格都通過 `_isEmptyOrNonLargeDestructible`
+- 修改 needs2x2 放置流程：百貨公司先嘗試 `findShop2x2`；若失敗且持有 big_corp，則 fallback 到 `findAny2x2`
+  - fallback 命中後：`destroyFacility` 消滅 2×2 內所有現有設施，再呼叫 `placeDeptStore`（百貨公司）或單格 `G.grid[r][c]=bldgId`（其他大型）
+  - 一般 log：`🏢 大財團：${name} 取代 ${N} 個非大型設施`
+- 百貨公司以外的 isLarge 設施（巨人村/世界奇觀/古代機械工廠/大型電子供給站）目前單格實作，只會消滅 2×2 區域釋出空間，不以 4 格 part 佔格（後續可擴充）
+
+**惡魔巨人 `demon_giant`：市場事件後消滅合夥人**
+
+- 新增常數 `MARKET_EVENT_IDS = ['mat_crash','mat_boom','goods_up','row_buff','col_buff','area_buff']`（原料大降/出口熱/商品熱銷/行業熱潮/區域效應/地塊共鳴）
+- `triggerEvent` 開啟事件時記錄 `G._currentEventId = ev.id`
+- `evDone` 結束事件時檢查：若為市場事件且持有 demon_giant 且 `!isDemonNegDisabled('demon_giant')` 且有其他合夥人 → 呼叫 `showDemonGiantChooser(candidates)` 並 `return`（不 startTurn）
+- `showDemonGiantChooser`：用 `showCardChooser` 顯示所有非 demon_giant 合夥人卡，點擊後呼叫 `demonGiantDestroy(pid)` 並 `startTurn()` 續跑流程
+- 強制選擇：顯示後隱藏取消按鈕（`card-chooser-skip` `display:none`），無跳過選項
+- `deserializeGame` 清除 `_currentEventId`
+- 舊實作（random pick，非市場事件也觸發）已移除
+
+#### 音效系統調整
+
+**連續投入音調不再奇怪**
+
+- 原本 `SFX.hit(step)` 同時用「本回合累積位移」+「step（本投入路徑上第幾個設施）」當半音增量；半音序列會產生小二度/大七度等刺耳音程，連續投入時尤其明顯
+- 改為：
+  1. 新增 `PENTATONIC = [0,2,4,7,9]`（C 大調五聲音階），`pitchOffset()` 把 `G._turnPitchOffset`（本回合投入次數）映射到五聲音階（`octave*12 + PENTATONIC[n % 5]`），避免刺耳音程
+  2. `hit(step)` / `convert(step)` 內部不再使用 step 加成（參數保留相容性，故 caller 不用改），**單一投入路徑內各設施發出同音**，只有跨投入才升調
+  3. `G._turnPitchOffset` 的累加由 `+= G.inv.facHit`（依通過設施數）改為 `+= 1`（依投入次數），整體更穩定
+- `pitchOffset` 上限仍保留 36 半音
+
+**疊加音效 `SFX.placeOverlay` 與一般放置 `SFX.place` 區分**
+
+- 新增 `SFX.placeOverlay()`：E5→G5→B5 上行大三和弦琶音（0.05s 間隔）+ E4 柔和底噪，共 0.35s，sine/triangle 波（柔和、magical）
+- 原 `SFX.place()` 保留（squarewave 低音「咔」+ square/triangle 高音亮片，打擊感）
+- `placeEffect(r,c,opts)` 新增 `opts.overlay` 參數，為 `true` 時用 `placeOverlay`
+- 套用 overlay 音效的 3 個 caller：
+  - 蕾雅百貨公司疊加（line 3465）
+  - 蕾雅同設施疊加（line 3535）
+  - 物流之王 / 倉儲女王 疊加（line 3589）
+- 其他 `placeEffect` caller 維持一般放置音（百貨公司 2×2 首次放置、ruin_monument、一般放置、transfer_hub、大財團 big_corp 取代）
+
+大財團 `big_corp` 的 2×2 取代屬「全新建築替換舊建築」流程而非「疊加」，故維持 `place` 音效
+
+#### 匯率波動板 `exchange_board` 機制重寫
+
+**舊實作（不符 xlsx）**
+- 通過時只設 `G.inv.exchBoard=true` flag
+- 結算時依 `profit > 0`，從 `[-15,-12,-10,-8,-5,-3,3,5,8,10,12,15]` 選一個百分比一次性調整總收益
+
+**新實作（依 xlsx「隨機 ±2，重複 = 場上設施數量」）**
+- `FACILITY_FX.exchange_board`：通過時計 `findFacilityCells().length` 作為重複次數 `N`
+  - 每次 roll `Math.random()<0.5 ? +2 : -2`，總和加到 `fx.el.value`（下限 0）
+  - log 顯示：`📈 匯率波動板: 重複 N 次（+2×X / -2×Y）= ±Z → 新值`
+- 結算處 (`finish()`) 的舊計算完全移除
+- `sendEl` 內 `G.inv.exchBoard` flag 保留（cleanup 成本低，避免誤觸其他讀取）
+
+**動畫**
+- 新 CSS class `.cell-float`（`@keyframes cellFloat`，0.8s 上浮淡出，不朝收益區飛）
+- 新 helper `floatAtCell(r, c, text, positive)`：在格子中央插入浮動數字（綠色 `+2` / 紅色 `-2`）
+- 每次 ±2 以 80ms 間隔錯開動畫（setTimeout 分批）
+- 例如 N=10 時會連續 10 個 ±2 從格子浮出
+
+**模擬版本同步**
+- `MEGA_SIM_FX.exchange_board`：用 `mega.grid` 快照計設施數，roll 次數 ±2 加到 `sim.value`
+- `simFacilityPath` 的 `exchBoard` 區域變數與結算時的百分比區塊刪除
+
+#### 電子工廠 `elec_factory` 規格更新與實作修復
+
+**xlsx 最新規格**
+> 電子。原料→金錢。場上每有一個電子設施，這個設施設置時永久獲得+2。
+
+**兩階段修復**
+
+1. **原先 FX handler 無法生效**：把 `+2×N` 寫入 `bldgUpgrades[r,c]`，但 `stepWithMover` line 4880 的通用 `upgradeBonus` 只對 `!b.special || b.special==='cafeteria'` 生效，`elec_factory` 有 special 所以永久被排除
+2. **原先觸發時機也錯**：xlsx「這個設施設置時」語意是**放置當下**結算一次，並非通過時每次累積
+
+**新實作**
+
+- **`BLDG.elec_factory`**：`out` 由 `'material'` 改為 `'money'`（原料→金錢）
+- **`FACILITY_FX.elec_factory`**：只負責通過時的原料→金錢轉換 + 套用累積 `bldgUpgrades`（透過 `applyUpgradeBonus`）
+- **新增 `onFacilityPlaced(r, c, bldgId)` hook**：
+  - 在 `placeEffect` 結尾呼叫（所有放置情境都會執行）
+  - 其中處理電子工廠：`elecCount = findCells(hasTag 'electronic')`，`bldgUpgrades[r,c] += elecCount*2`
+  - log：`⚡ 電子工廠 (r,c)：場上 N 個電子設施，永久+2N（累計+X）`
+- **`placeEffect(r, c, opts)` 新增 `opts.bldgId`**：供疊加情境（蕾雅/物流之王/倉儲女王）顯式傳入被疊加的設施 id（否則會讀到錨點的 G.grid id）
+  - 已更新 3 個疊加 caller：蕾雅百貨公司疊加 → `bldgId:'dept_store'`；蕾雅同設施疊加 → `bldgId`；物流系疊加 → `bldgId`
+
+**行為**
+- 放置時：場上 N 個電子設施（含自己）→ `bldgUpgrades[r,c] += 2N`
+- 通過時：原料→金錢，value 套用累積 bldgUpgrades
+- 若透過 leya 疊加第二張 elec_factory 於同格：兩次放置都觸發，累計加倍
+
+#### 連續結算（大收益跨輪過關）
+
+**動機**
+玩家單回合大爆發時，累計收益可能同時超越當輪目標與下一輪（甚至更多輪）目標，原本只結算第 1 輪，之後仍要再跑一輪才能過第 2 輪，體感遲鈍。
+
+**規格**
+單回合 `G.profit` 同時超越當輪目標與下一輪（或更多）目標時，連續結算直到 `G.profit < G.goal` 為止，一次性連過多輪。
+
+**實作**
+- 新增共用 helper `performWinSettlement(turnsUsed)`：
+  - 迴圈 `while(G.profit >= G.goal && _iter<20)`：記錄 roundHistory、`adjustDifficulty()`、`G.round++`、重算 `G.goal = round(oldGoal * 1.4 * difficultyMult + 8)`
+  - 上限 20 輪防極端情境
+  - 最後：`turn=1`、清 buff/cellMods/cellPctMods、autoSave、show modal
+  - Modal 文字：單輪「第 X 輪過關！」；多輪「🎉 連續結算 N 輪！…第1輪(目標X) → 第2輪(目標Y) → …」
+- `finish()`（投入路徑結算）與 `doPermConvert()`（資源轉換收益按鈕）兩處改為 `setTimeout(()=>performWinSettlement(turnsUsed), 600)`
+- 原本兩處各自展開的結算段落刪除，改呼叫同一 helper
+
+**邊界**
+- `adjustDifficulty()` 在每輪都呼叫：連續結算時難度會每輪都加速調整（合理，因為多輪都達標）
+- `profit` 不重置（原本設計就不重置），所以每輪消化掉舊 goal 後，餘額仍可能打穿下一輪
+
+#### 電子輸送帶 `elec_conveyor` 生效路徑修復
+
+**Bug**
+電子輸送帶本身有實作（FX 設 `G.inv._elecConveyorActive=true`，stepWithMover line 4867 在下一個電子設施 `bldgUpgrades[r,c]+=2`），但**下一個電子設施的 FX 沒有呼叫 `applyUpgradeBonus`**，所以寫入的 +2 永遠不套用到資源輸出，體感像沒效果。
+
+同樣問題存在於 `elec_shop`、`mega_elec_supply` 等所有特殊電子設施——只要它們是 `+2` 的接收端，累積都不會生效。
+
+**修復**
+
+在 3 個電子設施 FX 結尾補呼叫 `applyUpgradeBonus(fx.r, fx.c, fx.el.value, name)`，把累積的 `bldgUpgrades`（來自電子輸送帶 / 蕾雅疊加 / 人材強化等）套到本次輸出：
+
+- `elec_conveyor(fx)`：pass-through 時也套用自身累積
+- `elec_shop(fx)`：在類型轉換（金→原 / 商→原 / 原→錢+2）之後套用
+- `mega_elec_supply(fx)`：在 `+4` 原料轉換後套用
+
+原先 `elec_factory` 的 `applyUpgradeBonus` 呼叫在電子工廠規格更新段落加入，完成整個電子系的 upgrade 套用鏈。
