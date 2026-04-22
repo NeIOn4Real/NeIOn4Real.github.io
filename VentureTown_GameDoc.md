@@ -2318,3 +2318,153 @@ VT/
 - `mega_elec_supply(fx)`：在 `+4` 原料轉換後套用
 
 原先 `elec_factory` 的 `applyUpgradeBonus` 呼叫在電子工廠規格更新段落加入，完成整個電子系的 upgrade 套用鏈。
+
+### Session 18（2026-04-22）— 第三輪審查：BUG / 未實作 / 可疑清單
+
+本輪為對 `GameDoc.md` 與 `index.html` 的交叉比對檢查，尚未進行修復；僅記錄待處理項目與風險點，供後續 Session 逐項核實與處理。每項標註嚴重度（🔴 高 / 🟠 中 / 🟡 低）。行號為檢查當下的參考值，修復時應再次驗證。
+
+#### A. 未實作功能（文件有、程式碼沒有）
+
+##### A1. 🟡 物流中心 R 級「每回合一次、資源投入時改變方向」
+- **文件**：`GameDoc.md:2165` 區描述 R 級物流中心具「每回合一次，資源投入時改變方向」語意
+- **現況**：`BLDG` 僅有 `logistics_up/down/left/right`（每次通過都轉向）與 `transfer_hub`（放置時一次性決定方向）
+- **結論**：缺少符合文件語意的「per-turn 限制」版本。需確認文件是否為舊設計殘留，或補實作
+
+##### A2. 🟡 連續結算過關鏈 Modal 詳細顯示
+- **文件**：`GameDoc.md:2297`「第1輪(目標X) → 第2輪(目標Y) → …」
+- **現況**：`performWinSettlement` 已實作連續結算邏輯，但 Modal 文字格式需實機驗證是否完整顯示每一輪的目標鏈
+- **驗證方式**：開發者模式衝一筆超大收益跨 3+ 輪，截圖核對 Modal 內容
+
+##### A3. 🟠 電子輸送帶 +2 銜接斷鏈
+- **文件**：`GameDoc.md:2305-2318`（Session 17 已描述修復）
+- **疑點**：Session 17 log 顯示已在 `elec_conveyor / elec_shop / mega_elec_supply` 三個 FX 結尾補 `applyUpgradeBonus`；但需確認 `elec_factory` 自身 FX 也有呼叫，且所有後續可能接收 `bldgUpgrades` 的電子設施都覆蓋到（例如新增設施時容易遺漏）
+- **驗證方式**：grep `FACILITY_FX` 中所有 `tags:['electronic']` 的設施，確認每個都呼叫 `applyUpgradeBonus`
+
+#### B. 實作不完整或可疑
+
+##### B1. 🟠 `logistics_vault_v2` 殘留
+- **文件**：`GameDoc.md:2109` 已宣告「併入物流倉、新局不再出現」
+- **現況**：`BLDG` 定義、`BLDG_RARITY` 項目、`vaultV2Counts` state 鍵都還在
+- **建議**：
+  - 若確認要完全移除：刪除 `BLDG.logistics_vault_v2`、`vaultV2Counts`、`FACILITY_FX.logistics_vault_v2`，並在 `deserializeGame` 加入舊存檔的遷移（轉為 `logistics_vault`）
+  - 若保留舊存檔相容層：在文件與程式碼顯式標註 `@deprecated`
+
+##### B2. 🟠 黃牛販子 `scalper` 邊界
+- **文件**：`GameDoc.md:1766` 規格「商品→金錢+1→商品+1；本回合沒獲得收益時 -8」
+- **現況**：`FACILITY_FX.scalper`（`index.html:3459` 附近）有雙段邏輯 + `_scalperHits` 計數；`finish()` 結算檢查
+- **驗證方式**：撰寫測試情境——（a）無商品通過、（b）僅觸發第一段、（c）觸發兩段、（d）多次往返——核對 -8 的觸發時機與次數
+
+##### B3. 🟠 臨時工棚改版結算邊界
+- **文件**：`GameDoc.md:2049-2063`「回合結束自動賣出 +2」
+- **現況**：`FACILITY_FX.temp_shed` 已改為不即時加成，`doNext` 回合結算時掃描並加 +2
+- **可疑情境**：
+  - 臨時工棚位於百貨公司（蕾雅）2×2 疊加內時，是否仍計入？
+  - 同回合中被廢墟消滅的臨時工棚是否還結算？
+  - 被莫菲定律打亂後，原位置加成狀態是否正確？
+- **建議**：補 3 項單元測試或手動驗證
+
+##### B4. 🟠 大熱波 `G.inv.facPath` 計數正確性
+- **文件**：`GameDoc.md:2249-2252`
+- **現況**：`stepWithMover` 每步累加 `facPath`
+- **可疑情境**：疊加設施（蕾雅/物流之王）、轉運中心二次觸發、速遞站額外觸發時，是否重複或遺漏計數
+- **驗證方式**：開發者模式堆 10+ 個設施的長路徑，逐步 log `facPath` 與實際通過設施數比對
+
+##### B5. 🟡 全能會計師計數合夥人 hook 異常路徑
+- **文件**：`GameDoc.md:2809-2834`
+- **現況**：已有 try-catch 保護（console.warn 7 處）
+- **待驗證**：手動注入其中一個 `onTurnStart` 拋例外，確認其他 4 個仍正常執行、會計師計數仍正確
+
+##### B6. 🟡 `tempShedMoves` 死欄位
+- **現況**：自臨時工棚改版後無寫入來源，`G.tempShedMoves` 成為恆空物件
+- **建議**：移除所有宣告與初始化，清乾淨
+
+#### C. 潛在 BUG（明確風險，建議優先處理）
+
+##### C1. 🔴 莫菲定律打亂未清 `permCellMods`
+- **位置**：`index.html:2970-2979` 附近
+- **問題**：莫菲定律 shuffle 後清除了 `cellMods / cellOverlay / bombTimers / futuresPct`，但**未清 `permCellMods`**（地皮炒家 +4、公路之星 +2 等永久加成）
+- **影響**：舊位置的永久加成殘留，打亂後格子效果錯位
+- **修法**：在 shuffle 的清除清單加上 `permCellMods`，或改為「跟隨設施移動」的邏輯（永久加成綁設施而非綁位置）
+
+##### C2. 🔴 讀檔 `cellMods` 清除策略過激
+- **位置**：`deserializeGame` 的 `KEYED_DATA_FIELDS` 迴圈
+- **文件**：`GameDoc.md:2092` Session 15 Bug 2 曾部分修復
+- **問題**：無條件清除空檔位的 `cellMods`，但永久加成（地皮炒家、公路之星等）也存在 `cellMods` 或 `permCellMods`
+- **修法**：區分「暫時加成」（回合內重置）與「永久加成」（隨設施存續），只清前者
+
+##### C3. 🟠 `facility_destroyer` 消滅疊加設施計入完整性
+- **位置**：`index.html:2549` 附近 `destroyFacility`
+- **問題**：遍歷 `cellOverlay` 是否正確累計「每個被消滅的疊加設施都 +4」？loop 順序與 `clearKeyedData` 的時序需驗證
+- **驗證方式**：蕾雅疊兩張設施後觸發消滅，log 核對 +4 次數
+
+##### C4. 🟠 `_allCenter` 標記清除時機衝突
+- **位置**：`index.html:2286`（擴散惡魔）與 `:2027`（中央秘書）
+- **問題**：兩者都用 `G.buff._allCenter`，但清除時機不同（擴散在結算後、中央秘書在 onSettle）
+- **影響**：同回合兩者都觸發時可能互相覆蓋或提早清除
+- **建議**：改用兩個獨立 flag（`_allCenterDiffuse` / `_allCenterSecretary`），或明確定義誰負責清除
+
+##### C5. 🟠 `big_corp` 2×2 取代的邊界格處理
+- **位置**：`index.html:3272-3280` 附近 `findAny2x2`
+- **問題**：若目標格本身屬於 2×2 大型設施（如世界奇觀），取出的 2×2 範圍可能包含該大型設施的其他 3 格，消滅/取代時這些格是否正確 reset？
+- **驗證方式**：放置世界奇觀後觸發 `big_corp`，確認消滅後 4 格都清乾淨
+
+##### C6. 🟠 拆遷補償局 `_demolishBureauPending` 清理
+- **位置**：`confirmRearrange` / `cancelRearrange` 清除 flag
+- **可疑情境**：重新排列期間若有非拖曳觸發的設施移動（如事件觸發移動），flag 可能不同步
+- **驗證方式**：在排列中強制觸發莫菲定律或其他移動事件，確認後續結算不重複/遺漏
+
+##### C7. 🟠 `talent_bank` 預約跨回合無過期檢查
+- **位置**：`G._talentBankPending`（Session 14 新增）
+- **問題**：`deserializeGame` 無檢查此欄位是否異常殘留、過期，讀檔可能導致預約人材永遠無法發放
+- **修法**：`deserializeGame` 驗證 `_talentBankPending` 結構與回合有效性，失效則清除
+
+##### C8. 🟡 拆遷隊計數消耗語意確認
+- **位置**：`index.html:2292` 附近 `st.count -= 3`
+- **疑點**：計數到 5 時消耗 3 留下 2，下回合只需再 +1 即達成。這是否符合「≥3 消耗 3」的原設計？
+- **動作**：向 PM 確認設計意圖，若需改為「消耗後歸零」則調整
+
+##### C9. 🟡 `exchange_board` 動畫堆疊
+- **位置**：FACILITY_FX 區 `exchange_board`
+- **問題**：±2 浮出 80ms 錯開，多次往返 + 瀏覽器卡頓時 UI 與實際數值脫節
+- **修法**：浮字使用佇列化或去抖動
+
+##### C10. 🟡 連續結算時 `adjustDifficulty` 呼叫次數
+- **位置**：`performWinSettlement` 迴圈內
+- **文件**：`GameDoc.md:2301-2303` 已記錄此行為為「合理」
+- **疑點**：3 輪連過會調 3 次難度倍率，可能跳躍過大。待玩家回饋驗證
+
+#### D. 其他觀察
+
+##### D1. 🟡 除錯殘留 console.warn
+- 7 處 `console.warn`（`index.html:3179 / 4626 / 5110 / 5723 / 9102 / 9111 / 9172`）為合夥人 hook 的防禦式捕捉
+- **建議**：生產環境包一層 `if (G.debug)` 或改為 telemetry
+
+##### D2. 🟡 硬編碼風險
+- 多處 `N=4` 硬編碼、`BASIC_FACILITIES` 抽選池為硬編陣列
+- **建議**：新增設施時容易漏更新池；可改為「自動從 `BLDG_RARITY` 推導」
+
+##### D3. 🟡 效能熱點
+- `eachCell` 在 5×5 地圖上單回合累積呼叫 1000+ 次
+- `getPlayerTagCounts()` 每次完整掃描（購買/招募時各呼叫 1 次）
+- 莫菲定律打亂時 grid + keyed data 全複製，記憶體峰值可觀
+- **建議**：不急迫；若將來地圖擴大（6×6+）再考慮快取 tagCounts
+
+##### D4. 🟡 冗餘條件判斷
+- `_inOtherMode` 等條件判斷在多處重複，可抽成 helper
+- 部分舊 Session 改版後留下的判斷分支未同步簡化
+
+##### D5. 🟡 設施 desc 一致性
+- Session 14 修過 `logistics_amp / logistics_vault` 等 desc
+- **建議**：整表再審一輪，確認所有設施文案與當前規格一致
+
+#### 處理優先序建議
+
+**下一個 Session 應優先處理**：
+1. 🔴 C1（莫菲定律 `permCellMods` 未清）— 明確邏輯錯誤
+2. 🔴 C2（讀檔 `cellMods` 過激清除）— 影響存檔相容性
+3. 🟠 B1（`logistics_vault_v2` 殘留）— 設計與實作不符，易誤導
+
+**後續可分批處理**：B3 / B4 / C3-C7 多為邊界驗證，建議開發者模式實機測試後一次性修復。
+
+**追蹤中但暫不處理**：A1 / A2 / C8 / C10 需 PM 確認設計意圖。
+
