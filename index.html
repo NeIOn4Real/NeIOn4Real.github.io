@@ -1255,6 +1255,7 @@ const BLDG = {
   logistics_down: { name:'物流↓', emoji:'⬇️', desc:'轉向：向下繼續', req:'any', out:null, fn:v=>v, special:'redirect', dir:'bottom' },
   logistics_left: { name:'物流←', emoji:'⬅️', desc:'轉向：向左繼續', req:'any', out:null, fn:v=>v, special:'redirect', dir:'left'   },
   logistics_right:{ name:'物流→', emoji:'➡️', desc:'轉向：向右繼續', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right'  },
+  logistics_center:{ name:'物流中心', emoji:'🔄', desc:'每回合一次，資源投入時自動切換方向（順序：→ ↓ ← ↑）。', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right', perTurnRotate:true },
   cafeteria:{ name:'員工食堂', emoji:'🍱', desc:'投入商品時額外獲得1人材', req:'goods', out:'goods', fn:v=>v, special:'cafeteria' },
   staffing:  { name:'人力派遣', emoji:'🏢', desc:'金錢投入時獲得1人材（不消耗收益）', req:'money', out:'money', fn:v=>v, special:'staffing' },
   trade_hub: { name:'外部貿易代理', emoji:'🌐', desc:'中央。僅能蓋在中央格子。金錢→原料+4；原料→金錢+4；商品→金錢+4', req:'any', out:null, fn:v=>v, special:'trade_hub', centerOnly:true },
@@ -1296,7 +1297,6 @@ const BLDG = {
 
   // ── 物流系新設施 ──
   logistics_hub:  { name:'物流轉運中心', emoji:'🔀', desc:'放置時變成物流中心，你可以決定其方向。', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
-  logistics_vault_v2:{ name:'物流倉 v2', emoji:'📦', desc:'（舊版：已合併至物流倉）資源投入時獲得1物流計數。計數≥3時獲得+8收益', req:'any', out:null, fn:v=>v, special:'logistics_vault_v2' },
 
   // ── 人力系新設施 ──
   staff_housing:  { name:'員工住宅', emoji:'🏠', desc:'回合結束時，若沒有資源投入此設施，獲得人材 +4。', req:'any', out:null, fn:v=>v, special:'staff_housing' },
@@ -2164,7 +2164,7 @@ function isDemonNegDisabled(pid){
 }
 
 // 需要隨設施位置交換/轉移的鍵值資料欄位
-const KEYED_DATA_FIELDS=['bldgUpgrades','leyaPctMods','cellMods','bombTimers','tempShedMoves','logisticsVault','cellOverlay','futuresPct','bulkStoreBonus','vaultV2Counts','vaultCounts'];
+const KEYED_DATA_FIELDS=['bldgUpgrades','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresPct','bulkStoreBonus','vaultCounts','cellRedirectDir'];
 const TCOLOR={ money:'var(--money)', material:'var(--mat)', goods:'var(--goods)', diamond:'#5bcefa' };
 const TLABEL={ money:'💰金錢', material:'🪨原料', goods:'📦商品', diamond:'💎鑽石' };
 const N=4; // base grid size
@@ -2320,6 +2320,7 @@ const BLDG_RARITY={
   temp_shed:'R', demolish_fab:'R', unstable_base:'R',
   trade_hub:'R', tech_lab:'R',
   logistics_up:'R', logistics_down:'R', logistics_left:'R', logistics_right:'R',
+  logistics_center:'R',
   transfer_hub:'R', cafeteria:'R', staffing:'R', tax_office:'R',
   // SR
   small_shop:'SR', scalper:'SR', bulk_store:'SR',
@@ -2333,7 +2334,7 @@ const BLDG_RARITY={
   adv_mat_factory:'R', adv_factory:'R', convenience:'R', chem_refinery:'R',
   adv_warehouse:'R', adv_booster:'R', adv_converter:'R',
   center_factory_bureau:'R', center_shop_bureau:'R', center_mat_bureau:'R', center_elec_net:'R',
-  logistics_hub:'SR', // logistics_vault_v2 已併入 logistics_vault（xlsx 規格），不再出現於抽取池
+  logistics_hub:'SR',
   // SR（新增）
   elec_factory:'SR', elec_conveyor:'SR', elec_shop:'SR',
   staff_housing:'SR',
@@ -2431,6 +2432,7 @@ const TAGS={
   env_sensor:['logistics'],
   logistics_up:['logistics'], logistics_down:['logistics'],
   logistics_left:['logistics'], logistics_right:['logistics'],
+  logistics_center:['logistics'],
   // 貿易流設施
   trade_port:['trade'], exchange_board:['trade'], futures_market:['trade'],
   trade_zone:['trade','shop'], clearance:['trade'], import_tax:['trade'],
@@ -2456,7 +2458,7 @@ const TAGS={
   // 拆遷系新設施
   mobile_city:['demolish'], scrap_city:['demolish'], disaster_bureau:['demolish'],
   // 物流系新設施
-  logistics_hub:['logistics'], logistics_vault_v2:['logistics'],
+  logistics_hub:['logistics'],
   // 人力系新設施
   staff_housing:['hr'],
   // 特殊設施
@@ -2973,10 +2975,11 @@ const EVENTS=[
       G.futuresPct={};
       G._futuresMoveNext=[];
       G.logisticsVault={};
-      G.tempShedMoves={};
       G.bulkStoreBonus={};
-      G.vaultV2Counts={};
       G.vaultCounts={};
+      G.permCellMods={};
+      G.cellRedirectDir={};
+      if(G._logCenterRotated) G._logCenterRotated.clear();
       // 重建百貨公司追蹤
       rebuildDeptStore();
       // 給予 2 張保證複合設施
@@ -3112,10 +3115,9 @@ function newGame(){
     logisticsVault:{},  // 物流倉儲存值
     futuresPct:{},      // 期貨交易所本回合百分比 {'r,c': pct}
     bulkStoreBonus:{},  // 量販店每格每組獎勵值（初始 8，每次觸發 +4 累積）
-    vaultV2Counts:{},   // 物流倉 v2 每格計數（隨設施搬移/清理）
     vaultCounts:{},     // 物流倉每格計數（xlsx 新規格：計數≥3時 +8 收益）
+    cellRedirectDir:{}, // 物流中心當前方向 {"r,c": 'right'|'down'|'left'|'top'}
     talentBankStored:0, // 人力銀行儲存值（舊實作殘留，現採人材機制 _talentBankPending）
-    tempShedMoves:{},   // 臨時工棚移動次數
     partners:[],         // 當前持有的合夥人 [{id, state}]
     partnerState:{},     // 合夥人專屬狀態 {id: any}
     nextBonus:null,      // 下次輸出特定單位加成 {type, amount}
@@ -3215,7 +3217,7 @@ const COMPOUND_EXCLUDE=new Set([
   'mat_factory','factory','shop','refinery','warehouse','booster','converter',
   'bomb_device','envy_factory','ruin','ruin_monument',
   'dept_store','dept_store_part',
-  'logistics_up','logistics_down','logistics_left','logistics_right',
+  'logistics_up','logistics_down','logistics_left','logistics_right','logistics_center',
   // 新增：2×2 大型設施 + 不可消滅設施
   'giant_village','ancient_factory','world_wonder','mega_elec_supply','disaster_bureau',
   // 僅中央設施（複合卡兩格無法保證都在中央）
@@ -3344,6 +3346,17 @@ function showEv(title,desc,optsHtml){
 }
 function hideEv(){
   document.getElementById('ev-banner').classList.remove('show');
+}
+// 判斷是否有事件相關 UI 模態正在顯示（事件橫幅/抽卡器/動作彈窗）
+// 用於容錯：phase='event' 但無模態顯示時視為殘留狀態，允許結束回合
+function isAnyEventModalOpen(){
+  const ev=document.getElementById('ev-banner');
+  if(ev&&ev.classList.contains('show')) return true;
+  const cc=document.getElementById('card-chooser');
+  if(cc&&cc.style.display==='flex') return true;
+  const ac=document.getElementById('action-chooser');
+  if(ac&&ac.style.display==='flex') return true;
+  return false;
 }
 function evDone(){
   hideEv();
@@ -4567,25 +4580,6 @@ const FACILITY_FX={
     fx.next(300);
   },
 
-  // ══ 物流系新設施 ══
-  logistics_vault_v2(fx){
-    // 獲得1物流計數，≥3時+8收益（計數納入 KEYED_DATA_FIELDS 隨格子轉移/清理）
-    const k=`${fx.r},${fx.c}`;
-    if(!G.vaultV2Counts) G.vaultV2Counts={};
-    G.vaultV2Counts[k]=(G.vaultV2Counts[k]||0)+1;
-    gainOmniCount('物流倉計數');
-    const cnt=G.vaultV2Counts[k];
-    if(cnt>=3){
-      G.profit+=8;
-      G.vaultV2Counts[k]=0;
-      addLog(`  📦 物流倉：計數${cnt}≥3，+8收益！計數重置`,'g');
-      profitFlyFromCell(fx.r,fx.c,8);
-    } else {
-      addLog(`  📦 物流倉：計數+1（目前${cnt}/3）`);
-    }
-    fx.hit();
-  },
-
   // ══ 人力系新設施 ══
   staff_housing(fx){
     // 通過時記錄已投入（回合結束時檢查）
@@ -4792,6 +4786,9 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       cellEl?.classList.add('transform-flash');
       setTimeout(()=>cellEl?.classList.remove('transform-flash'),400);
 
+      // 物流中心：當前方向存於 cellRedirectDir，覆蓋 BLDG.dir
+      const isPerTurnRot=b.perTurnRotate;
+      const cellDir=(G.cellRedirectDir&&G.cellRedirectDir[cellKey])||b.dir;
       // upgrade bonus (有 overlay 時升級屬於 overlay 設施，redirect 不重複計算)
       const _hasOverlay=G.cellOverlay&&G.cellOverlay[`${r},${c}`];
       const upgradeBonus=_hasOverlay?0:(G.bldgUpgrades?.[`${r},${c}`]||0);
@@ -4799,13 +4796,25 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
         el={...el,value:el.value+upgradeBonus};
         addLog(`  ${b.emoji}${b.name}: 轉向 + 升級加成 +${upgradeBonus} → ${el.value}`);
       } else {
-        addLog(`  ${b.emoji}${b.name}: 轉向 ${b.dir}`);
+        addLog(`  ${b.emoji}${b.name}: 轉向 ${cellDir}`);
       }
       updateCard(el);
       setTimeout(()=>{ if(_stepAnimGen!==gen) return; updateMover(el); },100);
 
       // rebuild remaining path from next cell in new direction
-      const newDir=b.dir;
+      const newDir=cellDir;
+      if(isPerTurnRot){
+        if(!G._logCenterRotated) G._logCenterRotated=new Set();
+        if(!G._logCenterRotated.has(cellKey)){
+          const rotMap={right:'bottom',bottom:'left',left:'top',top:'right'};
+          const nextDir=rotMap[cellDir]||'right';
+          if(!G.cellRedirectDir) G.cellRedirectDir={};
+          G.cellRedirectDir[cellKey]=nextDir;
+          G._logCenterRotated.add(cellKey);
+          const arrowMap={right:'→',bottom:'↓',left:'←',top:'↑'};
+          addLog(`  ${b.emoji}${b.name}: 自動切換方向 ${arrowMap[cellDir]}→${arrowMap[nextDir]}（每回合一次）`,'b');
+        }
+      }
       const newPath=[];
       let nr=r,nc=c;
       const visited=new Set();
@@ -5703,6 +5712,7 @@ function startTurn(){
   G._ruinPassedThisTurn = false;
   G._omniGainedThisTurn = false;
   G._dispatchHqFiredThisTurn = false;
+  G._logCenterRotated = new Set(); // 物流中心：每回合最多旋轉一次
   // 防呆：每回合開始時保證 元素卡額外投入狀態 歸零，避免上一輪殘留導致按鈕失效
   G.elementExtraUses = 0;
   G._extraUsePhase = false;
@@ -5923,9 +5933,12 @@ function doNext(){
     addLog('⏩ 跳過剩餘人材投入','w');
     render();
   }
-  // 容錯：本回合已投入且非其他互動模式，強制進入 done
-  if(G.phase!=='done'&&G._turnInvested&&!G.freeRearrange&&!G.moveMode&&!G._yongqingSellMode&&!G._demoExpertMode&&!G._omniDragging&&G.phase!=='event'&&G.phase!=='animating'){
-    G.phase='done';
+  // 容錯：本回合已投入且無 UI 阻塞時，強制進入 done
+  // phase==='event' 但無模態顯示視為殘留狀態（事件/商店/動作彈窗未正確 reset phase）
+  if(G.phase!=='done'&&G._turnInvested&&!G.freeRearrange&&!G.moveMode&&!G._yongqingSellMode&&!G._demoExpertMode&&!G._omniDragging&&G.phase!=='animating'){
+    if(G.phase!=='event' || !isAnyEventModalOpen()){
+      G.phase='done';
+    }
   }
   if(G.phase!=='done')return;
 
@@ -6203,8 +6216,10 @@ function render(){
   // 按鈕 enable 條件：
   // 1. phase='done'（正常投入完成）
   // 2. phase='place' 且 _extraUsePhase（額外投入階段可跳過）
-  // 3. 容錯：本回合已投入過（_turnInvested），且不在其他互動模式（排列/移動/售出/摧毀等）→ 即使 phase 被其他邏輯回寫為 'place'，仍允許結束
-  const _inOtherMode=G.freeRearrange||G.moveMode||G._yongqingSellMode||G._demoExpertMode||G._omniDragging||G.phase==='event'||G.phase==='animating';
+  // 3. 容錯：本回合已投入過（_turnInvested），且不在其他互動模式 → 允許結束
+  //    phase==='event' 視為阻塞「僅在實際有事件/商店/動作模態顯示時」，避免殘留 phase 卡死按鈕
+  const _eventBlocking=G.phase==='event'&&isAnyEventModalOpen();
+  const _inOtherMode=G.freeRearrange||G.moveMode||G._yongqingSellMode||G._demoExpertMode||G._omniDragging||G.phase==='animating'||_eventBlocking;
   const _canEnd=G.phase==='done' || (G.phase==='place'&&G._extraUsePhase) || (G._turnInvested&&!_inOtherMode);
   _btnNext.disabled=!_canEnd;
   _btnNext.textContent=G._extraUsePhase?'⏩ 跳過額外投入':'⏩ 結束回合';
@@ -6619,12 +6634,20 @@ function renderGrid(){
       const baseBonus=(b.fn(1)-1)+(G.bldgUpgrades?.[`${r},${c}`]||0);
       if(b.special==='redirect'){
         const ovs=getOverlays(r,c);
+        // 物流中心：emoji 顯示為當前方向箭頭
+        let dispEmoji=b.emoji;
+        if(b.perTurnRotate){
+          const dKey=`${r},${c}`;
+          const curDir=(G.cellRedirectDir&&G.cellRedirectDir[dKey])||b.dir;
+          const arrowEmoji={right:'➡️',bottom:'⬇️',left:'⬅️',top:'⬆️'}[curDir]||b.emoji;
+          dispEmoji=arrowEmoji;
+        }
         if(ovs.length===1&&BLDG[ovs[0]]){
           // 1 疊加：設施 emoji + 右下角物流箭頭
           const ov=BLDG[ovs[0]];
           h+=`<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
             <div class="cemoji">${ov.emoji}</div>
-            <div style="position:absolute;bottom:1px;right:2px;font-size:14px;line-height:1;opacity:.8;">${b.emoji}</div>
+            <div style="position:absolute;bottom:1px;right:2px;font-size:14px;line-height:1;opacity:.8;">${dispEmoji}</div>
           </div>`;
           h+=`<div class="cname" style="font-size:7px;">${ov.name}</div>`;
         } else if(ovs.length>=2&&BLDG[ovs[0]]&&BLDG[ovs[1]]){
@@ -6632,11 +6655,12 @@ function renderGrid(){
           const ov1=BLDG[ovs[0]], ov2=BLDG[ovs[1]];
           h+=`<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
             <div class="ov-rotate"><span class="ov-a">${ov1.emoji}</span><span class="ov-b">${ov2.emoji}</span></div>
-            <div style="position:absolute;bottom:1px;right:2px;font-size:14px;line-height:1;opacity:.8;">${b.emoji}</div>
+            <div style="position:absolute;bottom:1px;right:2px;font-size:14px;line-height:1;opacity:.8;">${dispEmoji}</div>
           </div>`;
           h+=`<div class="cname" style="font-size:7px;">${ov1.name}+${ov2.name}</div>`;
         } else {
-          h+=`<div style="font-size:32px;line-height:1;">${b.emoji}</div>`;
+          h+=`<div style="font-size:32px;line-height:1;">${dispEmoji}</div>`;
+          if(b.perTurnRotate) h+=`<div class="cname" style="font-size:8px;">${b.name}</div>`;
         }
         if(baseBonus>0) h+=`<div style="font-size:8px;font-weight:700;color:var(--money);">+${baseBonus}</div>`;
       } else if(bId==='dept_store'){
@@ -6669,11 +6693,6 @@ function renderGrid(){
         h+=`<div class="cemoji">${b.emoji}</div>`;
         h+=`<div style="font-size:11px;font-weight:900;color:${fpColor};line-height:1;">${fpct>=0?'+':''}${fpct}%</div>`;
         h+=`<div class="cname">${b.name}</div>`;
-      } else if(bId==='logistics_vault_v2'){
-        const vCnt=(G.vaultV2Counts&&G.vaultV2Counts[`${r},${c}`])||0;
-        h+=`<div class="cemoji">${b.emoji}</div>`;
-        h+=`<div class="cname">${b.name}</div>`;
-        h+=`<div style="position:absolute;top:2px;right:2px;font-size:9px;font-weight:900;color:#fff;background:var(--money);border-radius:99px;padding:1px 5px;line-height:1.2;">${vCnt}/3</div>`;
       } else if(bId==='logistics_vault'){
         const stored=(G.logisticsVault&&G.logisticsVault[`${r},${c}`])||0;
         h+=`<div class="cemoji">${b.emoji}</div>`;
@@ -6837,9 +6856,10 @@ function pulse(r,c){
 // opts.bldgId 指定剛放置的設施 id（疊加 / 複雜情境），未指定則讀 G.grid[r][c]
 function onFacilityPlaced(r,c,bldgId){
   if(!bldgId||bldgId==='ruin'||bldgId==='dept_store_part') return;
-  // 電子工廠：場上每有一個電子設施（含自己），這個設施永久+2
+  // 電子工廠：場上每有一個電子設施（含自己、含疊加），這個設施永久+2
   if(bldgId==='elec_factory'){
-    const elecCount=findCells((rr,cc,bb)=>bb&&hasTag(bb,'electronic')).length;
+    let elecCount=findCells((rr,cc,bb)=>bb&&hasTag(bb,'electronic')).length;
+    eachCell((rr,cc)=>{ getOverlays(rr,cc).forEach(ovId=>{ if(hasTag(ovId,'electronic')) elecCount++; }); });
     if(elecCount>0){
       const k=`${r},${c}`;
       G.bldgUpgrades[k]=(G.bldgUpgrades[k]||0)+elecCount*2;
@@ -7991,13 +8011,9 @@ function hasAdjacentShop(r,c){
   });
 }
 
-// ── 交換後附帶效果（臨時工棚/拆遷補償局/地皮炒家） ──
+// ── 交換後附帶效果（拆遷補償局/地皮炒家） ──
 function onFacilityMoved(r,c,sr,sc){
   G.turnFacMoved=(G.turnFacMoved||0)+1;
-  findCells((r,c,b)=>b==='temp_shed').forEach(([ri,ci])=>{
-    const tk=`${ri},${ci}`;
-    G.tempShedMoves[tk]=Math.min((G.tempShedMoves[tk]||0)+1,5);
-  });
   // 拆遷補償局：排列模式期間（拆遷隊/自由排列）延遲到 confirmRearrange 才結算，整段只視為 1 次移動
   if(G.freeRearrange){
     G._demolishBureauPending=true;
@@ -9020,8 +9036,17 @@ function deserializeGame(save){
     }
   }
   reviveSets(data);
-  // 驗證設施/合夥人 ID 存在性（防止版本不相容崩潰）
+  // 舊存檔遷移：logistics_vault_v2 已併入 logistics_vault
   const gn=data.gridSize||4;
+  for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+    if(data.grid[r]&&data.grid[r][c]==='logistics_vault_v2') data.grid[r][c]='logistics_vault';
+  }
+  if(data.vaultV2Counts){
+    if(!data.vaultCounts) data.vaultCounts={};
+    for(const k in data.vaultV2Counts) data.vaultCounts[k]=(data.vaultCounts[k]||0)+data.vaultV2Counts[k];
+    delete data.vaultV2Counts;
+  }
+  // 驗證設施/合夥人 ID 存在性（防止版本不相容崩潰）
   for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
     const b=data.grid[r]&&data.grid[r][c];
     if(b&&b!=='ruin'&&!BLDG[b]) data.grid[r][c]=null;
@@ -9032,9 +9057,8 @@ function deserializeGame(save){
     return BLDG[h.id];
   });
   // 清除指向無效設施的位置鍵值
-  // 注意：cellMods 允許掛在空格（地皮炒家空格+4、公路之星中央格+2、廢墟紀念碑消滅後+4）
+  // 注意：永久綁定格子的加成（地皮炒家+4 等）寫在 permCellMods，不在此清除清單
   KEYED_DATA_FIELDS.forEach(dk=>{
-    if(dk==='cellMods') return;
     if(!data[dk]||typeof data[dk]!=='object') return;
     for(const k in data[dk]){
       const [r,c]=k.split(',').map(Number);
@@ -9059,6 +9083,7 @@ function deserializeGame(save){
   if(!data.buff||typeof data.buff!=='object') data.buff={};
   // permCellMods：舊存檔可能沒有此欄位，初始化為空物件
   if(!data.permCellMods||typeof data.permCellMods!=='object') data.permCellMods={};
+  if(!data.cellRedirectDir||typeof data.cellRedirectDir!=='object') data.cellRedirectDir={};
   // 跨存檔不應殘留的動畫/pending 旗標
   data._winPending = false;
   data._turnPitchOffset = 0;
@@ -9288,6 +9313,24 @@ const MEGA_SIM_FX={
   },
   tech_lab(sim){
     if(sim.type==='goods'){sim.value=Math.floor(sim.value*1.02);}
+  },
+  // 電子系
+  elec_factory(sim){
+    if(sim.type==='material'){sim.type='money';}
+  },
+  elec_conveyor(sim){
+    // 對下個電子設施 +2 的銜接機制在 mega 模擬中無法跨 cell 累積，本格僅 pass-through
+  },
+  elec_shop(sim){
+    if(sim.type==='money'){sim.type='material';}
+    else if(sim.type==='goods'){sim.type='material';}
+    else if(sim.type==='material'){sim.value+=2;sim.type='money';}
+  },
+  mega_elec_supply(sim){
+    if(sim.type==='money'||sim.type==='goods'){sim.value+=4;sim.type='material';}
+  },
+  convenience(sim){
+    if(sim.type==='goods'||sim.type==='material'){sim.value+=4;sim.type='money';}
   },
 };
 
@@ -10593,7 +10636,6 @@ const DEV={
     if(G.leyaPctMods) G.leyaPctMods={};
     G.cellMods={};
     G.bombTimers={};
-    if(G.tempShedMoves) G.tempShedMoves={};
     G.ruinCells=new Set();
     G.deptStoreAnchors={};
     G.deptStoreParts={};

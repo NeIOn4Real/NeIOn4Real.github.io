@@ -2468,3 +2468,73 @@ VT/
 
 **追蹤中但暫不處理**：A1 / A2 / C8 / C10 需 PM 確認設計意圖。
 
+---
+
+### Session 18（2026-04-23）— 多項 Bug 修復與物流中心補完
+
+#### A. 修復清單
+
+##### A1. 🔴 莫菲定律未清 `permCellMods`
+- **位置**：`index.html` Murphy 事件 show 函式（清除 keyed data 區塊）
+- **問題**：莫菲定律打亂設施位置時清除了 `cellMods/cellOverlay/bombTimers/futuresPct/...`，但**未清 `permCellMods`**（地皮炒家空格 +4 等永久加成）
+- **修法**：在清除清單追加 `G.permCellMods={}; G.cellRedirectDir={}; if(G._logCenterRotated) G._logCenterRotated.clear();`
+
+##### A2. 🔴 讀檔 `cellMods` 過激清除（移除過時豁免）
+- **位置**：`deserializeGame` 的 `KEYED_DATA_FIELDS` 迴圈
+- **歷史**：Session 15 曾為了保護「永久加成在空格」而加 `if(dk==='cellMods') return;` 豁免
+- **問題**：永久加成已遷至 `permCellMods`，`cellMods` 現在只裝本回合暫時值，豁免邏輯成為過時
+- **修法**：移除 `cellMods` 豁免；註解改為「永久綁定格子的加成寫在 permCellMods，不在此清除清單」
+
+##### A3. 🟠 `logistics_vault_v2` 殘留清除（含舊存檔遷移）
+- **位置**：BLDG / BLDG_RARITY / BLDG_TAGS / FACILITY_FX / 渲染分支 / `KEYED_DATA_FIELDS` / G 初始
+- **問題**：xlsx 規格已併入 `logistics_vault`，但 code 多處仍有死代碼
+- **修法**：
+  - 完全移除 `logistics_vault_v2` BLDG 定義、FACILITY_FX、render 分支、tags
+  - 移除 `vaultV2Counts` 從 KEYED_DATA_FIELDS 與 G 初始
+  - `deserializeGame` 加入舊存檔遷移：`logistics_vault_v2` cells → `logistics_vault`，`vaultV2Counts` 累加合併入 `vaultCounts`
+
+##### A4. 🟠 `tempShedMoves` 死欄位移除
+- **位置**：KEYED_DATA_FIELDS、G 初始、Murphy 清空、DEV.clearGrid、`onFacilityMoved` 寫入點
+- **問題**：臨時工棚改版為「回合結束自動賣出 +2」後，`tempShedMoves` 欄位完全 write-only，永不被讀取
+- **修法**：刪除所有定義與寫入點，註解 `onFacilityMoved` 標題從「臨時工棚/拆遷補償局/地皮炒家」改為「拆遷補償局/地皮炒家」
+
+##### A5. 🟢 物流中心 R 級「每回合一次轉向」補完
+- **位置**：BLDG/BLDG_RARITY/BLDG_TAGS/COMPOUND_EXCLUDE/KEYED_DATA_FIELDS/G 初始、`stepWithMover` redirect handler、render redirect 分支、Murphy 清空、`startTurn` 重置
+- **缺漏**：xlsx 規格的「物流中心」(R) 在 code 中缺失，只有 `logistics_up/down/left/right`（固定方向）與 `transfer_hub/logistics_hub`（放置時決定方向）
+- **修法**：
+  - 新增 `logistics_center` BLDG（R 級，🔄 emoji，預設方向 right，`perTurnRotate:true` flag）
+  - 新增 `G.cellRedirectDir = {'r,c': 'right'|'bottom'|'left'|'top'}`，加入 KEYED_DATA_FIELDS（隨設施移動、設施消滅時清除）
+  - 新增 `G._logCenterRotated`（Set，每回合在 startTurn 重置）
+  - redirect handler 在 `perTurnRotate` 設施被資源觸發時：使用 `cellRedirectDir[k] || b.dir` 作為當前方向，每回合最多旋轉一次（順序 → ↓ ← ↑ →）
+  - render 顯示當前方向箭頭（➡️/⬇️/⬅️/⬆️）取代靜態 🔄
+  - `deserializeGame` 為舊存檔初始化 `cellRedirectDir`
+
+##### A6. 🟠 `MEGA_SIM_FX` 缺失電子系設施（巨型重播 + 戰鬥模式）
+- **位置**：`MEGA_SIM_FX` 物件
+- **問題**：`elec_shop / elec_factory / elec_conveyor / mega_elec_supply / convenience` 全缺，巨型設施重播與戰鬥模式 fallback 到 `b.fn`（identity）+ `b.out`（多為 null）→ **類型不會轉換**
+- **使用者複現**：「電子商店不會把金錢換成原料」
+- **修法**：補上 5 個 MEGA_SIM_FX handler，與 FACILITY_FX 行為對齊（`elec_conveyor` 跨 cell 累積機制簡化為 pass-through）
+
+##### A7. 🔴 電子工廠 +2×N 計數未含蕾雅疊加
+- **位置**：`onFacilityPlaced` 的 `elec_factory` 分支
+- **問題**：`findCells((r,c,b)=>hasTag(b,'electronic')).length` 只看基底設施，**完全忽略 `cellOverlay`**。蕾雅疊加上去的電子工廠雖視為獨立設施，但這個計數不算
+- **使用者複現**：「電子工廠與蕾雅配合時，將電子工廠重疊，但沒有把已經重疊的設施視為獨立設施」
+- **修法**：補上 `eachCell((rr,cc)=>{ getOverlays(rr,cc).forEach(ovId=>{ if(hasTag(ovId,'electronic')) elecCount++; }); });` 補計疊加層（沿用 `countAllShops` 已驗證的寫法）
+
+##### A8. 🔴 結束回合按鈕卡死於殘留 `phase='event'`
+- **位置**：`doNext` 容錯條件、`render` 按鈕 enable 條件
+- **問題**：`phase='event'` 在某些路徑（事件/商店/動作彈窗關閉時）未被正確 reset 為 `'place'/'done'`，殘留為 `'event'` 後 `doNext` 因 `phase!=='done'` 立即 return；按鈕 disabled 因 render 時序而呈現 `false`（看似可點），形成「按了沒反應」
+- **使用者複現**：金手指獲得電子設施組合 + 蕾雅疊加 + 投入後無法結束回合（`G.phase==='event'` 但畫面無事件模態）
+- **修法**：
+  - 新增 `isAnyEventModalOpen()` 工具：檢查 `ev-banner` `.show` / `card-chooser` `display:flex` / `action-chooser` `display:flex`
+  - `doNext` 容錯：`phase='event'` 時若無模態顯示 → 視為殘留狀態，強制 `phase='done'`
+  - 按鈕 enable 條件 `_eventBlocking = phase==='event' && isAnyEventModalOpen()`，沒模態時不阻塞
+
+#### B. 後續追蹤項目
+
+##### B1. 🟠 電子商店疊加時升級加成被三次套用（價值 bug）
+- **位置**：`FACILITY_FX.elec_shop` 內 `applyUpgradeBonus`、`applyOverlayPipeline` 對 overlay 再套用一次 `upgradeBonus`、overlay 自身的 FX 再呼叫 `applyUpgradeBonus`
+- **症狀**：base elec_shop +2 升級的格子，疊加 1 個 elec_shop 時 +2 被套用 3 次（base FX、overlay FX、pipeline post-FX）
+- **影響**：收益被高估；非阻塞性 bug
+- **建議修法**：擇一：(a) overlay FX 跳過 `applyUpgradeBonus`、(b) `applyOverlayPipeline` 不對「自帶 applyUpgradeBonus 的 special」再加 `upgradeBonus`、(c) 用 flag 避免 double apply
+
