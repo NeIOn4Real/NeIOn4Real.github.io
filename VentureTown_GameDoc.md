@@ -3106,3 +3106,54 @@ desc：「此回合投入 8 人材時，使場上所有設施投入 2 人材」
 | `scrap_city` 廢鐵城 | ✅ destroyFacility 三點寫入 _scrapCity.x；finish 賣廢墟給 +x 收益 |
 | `demolish_fab` 建築廢料廠 | ✅ Session 20 修過 |
 
+---
+
+### Session 26（2026-04-24）— 物流系設施全面驗證 + 全域 desc 解讀規則確立
+
+#### A. 全域 desc 解讀規則（PM 確認）
+
+| 文本寫法 | 實作對應 |
+|---|---|
+| **「投入時」** | 視為「投入此設施時」 |
+| **「獲得 +N」** | 投入資源 value += N（per-pass）|
+| **「獲得收益 +N」** | `G.profit += N`（直接收益）|
+| **「永久獲得 +N」** | `G.bldgUpgrades += N`（持久跨回合）|
+| **「本回合獲得 +N」** | `G.cellMods += N`（本回合所有經過皆吃）|
+
+> 此規則為所有設施 desc 解讀依據；之前 Session 中的修法（廢墟紀念碑、清倉拍賣場、量販店、貿易特區、電子工廠、電子輸送帶、外貿港口…）皆已套用。
+
+#### B. 物流放大器 死碼修復（同電子輸送帶手法）
+
+##### B1. 舊實作問題
+- `G.inv.ampAct` 消費點在 `stepWithMover` 通用 fn 處理器 (`index.html:5053`)
+- 所有特殊 FX 設施都在 `if(_fxDone) return;` 早 return，永遠走不到通用處理器
+- 物流放大器 +8 buff 對特殊設施（電子系、終點站、螺旋物流站、商店…）全部失效
+
+##### B2. 修法
+- 觸發點移到 `if(bId)` 起始、special FX dispatch 之前
+- 任何下一格設施（含 special）都吃到 +8 value（per-pass）
+- 旗標一律消耗
+- 移除舊死碼
+
+#### C. 螺旋物流站 重做
+
+##### C1. 舊實作問題
+- BLDG `req:'any'` 但 desc 寫「商品→商品」（暗示限商品）
+- 「獲得 +2 收益」實作為 value += facHit×2（應該是 G.profit）
+
+##### C2. 新實作（依 PM 規格）
+- BLDG `req:'goods', out:'goods', fn:v=>v`（限商品輸入；商品數量不變）
+- FX：非商品 → fx.next 略過；商品 → `G.profit += facHit × 2` + 飛行動畫
+- MEGA_SIM_FX 同步：`if goods, ctx.bonusProfit += facHit*2`
+
+#### D. 其他物流設施驗證結果（無需改）
+| 設施 | 狀態 |
+|---|---|
+| 終點站 | ✅ desc「+4」(無收益) → value+=facHit*4 對齊 |
+| 環境感應站 | ✅ desc「+2」(無收益) → value+=adjCount*2 對齊 |
+| 物流倉 | ✅ desc「+8 收益」→ G.profit+=8 對齊 |
+| 速遞站 | ✅ flag-based 重複觸發；對 redirect 自然失效（buff 浪費可接受）|
+| 轉運中心 / 物流轉運中心 | ✅ 放置時 picker 改為方向變體 |
+| 物流中心 | ✅ Session 22 已修 |
+| 物流↑↓←→ | ✅ 純方向變體 |
+

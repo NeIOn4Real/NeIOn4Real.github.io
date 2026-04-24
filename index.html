@@ -1222,7 +1222,7 @@ const BLDG = {
   strike_board:   { name:'集體罷工台',   emoji:'📢', desc:'投入資源時你失去一半人材，每個獲得 +8。', req:'any', out:null, fn:v=>v, special:'strike_board' },
 
   // ── 物流中心流設施 ──
-  spiral_hub:     { name:'螺旋物流站',   emoji:'🔄', desc:'商品→商品。資源投入時，之前每通過 1 個設施，這個設施獲得+2收益。', req:'any', out:null, fn:v=>v, special:'spiral_hub' },
+  spiral_hub:     { name:'螺旋物流站',   emoji:'🔄', desc:'商品→商品。資源投入時，之前每通過 1 個設施，這個設施獲得+2收益。', req:'goods', out:'goods', fn:v=>v, special:'spiral_hub' },
   terminal:       { name:'終點站',       emoji:'🏁', desc:'任意→任意。資源投入時，之前每通過 1 個設施，這個設施獲得+4。', req:'any', out:null, fn:v=>v, special:'terminal' },
   logistics_amp:  { name:'物流放大器',   emoji:'📡', desc:'任意→任意。資源投入時，下一設施這回合獲得+8。', req:'any', out:null, fn:v=>v, special:'logistics_amp' },
   transfer_hub:   { name:'轉運中心',     emoji:'🔀', desc:'放置時變成物流中心，可決定方向', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
@@ -4308,16 +4308,22 @@ const FACILITY_FX={
     fx.pulse(); fx.updateCard(); fx.next();
   },
   spiral_hub(fx){
-    const bonus=(G.inv.facHit||0)*2;
-    G.inv.facHit=(G.inv.facHit||0)+1;
-    SFX.hit(G.inv.facHit-1);
-    let spiralVal=fx.el.value+bonus;
-    spiralVal=applyUpgradeBonus(fx.r,fx.c,spiralVal,'螺旋物流站');
-    const sp_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
-    const sp_parts=[`通過${G.inv.facHit-1}設施×2=+${bonus}`]; if(sp_upg>0) sp_parts.push(`升級+${sp_upg}`);
-    addLog(`  🔄 螺旋物流站: +${bonus+sp_upg}（${sp_parts.join('，')}）`);
-    fx.el={...fx.el,value:spiralVal};
-    fx.pulse(); fx.updateCard(); fx.next();
+    // 商品→商品（不變）；之前每通過 1 個設施 → G.profit += 2
+    if(fx.el.type!=='goods'){
+      addLog(`  🔄 螺旋物流站：需要商品，${TLABEL[fx.el.type]||fx.el.type}略過`);
+      fx.next(300); return;
+    }
+    const passed=G.inv.facHit||0;
+    const bonus=passed*2;
+    if(bonus>0){
+      G.profit+=bonus;
+      addLog(`  🔄 螺旋物流站: 之前通過 ${passed} 設施×2 = +${bonus}收益`,'g');
+      profitFlyFromCell(fx.r,fx.c,bonus);
+    } else {
+      addLog(`  🔄 螺旋物流站: 之前未通過任何設施，無加成`);
+    }
+    // 商品 value/type 不變
+    fx.hit();
   },
   labor_convert(fx){
     const used=G._hrTalentUsedCount||0;
@@ -4854,6 +4860,17 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
     const b=BLDG[bId];
     TUT.hookStep(bId);
 
+    // ── 物流放大器：下一設施本回合 +8 value（不論是否為 special FX）──
+    // 在 special FX dispatch 之前消費 ampAct，避免 special FX 早 return 跳過通用處理器導致死碼
+    if(G.inv.ampAct){
+      const _amp8=8;
+      // 將 +8 加到資源 value（per-pass，本回合自然滿足因 G.inv 為 per-send）
+      el={...el, value:Math.max(0, el.value+_amp8)};
+      addLog(`  📡 物流放大器：${BLDG[bId].name} 獲得 +${_amp8} → ${el.value}`,'g');
+      G.inv.ampAct=false;
+      updateCard(el); updateMover(el);
+    }
+
     // ── 電子輸送帶：在當前格的特效跑之前先處理（base + overlays 中的電子實例 +2） ──
     // 規格：下一個設施若為電子（base 或疊加），所有電子實例獲得 +2 永久；
     //       若都不是電子，效果消耗、無加成；旗標一律消耗
@@ -5049,8 +5066,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
         nv=prev.value; // 保持原值，不增加
         addLog(`  ⚖️ 套利者：原料→商品不增加數值`,'b');
       }
-      // 物流放大器：下一設施這回合獲得+8（加到 nv）
-      if(G.inv.ampAct){ nv=nv+8; G.inv.ampAct=false; addLog(`  📡 物流放大器：+8 → ${nv}`,'g'); }
+      // 物流放大器：已於 stepWithMover 進入此 cell 時統一處理（FX dispatch 之前）
 
       // 暴食惡魔：輸出類型互換
       if(hasPartner('gluttony')){
@@ -9591,7 +9607,11 @@ const MEGA_SIM_FX={
     if(sim.type!=='goods') return;
     sim.value=sim.value+24; sim.type='money';
   },
-  spiral_hub(sim,mega,ctx){sim.value+=2;}, // 簡化：每次通過+2
+  spiral_hub(sim,mega,ctx){
+    // 商品→商品（不變）；之前每通過 1 設施 → bonusProfit += 2
+    if(sim.type!=='goods') return;
+    ctx.bonusProfit+=ctx.facHit*2;
+  },
   terminal(sim,mega,ctx){sim.value+=ctx.facHit*4;},
   env_sensor(sim,mega,ctx){
     // 計算快照中相鄰設施數
