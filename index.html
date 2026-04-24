@@ -4628,6 +4628,8 @@ const FACILITY_FX={
   },
 };
 
+// 疊加設施 pipeline 用旗標：避免 overlay 內 FX 自行套用 upgrade 與 pipeline 後處理重複
+let _inOverlayCtx=false;
 // 疊加設施 pipeline：基座處理完後依序套用每個 overlay 的 fn / FX，並把 base 的格子加成套用到每個 overlay 上
 function applyOverlayPipeline(el, r, c, cellEl){
   const ovs=getOverlays(r,c);
@@ -4656,7 +4658,13 @@ function applyOverlayPipeline(el, r, c, cellEl){
         pulse(){pulse(r,c);},
         updateCard(){}, updateMover(){},
       };
-      try{ FACILITY_FX[ob.special](ovFx); }catch(e){ console.warn('overlay FX 失敗:',ovId,e); continue; }
+      // 進入 overlay context：FX 內部呼叫 applyUpgradeBonus 變 no-op，
+      // 由 pipeline 在迴圈尾統一加 upgradeBonus，避免重複套用
+      _inOverlayCtx=true;
+      let _ovErr=false;
+      try{ FACILITY_FX[ob.special](ovFx); }catch(e){ console.warn('overlay FX 失敗:',ovId,e); _ovErr=true; }
+      _inOverlayCtx=false;
+      if(_ovErr) continue;
       el=ovFx.el;
     } else if(ob.fn){
       el={value:ob.fn(el.value), type:(ob.out||el.type)};
@@ -8153,7 +8161,10 @@ function leyaUpgrade(r,c,bId){
 }
 
 // 套用格子升級加成（所有special設施共用）
+// 旗標宣告於 applyOverlayPipeline 之前，避免 TDZ；
+// overlay pipeline 期間此旗標為 true，applyUpgradeBonus 變 no-op，由 pipeline 統一加 upgradeBonus
 function applyUpgradeBonus(r, c, val, bName){
+  if(_inOverlayCtx) return val;
   const key=`${r},${c}`;
   const upg=G.bldgUpgrades&&G.bldgUpgrades[key]||0;
   if(upg>0){
