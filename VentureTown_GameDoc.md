@@ -3193,3 +3193,50 @@ desc：「此回合投入 8 人材時，使場上所有設施投入 2 人材」
 | 物流中心 | ✅ Session 22 已修 |
 | 物流↑↓←→ | ✅ 純方向變體 |
 
+---
+
+### Session 27（2026-04-24）— 貿易系設施全面驗證
+
+5 個剩餘貿易系設施審查（其餘已修過：trade_port S20 / trade_zone S20 / clearance S20 / center_trade S21）。
+
+#### A. 期貨交易所 完全重做（依 PM 規格）
+
+##### A1. 舊實作問題
+- BLDG `req:'any'`，沒 `noOverlay:true`
+- FX 用 `G.futuresPct[k]`：-10~+10 **百分比**（負值！）→ value × pct%
+- 標記 `_futuresMoveNext`：下回合自動移動到隨機空格（desc 沒寫）
+- 整個機制與 desc 完全脫鉤
+
+##### A2. PM 規格
+- 「**回合開始時**獲得 +0/+2/+4/+8（隨機）」— 固定值候選，無負值
+- 「**每次投入商品時**重新觸發一次抽選，再加到通過資源 value」— re-roll then apply
+- 下回合重置（自然由 startTurn 重抽達成）
+- 「無法被重疊」
+
+##### A3. 新實作
+- BLDG `req:'goods', out:'goods', fn:v=>v, noOverlay:true`
+- 新欄位 `G.futuresValue` 取代舊 `G.futuresPct`
+  - 加入 KEYED_DATA_FIELDS（隨設施移動、消滅時清除）
+  - G init / deserializeGame 補初始化（舊存檔自動轉空）
+  - `delete data.futuresPct` 清掉舊欄位
+- 放置時：抽選 `[0,2,4,8]` 之一寫入 futuresValue
+- FX：
+  - 非商品 → 略過（fx.next）
+  - 商品 → re-roll futuresValue + value += futuresValue + fx.hit
+- startTurn：每格 futures_market 重抽
+- 移除 `_futuresMoveNext` 整段邏輯（自動移動 + 對應重抽）
+- 渲染顯示 +N（無負值，單一顏色）
+- tooltip 顯示「本回合期貨：+N（投入商品時會重抽）」
+- MEGA_SIM_FX 同步：商品輸入 → 加上隨機 0/2/4/8
+
+#### B. 匯率波動板 加 noOverlay
+- BLDG 補 `noOverlay:true`
+- 其他機制無變動（隨機 ±2 重複場上設施數量，加到 value）
+
+#### C. 其餘貿易系驗證結果（無需改）
+| 設施 | 狀態 |
+|---|---|
+| 進出口稅站 | ✅ 商品/金錢 ±4 + 物流計數 ×2 加值 對齊 desc |
+| 自由市場 | ✅ 純 fn 處理（任意→金錢，值不變） |
+| 稅務局 | ✅ startTurn 隨機升級 +1；finish 扣本回合增量 10% |
+

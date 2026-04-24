@@ -1232,8 +1232,8 @@ const BLDG = {
 
   // ── 貿易流設施 ──
   trade_port:     { name:'外貿港口',     emoji:'⚓', desc:'這個設施無法被重疊。商品→金錢+2。投入商品時，每有一個商品，這個設施額外獲得+2收益，最高為當前收益目標的一半。', req:'goods', out:'money', fn:v=>v+2, special:'trade_port', noOverlay:true },
-  exchange_board: { name:'匯率波動板',   emoji:'📈', desc:'這個設施無法被重疊。資源投入時，這個設施隨機獲得+2或-2，重複小鎮上已有設施的數量。', req:'any', out:null, fn:v=>v, special:'exchange_board' },
-  futures_market: { name:'期貨交易所',   emoji:'🏛', desc:'這個設施無法被重疊。回合開始時，這個設施獲得+0、+2、+4或+8，每次投入商品時，都會使這個效果重複一次。', req:'any', out:null, fn:v=>v, special:'futures_market' },
+  exchange_board: { name:'匯率波動板',   emoji:'📈', desc:'這個設施無法被重疊。資源投入時，這個設施隨機獲得+2或-2，重複小鎮上已有設施的數量。', req:'any', out:null, fn:v=>v, special:'exchange_board', noOverlay:true },
+  futures_market: { name:'期貨交易所',   emoji:'🏛', desc:'這個設施無法被重疊。回合開始時，這個設施獲得+0、+2、+4或+8，每次投入商品時，都會使這個效果重複一次。', req:'goods', out:'goods', fn:v=>v, special:'futures_market', noOverlay:true },
   trade_zone:     { name:'貿易特區',     emoji:'🌏', desc:'商店。商品→金錢。周圍8格每有一個商店被設置，這個設施永久獲得+2。這個設施無法被重疊。', req:'goods', out:'money', fn:v=>v, special:'trade_zone', isShop:true, noOverlay:true },
   clearance:      { name:'清倉拍賣場',   emoji:'🏷️', desc:'投入商品時失去一半的數量，每失去4個商品，獲得+8收益，之後使這個收益+4。當這個設施一次提供100收益時，消滅這個設施。', req:'goods', out:'goods', fn:v=>v, special:'clearance' },
   import_tax:     { name:'進出口稅站',   emoji:'🧾', desc:'商品→金錢 +4。金錢→商品 +4。此回合投入之前有經過物流中心時，每經過一個，這個設施獲得+2。', req:'any', out:null, fn:v=>v, special:'import_tax' },
@@ -2163,7 +2163,7 @@ function isDemonNegDisabled(pid){
 }
 
 // 需要隨設施位置交換/轉移的鍵值資料欄位
-const KEYED_DATA_FIELDS=['bldgUpgrades','bldgUpgradesElec','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresPct','bulkStoreBonus','vaultCounts','cellRedirectDir','talentBankCount'];
+const KEYED_DATA_FIELDS=['bldgUpgrades','bldgUpgradesElec','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresValue','bulkStoreBonus','vaultCounts','cellRedirectDir','talentBankCount'];
 const TCOLOR={ money:'var(--money)', material:'var(--mat)', goods:'var(--goods)', diamond:'#5bcefa' };
 const TLABEL={ money:'💰金錢', material:'🪨原料', goods:'📦商品', diamond:'💎鑽石' };
 const N=4; // base grid size
@@ -2970,8 +2970,7 @@ const EVENTS=[
       // 清除與位置綁定的狀態（打亂後位置不對應）
       G.cellOverlay={};
       G.bombTimers={};
-      G.futuresPct={};
-      G._futuresMoveNext=[];
+      G.futuresValue={};
       G.logisticsVault={};
       G.bulkStoreBonus={};
       G.vaultCounts={};
@@ -3113,7 +3112,7 @@ function newGame(){
     bombTimers:{},      // 爆破裝置倒數計時
     inv:{}, // 每次投入重置的臨時 flags（sendEl 初始化）
     logisticsVault:{},  // 物流倉儲存值
-    futuresPct:{},      // 期貨交易所本回合百分比 {'r,c': pct}
+    futuresValue:{},    // 期貨交易所本回合加成值 {'r,c': 0|2|4|8}
     bulkStoreBonus:{},  // 量販店每格每組獎勵值（初始 8，每次觸發 +4 累積）
     vaultCounts:{},     // 物流倉每格計數（xlsx 新規格：計數≥3時 +8 收益）
     cellRedirectDir:{}, // 物流中心當前方向 {"r,c": 'right'|'down'|'left'|'top'}
@@ -3687,10 +3686,11 @@ function tryPlaceAtCell(r,c,bldgId){
   if(!handItem||handItem.count<=0) return false;
   handItem.count--;
   G.grid[r][c]=bldgId;
-  // 期貨交易所：放置時決定本回合百分比
+  // 期貨交易所：放置時決定本回合加成值（0/2/4/8）
   if(bldgId==='futures_market'){
-    if(!G.futuresPct) G.futuresPct={};
-    G.futuresPct[`${r},${c}`]=Math.floor(Math.random()*21)-10;
+    if(!G.futuresValue) G.futuresValue={};
+    const _fc=[0,2,4,8];
+    G.futuresValue[`${r},${c}`]=_fc[Math.floor(Math.random()*4)];
   }
   TUT.hookPlace(bldgId);
   addLog(`放置 ${BLDG[bldgId].emoji}${BLDG[bldgId].name} (${r+1},${c+1})`);
@@ -4272,20 +4272,22 @@ const FACILITY_FX={
     fx.hit();
   },
   futures_market(fx){
-    // 使用預先決定的百分比（若無則即時抽選）
-    if(!G.futuresPct) G.futuresPct={};
+    // 商品投入時：先重新抽選 0/2/4/8 取代當前值，再加到通過的商品 value
+    if(fx.el.type!=='goods'){
+      addLog(`  🏛 期貨交易所：需要商品，${TLABEL[fx.el.type]||fx.el.type}略過`);
+      fx.next(300); return;
+    }
+    if(!G.futuresValue) G.futuresValue={};
     const key=`${fx.r},${fx.c}`;
-    if(G.futuresPct[key]===undefined) G.futuresPct[key]=Math.floor(Math.random()*21)-10;
-    const pct=G.futuresPct[key];
-    // 無條件向上取整（正數 ceil，負數也保證至少 ±1）
-    const raw=fx.el.value*Math.abs(pct)/100;
-    const change=pct===0?0:(pct>0?Math.ceil(raw):-Math.ceil(raw));
-    const nv=Math.max(1, fx.el.value+change);
-    addLog(`  🏛 期貨交易所: ${pct>=0?'+':''}${pct}% → ${fx.el.value}→${nv}`,(pct>=0?'g':'b'));
-    fx.el={...fx.el, value:nv};
-    // 標記下回合需要移動
-    G._futuresMoveNext=G._futuresMoveNext||[];
-    G._futuresMoveNext.push({r:fx.r,c:fx.c});
+    const choices=[0,2,4,8];
+    G.futuresValue[key]=choices[Math.floor(Math.random()*4)];
+    const bonus=G.futuresValue[key];
+    if(bonus>0){
+      fx.el={...fx.el, value:fx.el.value+bonus};
+      addLog(`  🏛 期貨交易所: 重新抽選 +${bonus} → ${fx.el.value}`,'g');
+    } else {
+      addLog(`  🏛 期貨交易所: 重新抽選 +0，無加成`);
+    }
     fx.hit();
   },
   demolish_bureau(fx){
@@ -6066,42 +6068,14 @@ function startTurn(){
     addLog(`🌟 公路之星：中央2格+${bonus}${tier>0?`（${tier}階加成）`:''}（${centerList.join(' ')}）`,'g');
     G.inv.hwCenter=false;
   }
-  // 期貨交易所：上回合被觸發的交易所移動到隨機空格
-  if(G._futuresMoveNext&&G._futuresMoveNext.length>0){
-    G._futuresMoveNext.forEach(({r,c})=>{
-      if(G.grid[r][c]!=='futures_market') return;
-      const gn=GN();
-      const empties=[];
-      for(let er=0;er<gn;er++) for(let ec=0;ec<gn;ec++) if(!G.grid[er][ec]) empties.push([er,ec]);
-      if(empties.length>0){
-        const [nr,nc]=empties[Math.floor(Math.random()*empties.length)];
-        G.grid[r][c]=null; G.grid[nr][nc]='futures_market';
-        // 轉移附帶資料
-        const ok=`${r},${c}`, nk=`${nr},${nc}`;
-        KEYED_DATA_FIELDS.forEach(dk=>{
-          if(G[dk]&&G[dk][ok]!==undefined){ G[dk][nk]=G[dk][ok]; delete G[dk][ok]; }
-        });
-        // 轉移並重新抽選百分比
-        if(G.futuresPct){ delete G.futuresPct[ok]; }
-        if(!G.futuresPct) G.futuresPct={};
-        G.futuresPct[nk]=Math.floor(Math.random()*21)-10;
-        addLog(`🏛 期貨交易所 (${r+1},${c+1})→(${nr+1},${nc+1}) 移動，本回合 ${G.futuresPct[nk]>=0?'+':''}${G.futuresPct[nk]}%`,'w');
-      } else {
-        // 沒有空格，消滅自己
-        destroyFacility(r,c);
-        addLog(`🏛 期貨交易所 (${r+1},${c+1}) 無空格可移動，自我消滅！`,'b');
-      }
-    });
-    G._futuresMoveNext=[];
-  }
-  // 期貨交易所：每回合重新抽選所有期貨的百分比
+  // 期貨交易所：每回合重新抽選 0/2/4/8 加成值
   {
-    if(!G.futuresPct) G.futuresPct={};
+    if(!G.futuresValue) G.futuresValue={};
     const gn=GN();
+    const choices=[0,2,4,8];
     for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
       if(G.grid[r][c]==='futures_market'){
-        const k=`${r},${c}`;
-        G.futuresPct[k]=Math.floor(Math.random()*21)-10;
+        G.futuresValue[`${r},${c}`]=choices[Math.floor(Math.random()*4)];
       }
     }
   }
@@ -6915,10 +6889,9 @@ function renderGrid(){
         h+=`<div class="cemoji">${b.emoji}</div>`;
         h+=`<div style="font-size:10px;font-weight:900;color:var(--red);line-height:1;">${bombTimer}</div>`;
       } else if(bId==='futures_market'){
-        const fpct=G.futuresPct&&G.futuresPct[`${r},${c}`]||0;
-        const fpColor=fpct>=0?'var(--green)':'var(--red)';
+        const fval=G.futuresValue&&G.futuresValue[`${r},${c}`]||0;
         h+=`<div class="cemoji">${b.emoji}</div>`;
-        h+=`<div style="font-size:11px;font-weight:900;color:${fpColor};line-height:1;">${fpct>=0?'+':''}${fpct}%</div>`;
+        h+=`<div style="font-size:11px;font-weight:900;color:var(--money);line-height:1;">+${fval}</div>`;
         h+=`<div class="cname">${b.name}</div>`;
       } else if(bId==='logistics_vault'){
         const stored=(G.logisticsVault&&G.logisticsVault[`${r},${c}`])||0;
@@ -7330,10 +7303,10 @@ function showCellDetailTip(e,r,c){
   // cellPctMods（事件效果）
   const pct=G.cellPctMods&&G.cellPctMods[k]||0;
   if(pct!==0) lines.push(`🎲 事件效果: ${pct>0?'+':''}${pct}%`);
-  // 期貨百分比
+  // 期貨加成值
   if(bId==='futures_market'){
-    const fp=G.futuresPct&&G.futuresPct[k]||0;
-    lines.push(`🏛 本回合期貨: ${fp>=0?'+':''}${fp}%`);
+    const fv=G.futuresValue&&G.futuresValue[k]||0;
+    lines.push(`🏛 本回合期貨: +${fv}（投入商品時會重抽）`);
   }
   // 爆破倒數
   if(bId==='bomb_device'&&G.bombTimers&&G.bombTimers[k]!==undefined){
@@ -9419,6 +9392,8 @@ function deserializeGame(save){
   if(!data.cellRedirectDir||typeof data.cellRedirectDir!=='object') data.cellRedirectDir={};
   if(!data.bldgUpgradesElec||typeof data.bldgUpgradesElec!=='object') data.bldgUpgradesElec={};
   if(!data.talentBankCount||typeof data.talentBankCount!=='object') data.talentBankCount={};
+  if(!data.futuresValue||typeof data.futuresValue!=='object') data.futuresValue={};
+  delete data.futuresPct; // 舊欄位已被 futuresValue 取代
   // 跨存檔不應殘留的動畫/pending 旗標
   data._winPending = false;
   data._turnPitchOffset = 0;
@@ -9429,7 +9404,7 @@ function deserializeGame(save){
   data.moveMode=false; data.moveSrc=null;
   data.upgradeMode=false;
   data.freeRearrange=false;
-  data._futuresMoveNext=[];
+  delete data._futuresMoveNext; // 已移除「下回合自動移動」機制
   delete data._freeMoveLogistics; delete data._freeMoveLogisticsSrc;
   delete data._mobileCityMode; delete data._mobileCitySrc; delete data._mobileCityUsedThisTurn; delete data._ruinPassedThisTurn;
   delete data._omniDragging; delete data._omniGainedThisTurn; delete data._dispatchHqFiredThisTurn;
@@ -9654,9 +9629,9 @@ const MEGA_SIM_FX={
     if(groups>0) ctx.bonusProfit+=groups*8;
   },
   futures_market(sim){
-    const pct=(Math.random()<0.5?-1:1)*(Math.floor(Math.random()*10)+1);
-    const adj=Math.max(1,Math.ceil(Math.abs(sim.value*pct/100)))*Math.sign(pct);
-    sim.value=Math.max(1,sim.value+adj);
+    if(sim.type!=='goods') return;
+    const choices=[0,2,4,8];
+    sim.value+=choices[Math.floor(Math.random()*4)];
   },
   // 電子系
   elec_factory(sim){
