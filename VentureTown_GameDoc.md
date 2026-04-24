@@ -5,6 +5,35 @@
 
 ---
 
+## Session 索引（desc/實作對照審查批次）
+
+| Session | 主題 | 重點 |
+|---|---|---|
+| 18 | 多項 bug 修復與物流中心補完 | 莫菲 permCellMods / cellMods 清除 / logistics_vault_v2 遷移 / 物流中心 R 級 |
+| 19 | desc 審查第 1 輪（6 項不一致） | 發現 clearance / demolish_fab / talent_storage / talent_market / trade_port / trade_zone 問題 |
+| 20 | clearance / bulk_store 機制互換 | clearance 補完「失一半+累積+自毀」；bulk_store 改「商品→金錢+4+工廠加成」 |
+| 21 | 中央詞條設施 | 移除 trade_hub/tech_lab；監督局 per-cell；center_elec_net 疊加完整化 |
+| 22 | 電子系設施 | elec_conveyor 死碼修復 + bldgUpgradesElec 欄位；mega_elec_supply 每回合 +1 |
+| 23 | 大型系設施 | dept_store/mega 加 isLarge；dept_store FX +8/+8/+8；ancient_factory_part |
+| 24 | 人力系設施 | talent_bank 改投入觸發；dispatch_hq 去 goods 限制；staff_housing per-turn |
+| 25 | 拆遷系設施 | dynamic_amp / unstable_base 重做；mobile_city UI；ruin_monument G.profit |
+| 26 | 物流系設施 + 全域規則 | logistics_amp 死碼；spiral_hub 重做；確立 desc 解讀規則 |
+| 27 | 貿易系設施 | 期貨交易所完全重做（0/2/4/8+重抽）；匯率波動板 noOverlay |
+| 28 | 電子合夥人 | 電子放電惡魔死碼修復（base+overlay）；雷電法王擴展電子池 |
+| 29 | 物流合夥人 | 重建驛站 / 全能會計師 desc 修正；計數消耗全域規則 |
+| 30 | 貿易合夥人 | 外匯交易員死碼修復；套利者 X 標記 |
+| 31 | 拆遷合夥人 | 爆破工程師 3 項修正；混沌建築師排除巨型；廢墟掠奪者完整實作（ruinStacks） |
+
+### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
+統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
+- S22 電子輸送帶、S26 物流放大器、S28 電子放電惡魔、S30 外匯交易員
+
+### 歷史追蹤的「per-send vs per-turn」pattern
+desc 寫「此回合」但實作用 `G.inv.xxx`（per-send），多 send 會重複觸發。**修法**：改用 `G._xxxThisTurn` Set/flag + `G._xxxFiredThisTurn` 防重複，startTurn 重置。
+- S21 中央監督局、S24 員工住宅、S25 災害控管局、S31 廢墟掠奪者
+
+---
+
 ## 核心玩法
 
 ### 資源系統
