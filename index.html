@@ -1967,7 +1967,7 @@ const PARTNERS = {
   // ══ 物流流新合夥人 ══
   relay_station: {
     id:'relay_station', name:'重建驛站', emoji:'🏗',
-    pos:'每回合開始時，這個合夥人獲得1驛站計數。驛站計數大於等於3時，消耗所有驛站計數，這個設施獲得一次將廢墟變成螺旋物流站。',
+    pos:'每回合開始時，這個合夥人獲得1驛站計數。驛站計數大於等於3時，消耗所有驛站計數，這個合夥人獲得一次將廢墟變成螺旋物流站的效果。',
     neg:'無', desc:'重建驛站',
     onTurnStart(G){
       const st=G.partnerState.relay_station||{count:0};
@@ -1981,7 +1981,7 @@ const PARTNERS = {
   },
   omni_accountant: {
     id:'omni_accountant', name:'全能會計師', emoji:'📊',
-    pos:'每次你獲得一個計數時，這個合夥人獲得一個全能計數。全能計數可以拖動到任意有計數的合夥人，使其計數獲得+1。',
+    pos:'每回合最多獲得1次全能計數（任意計數來源觸發）。全能計數可以拖動到任意有計數的合夥人，使其計數獲得+1。',
     neg:'無', desc:'全能會計師',
     // 全能計數存在 partnerState.omni_accountant.count
     // 計數增加在各「獲得計數」的地方觸發（電子精工師、雷電法王、重建驛站、物流倉等）

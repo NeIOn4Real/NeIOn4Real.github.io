@@ -3286,3 +3286,56 @@ desc：「此回合投入 8 人材時，使場上所有設施投入 2 人材」
 | 電子精工師 | ✅ startTurn 計數 +1，≥3 觸發 addHand('elec_factory') |
 | 訪問網路碼語者 | ✅ startTurn addHand('center_elec_net')；onSettle G.profit -= 4 |
 
+---
+
+### Session 29（2026-04-24）— 物流合夥人全面驗證
+
+7 個物流詞條合夥人審查。5 ✅ 對齊、2 desc 修正（實作不動）。
+
+#### A. 重建驛站 desc 修正（PM 確認：實作正確，desc 錯字）
+
+##### A1. 舊 desc
+「驛站計數 ≥3 時，消耗所有驛站計數，**這個設施獲得一次**將廢墟變成螺旋物流站。」
+
+##### A2. 新 desc
+「驛站計數 ≥3 時，消耗所有驛站計數，**這個合夥人獲得一次**將廢墟變成螺旋物流站**的效果**。」
+- 修正「設施」→「合夥人」
+- 補「的效果」釐清「獲得一次」=自動觸發 1 次效果（非玩家可控使用）
+
+##### A3. 實作（不變）
+`processCountTrigger('relay_station')`：達 3 → count=0 + 隨機選一個廢墟 → `G.grid[r][c]='spiral_hub'` + ruinCells 清除。自動觸發，無玩家選擇。
+
+#### B. 全能會計師 desc 修正（PM 確認：保留每回合上限 1）
+
+##### B1. 舊 desc
+「**每次**你獲得一個計數時，這個合夥人獲得一個全能計數。」
+
+##### B2. 新 desc
+「**每回合最多獲得 1 次**全能計數（任意計數來源觸發）。」
+- 明確寫出每回合上限 1 的限制
+- 跟現行 `G._omniGainedThisTurn` flag 對齊
+
+##### B3. 實作（不變）
+`gainOmniCount()` 在 elec_artisan / thunder_king / relay_station / spread_demon / logistics_vault 等計數來源被呼叫；`_omniGainedThisTurn` flag 擋下本回合第 2 次以上觸發。
+
+#### C. 全域規則：計數消耗（PM 確認）
+
+依 desc 文字決定消耗邏輯：
+| desc 寫法 | 實作 |
+|---|---|
+| 「**消耗所有**」 | `st.count = 0` |
+| 「**消耗 N 個**」 | `st.count -= N`（保留多餘計數） |
+
+現行各合夥人符合規則：
+- 重建驛站 / 電子精工師 / 雷電法王 / 擴散惡魔：desc「消耗所有」→ `count = 0` ✓
+- 拆遷隊：desc「消耗 3」→ `count -= 3`（保留多餘）✓
+
+#### D. 其餘物流合夥人驗證結果（無需改）
+| 合夥人 | 機制 |
+|---|---|
+| 運輸大亨 | ✅ redirect FX +3 value、logHits++；onSettle 無 logHits 時 -50% |
+| 倉儲女王 | ✅ placeBldg 路徑允許 maxOv=2 疊加 |
+| 路線規劃師 | ✅ startTurn 設 `_freeMoveLogistics=true` |
+| 快遞達人 | ✅ onSettle 通過格 > 4 時，每多 1 格 +4 收益 |
+| 阿北，物流之王 | ✅ placeBldg 路徑 maxOv=1 疊加 |
+
