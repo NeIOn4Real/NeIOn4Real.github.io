@@ -1625,13 +1625,14 @@ const PARTNERS = {
     id:'chaos_architect', name:'混沌建築師', emoji:'🌀',
     pos:'每回合隨機使最多8個設施交換位置，視為它們進行移動，此效果可以移動廢墟。', neg:'無', desc:'混沌建築師',
     onTurnStart(G){
-      // 收集所有可交換的格子（設施+廢墟，排除百貨公司2×2）
+      // 收集所有可交換的格子（設施+廢墟，排除所有大型設施與其 part）
       const candidates=[];
       const gn=GN();
       for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
         const b=G.grid[r][c];
         if(!b) continue; // 空格跳過
-        if(b==='dept_store'||b==='dept_store_part') continue; // 百貨公司跳過
+        if(BLDG[b]&&BLDG[b].isLarge) continue; // 大型設施跳過
+        if(b==='dept_store_part'||b==='ancient_factory_part') continue; // 2×2 part 跳過
         candidates.push([r,c]);
       }
       // 隨機選取最多8個（若奇數忽略一個）
@@ -1837,6 +1838,7 @@ const PARTNERS = {
       if(ruins.length<=1) return;
       // 選第一個作為目標
       const target=ruins[0];
+      const [tr,tc]=target.split(',').map(Number);
       let moveCount=0;
       for(let i=1;i<ruins.length;i++){
         const [r,c]=ruins[i].split(',').map(Number);
@@ -1845,17 +1847,11 @@ const PARTNERS = {
         // 清理附帶資料
         clearKeyedData(ruins[i]);
         moveCount++;
+        // 視為移動一次設施 → 觸發 onFacilityMoved 連鎖（拆遷補償局/動態加強器/地皮炒家/貿易特區等）
+        onFacilityMoved(tr,tc,r,c);
       }
       if(moveCount>0){
-        G.turnFacMoved=(G.turnFacMoved||0)+moveCount;
-        addLog(`👵 回收阿罵：${moveCount}個廢墟集中到 (${target})，視為${moveCount}次移動`,'g');
-        // 觸發拆遷補償局等移動效果
-        const bureaus=findCells((r,c,b)=>b==='demolish_bureau');
-        if(bureaus.length>0){
-          const bonus=moveCount*4;
-          G.profit+=bonus;
-          addLog(`🏢 拆遷補償局：${moveCount}次移動，+${bonus}收益`,'g');
-        }
+        addLog(`👵 回收阿罵：${moveCount}個廢墟集中到 (${tr+1},${tc+1})，視為${moveCount}次移動`,'g');
       }
     },
   },
@@ -3720,16 +3716,32 @@ function onCell(r,c){
     return;
   }
 
-  // 爆破工程師摧毀模式
+  // 爆破工程師摧毀模式（可消滅設施或廢墟；消滅後不產生廢墟；每回合限 1 次）
   if(G._demoExpertMode){
     const bId=G.grid[r][c];
-    if(!bId){ addLog('🧨 請點擊有設施的格子','b'); return; }
-    if(bId==='ruin'){ addLog('🧨 廢墟無法摧毀','b'); return; }
+    if(!bId){ addLog('🧨 請點擊有設施或廢墟的格子','b'); return; }
     if(BLDG[bId]&&BLDG[bId].indestructible){ addLog(`🧨 ${BLDG[bId].emoji}${BLDG[bId].name} 不可摧毀`,'b'); return; }
     G.profit-=8;
-    addLog(`🧨 爆破工程師：失去8收益，摧毀 ${BLDG[bId].emoji}${BLDG[bId].name} (${r+1},${c+1})！`,'b');
-    destroyFacility(r,c);
+    if(bId==='ruin'){
+      // 廢墟：直接清除（原本就不會再產生廢墟）
+      addLog(`🧨 爆破工程師：失去8收益，消滅廢墟 (${r+1},${c+1})！`,'b');
+      G.grid[r][c]=null;
+      if(G.ruinCells) G.ruinCells.delete(`${r},${c}`);
+      // 地皮炒家連鎖：格子變空格
+      if(hasPartner('land_speculator')){
+        if(!G.permCellMods) G.permCellMods={};
+        G.permCellMods[`${r},${c}`]=(G.permCellMods[`${r},${c}`]||0)+4;
+        addLog(`🏚️ 地皮炒家：(${r+1},${c+1}) 變成空格，永久+4`,'g');
+      }
+    } else {
+      addLog(`🧨 爆破工程師：失去8收益，消滅 ${BLDG[bId].emoji}${BLDG[bId].name} (${r+1},${c+1})！`,'b');
+      // 設 flag 讓 destroyFacility 不產生廢墟
+      G._demoExpertNoRuin=true;
+      destroyFacility(r,c);
+      G._demoExpertNoRuin=false;
+    }
     G._demoExpertMode=false;
+    G._demoExpertUsedThisTurn=true;
     render(); return;
   }
 
@@ -5910,6 +5922,7 @@ function startTurn(){
   G._turnPitchOffset = 0; // 每回合音階位移歸零
   G._talentUsedOnElement = false;
   G._demoExpertMode = false;
+  G._demoExpertUsedThisTurn = false; // 爆破工程師每回合限 1 次
   G._yongqingSellMode = false;
   G._yongqingSellUsed = false;
   G._hrUsedThisTurn = false; // 人力資源總監每回合重置
@@ -7810,14 +7823,15 @@ function useDemolition(){
   render();
 }
 
-// ── 爆破工程師：失去8收益摧毀任意設施 ──
+// ── 爆破工程師：失去8收益摧毀任意設施或廢墟（每回合 1 次，消滅不產生廢墟）──
 function useDemoExpert(){
   if(!hasPartner('demolition_expert')) return;
   if(G.phase!=='place'){ addLog('🧨 只能在放置階段使用','b'); return; }
+  if(G._demoExpertUsedThisTurn){ addLog('🧨 本回合已使用過','b'); return; }
   if(G.profit<8){ addLog('🧨 收益不足（需要8）','b'); return; }
   // 進入選擇摧毀模式
   G._demoExpertMode=true;
-  addLog('🧨 爆破工程師：點擊要摧毀的設施','w');
+  addLog('🧨 爆破工程師：點擊要消滅的設施或廢墟','w');
   render();
 }
 
@@ -8098,6 +8112,9 @@ function destroyFacility(r, c){
   }
   // 炸彈客：爆破裝置消滅時不產生廢墟
   const _bomberNoRuin=hasPartner('bomber')&&bId==='bomb_device';
+  // 爆破工程師手動使用時不產生廢墟（由 useDemoExpert 設 _demoExpertNoRuin）
+  const _demoExpertNoRuin=G._demoExpertNoRuin===true;
+  const _noRuin=_bomberNoRuin||_demoExpertNoRuin;
   // 百貨公司：消滅任一格時連帶消滅整個 2×2
   if(bId==='dept_store'||bId==='dept_store_part'){
     // 找到 anchor
@@ -8184,10 +8201,11 @@ function destroyFacility(r, c){
       G.permCellMods[`${r},${c}`]=(G.permCellMods[`${r},${c}`]||0)+4;
       addLog(`🏚️ 地皮炒家：(${r+1},${c+1}) 變成空格，永久+4`,'g');
     }
-  } else if(_bomberNoRuin){
-    // 炸彈客：爆破裝置消滅不產生廢墟，變空格
+  } else if(_noRuin){
+    // 炸彈客 / 爆破工程師：消滅時不產生廢墟，變空格
     G.grid[r][c]=null;
-    addLog(`💣 炸彈客：爆破裝置不產生廢墟`);
+    if(_bomberNoRuin) addLog(`💣 炸彈客：爆破裝置不產生廢墟`);
+    else addLog(`🧨 爆破工程師：消滅後不產生廢墟`);
     if(hasPartner('land_speculator')){
       if(!G.permCellMods) G.permCellMods={};
       G.permCellMods[`${r},${c}`]=(G.permCellMods[`${r},${c}`]||0)+4;

@@ -3387,3 +3387,54 @@ desc：「此回合投入 8 人材時，使場上所有設施投入 2 人材」
 | 壟斷者 | ✅ shop ≥ 4 → G.profit += shop×6；shop < 4 → stepWithMover 商店 value 還原 |
 | 進貨合作員 | ✅ onTurnStart：商品+4；非商品轉商品+2 |
 
+---
+
+### Session 31（2026-04-24）— 拆遷合夥人全面驗證（部分）
+
+11 個拆遷合夥人審查：8 ✅ 對齊、3 修復（爆破工程師/混沌建築師/回收阿罵）。廢墟掠奪者因 PM 規格待釐清延後處理。
+
+#### A. 爆破工程師 修正（PM 確認 3 項）
+
+##### A1. 舊問題
+- 明確擋下廢墟（desc 寫「設施或廢墟」都可）
+- 消滅後變廢墟（desc 寫「不產生廢墟」）
+- 無每回合限制（desc 寫「每回合」）
+
+##### A2. 新實作
+- onCell handler：支援 `bId==='ruin'` → 直接清除廢墟，觸發地皮炒家連鎖
+- 設施消滅：設 `G._demoExpertNoRuin=true` flag，destroyFacility 走 `_noRuin` 路徑（同炸彈客）
+- 每回合限制：新增 `G._demoExpertUsedThisTurn`，startTurn 重置
+- `useDemoExpert` 檢查 used flag
+
+##### A3. destroyFacility 通用「不產生廢墟」flag
+原本只有 `_bomberNoRuin`（硬綁 bomb_device 特定）；新增 `_demoExpertNoRuin` 類似用途，統一為 `_noRuin = _bomberNoRuin || _demoExpertNoRuin`。
+
+#### B. 混沌建築師 排除巨型設施
+
+##### B1. 舊問題
+排除清單只有 `dept_store / dept_store_part`，沒排除 `ancient_factory_part`（Session 23 新增），也沒排除其他大型設施（雖實務上只是 1 格但排除更安全）。
+
+##### B2. 新實作
+- 排除所有 `isLarge:true` 設施
+- 排除 `dept_store_part / ancient_factory_part`
+
+#### C. 回收阿罵 呼叫 onFacilityMoved
+
+##### C1. 舊問題
+「每重疊一個廢墟，視為移動一次設施」— 舊實作只 `turnFacMoved += moveCount` + 直接給拆遷補償局 bonus，**漏呼叫** `onFacilityMoved`，導致其他連鎖效果（貿易特區商店搬入 / 動態加強器 / 地皮炒家）沒觸發。
+
+##### C2. 新實作
+每次重疊都 `onFacilityMoved(tr, tc, r, c)` 觸發完整連鎖；移除重複的拆遷補償局 bonus 計算（由 onFacilityMoved 內部處理）。
+
+#### D. 其餘拆遷合夥人驗證結果
+| 合夥人 | 狀態 | 備註 |
+|---|---|---|
+| 地皮炒家 | 🟡 邊界 | ruin 也被當空格觸發（可能是設計選擇）|
+| 無冕之王 | ✅ | ruin handler 累計 + onSettle 加 G.profit |
+| 設施破壞者 | ✅ | destroyFacility 三處觸發 |
+| 拆遷隊 | ✅ | 計數制 demolitionCharges |
+| 廢品戰士 | ✅ | onTurnStart addHand('ruin') |
+| 炸彈客 | ✅ | 放 1-3 bomb + 總數×2 收益 |
+| 流浪漢 | ✅ | 放 1 廢墟 + 總數×2 收益 |
+| 廢墟掠奪者 | ⏳ | 「獲得並重疊廢墟」Q3 細節待釐清 |
+
