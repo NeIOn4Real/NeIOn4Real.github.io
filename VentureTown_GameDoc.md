@@ -2791,3 +2791,84 @@ if(G.grid[r][c]==='center_elec_net' && hasTag(bldgId,'center') && bldgId!=='cent
 - 倉儲女王：2 層（與物流疊加共用）
 - 蕾雅：無上限（蕾雅同名疊加機制本身不檢查層數）
 
+---
+
+### Session 22（2026-04-24）— 電子系設施全面驗證
+
+#### A. 發現
+
+5 個電子系設施對照後，3 ✅、1 🔴（死碼）、1 🟡（規格落差）：
+
+| # | 設施 | 狀態 |
+|---|---|---|
+| 1 | `elec_factory` 電子工廠 | ✅ 之前 Session 已對齊 |
+| 2 | `elec_conveyor` 電子輸送帶 | 🔴 **完全死碼** — 從未對任何電子設施生效 |
+| 3 | `elec_shop` 電子商店 | ✅ 之前 Session 已對齊 |
+| 4 | `mega_elec_supply` 大型電子供給站 | 🟡 自疊加邏輯不符 PM 規格（cumulative vs per-turn） |
+| 5 | `center_elec_net` 中央電子網路 | ✅ 之前 Session 已對齊 |
+
+#### B. elec_conveyor 死碼 + 規格不全（重大修復）
+
+##### B1. 死碼根因
+舊實作 `if(G.inv._elecConveyorActive&&hasTag(bId,'electronic'))` 在 `index.html:4940`，**位於通用 fn 處理器內**。但所有電子設施都是 special FX，FX 結束時 `if(_fxDone) return;` 在 4813 提前 return → 通用處理器永遠不執行。通用處理器處理的非 special 設施全部不是電子，`hasTag(...,'electronic')` 永遠 false。**結論：conveyor 從來沒給任何設施 +2。**
+
+##### B2. PM 規格（新）
+- 下一個設施若是電子 → 該電子設施 +2 永久
+- 下一個設施若是非電子 → 效果浪費，不轉移到後續電子設施
+- 下一個設施重疊多個電子 → **每一個電子實例**都獲得 +2
+- 下一個設施基底非電子但疊加有電子 → **只有那些電子實例**獲得 +2
+
+##### B3. 新增 `G.bldgUpgradesElec` 欄位
+- per-cell 加成池，**只有電子實例（基底或疊加）才吃**
+- 加入 `KEYED_DATA_FIELDS`（隨設施移動、設施消滅時清除）
+- G 初始 / `deserializeGame` 補初始化（舊存檔相容）
+
+##### B4. `applyUpgradeBonus` 修改
+```js
+const baseBId = G.grid[r] && G.grid[r][c];
+if(baseBId && hasTag(baseBId,'electronic')){
+  upg += (G.bldgUpgradesElec?.[key]||0);
+}
+```
+
+##### B5. `applyOverlayPipeline` 修改
+post-FX cell 加成步驟，每個 overlay 額外檢查：
+```js
+let totalFixed = cellMod + upgradeBonus;
+if(hasTag(ovId,'electronic')){
+  totalFixed += (G.bldgUpgradesElec?.[k]||0);
+}
+```
+
+##### B6. conveyor 觸發點移動
+- 從 `stepWithMover` 通用處理器內（line 4940，死碼）移到 `if(bId)` block 起始處、special FX dispatch 之前
+- 邏輯：掃 base + overlays，列出所有電子實例名稱；有 → `bldgUpgradesElec += 2`；無 → log「效果浪費」；旗標一律消耗
+
+##### B7. cell 顯示更新
+基底為電子時，`baseBonus` 加上 `bldgUpgradesElec`，顯示完整加成
+
+#### C. mega_elec_supply 自疊加（依 PM 全面解釋）
+
+##### C1. PM 解釋
+- 回合 1：[A] (僅基底) → A 沒被覆蓋 → 加 B → [A, B]
+- 回合 2：[A, B] → topmost B 沒被覆蓋 → 加 C → [A, B, C]
+- 每回合 +1 個 overlay（topmost 觸發）
+
+##### C2. 舊實作（錯）
+```js
+if(getOverlays(mr,mc).length>0) return;  // 只要有任何 overlay 就不疊
+```
+結果：永遠最多 1 層，不符 PM 設計
+
+##### C3. 新實作
+```js
+const ovs = getOverlays(mr,mc);
+const topmost = ovs.length>0 ? ovs[ovs.length-1] : G.grid[mr][mc];
+if(topmost !== 'mega_elec_supply') return;  // topmost 已被別的疊加機制接管則不堆疊
+ovs.push('mega_elec_supply');
+setOverlays(mr,mc,ovs);
+```
+- 每回合對每格 mega_elec_supply +1 個 overlay
+- 守備：若 topmost 已被其他疊加機制（如蕾雅疊加其他建築）接管，停止堆疊
+- 注意：無上限，理論上可無限堆疊（SSR 級設計，由玩家自行決定要不要場上一直留著）
+

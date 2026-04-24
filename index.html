@@ -2162,7 +2162,7 @@ function isDemonNegDisabled(pid){
 }
 
 // 需要隨設施位置交換/轉移的鍵值資料欄位
-const KEYED_DATA_FIELDS=['bldgUpgrades','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresPct','bulkStoreBonus','vaultCounts','cellRedirectDir'];
+const KEYED_DATA_FIELDS=['bldgUpgrades','bldgUpgradesElec','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresPct','bulkStoreBonus','vaultCounts','cellRedirectDir'];
 const TCOLOR={ money:'var(--money)', material:'var(--mat)', goods:'var(--goods)', diamond:'#5bcefa' };
 const TLABEL={ money:'💰金錢', material:'🪨原料', goods:'📦商品', diamond:'💎鑽石' };
 const N=4; // base grid size
@@ -3102,6 +3102,7 @@ function newGame(){
     talentCards:0,        // 人材數量
     elementExtraUses:0,   // 元素卡本回合剩餘額外投入次數
     bldgUpgrades:{},      // 格子升級加成 {'r,c': bonus}
+    bldgUpgradesElec:{}, // 電子專用格子加成（只有電子實例吃）{'r,c': bonus}
     leyaPctMods:{},      // 蕾雅升級百分比加成 {'r,c': +2/+4/...}
     cellOverlay:{},      // 物流之王疊加設施 {'r,c': bldgId}
     ruinCells:new Set(), // 廢墟格子
@@ -4676,8 +4677,11 @@ function applyOverlayPipeline(el, r, c, cellEl){
     } else if(ob.fn){
       el={value:ob.fn(el.value), type:(ob.out||el.type)};
     }
-    // 套用與 base 相同的格子加成（每個 overlay 都吃）
-    const totalFixed=cellMod+upgradeBonus;
+    // 套用與 base 相同的格子加成（每個 overlay 都吃；電子專用加成只有電子 overlay 吃）
+    let totalFixed=cellMod+upgradeBonus;
+    if(hasTag(ovId,'electronic')){
+      totalFixed+=(G.bldgUpgradesElec&&G.bldgUpgradesElec[k])||0;
+    }
     if(totalFixed!==0) el.value=Math.max(0,el.value+totalFixed);
     if(pctMod!==0){
       const chg=Math.ceil(Math.abs(el.value*pctMod/100))*Math.sign(pctMod);
@@ -4775,6 +4779,25 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
   if(bId){
     const b=BLDG[bId];
     TUT.hookStep(bId);
+
+    // ── 電子輸送帶：在當前格的特效跑之前先處理（base + overlays 中的電子實例 +2） ──
+    // 規格：下一個設施若為電子（base 或疊加），所有電子實例獲得 +2 永久；
+    //       若都不是電子，效果消耗、無加成；旗標一律消耗
+    if(G.inv._elecConveyorActive){
+      const _ovs=getOverlays(r,c);
+      const _names=[];
+      if(hasTag(bId,'electronic')) _names.push(BLDG[bId].name);
+      _ovs.forEach(ovId=>{ if(hasTag(ovId,'electronic')) _names.push(BLDG[ovId].name); });
+      if(_names.length>0){
+        if(!G.bldgUpgradesElec) G.bldgUpgradesElec={};
+        const _ek=`${r},${c}`;
+        G.bldgUpgradesElec[_ek]=(G.bldgUpgradesElec[_ek]||0)+2;
+        addLog(`  ⚡ 電子輸送帶：${_names.join('、')} 永久+2`,'g');
+      } else {
+        addLog(`  ⚡ 電子輸送帶：${BLDG[bId].name} 非電子且無電子疊加，效果浪費`,'b');
+      }
+      G.inv._elecConveyorActive=false;
+    }
 
     // ── 人材幣通過商店：×3 變金錢 ──
     // (人材幣機制已移除)
@@ -4936,13 +4959,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
         if(isElec) G.inv._elecHits=(G.inv._elecHits||0)+1;
         else G.inv._nonElecHits=(G.inv._nonElecHits||0)+1;
       }
-      // 電子輸送帶：下一個電子設施永久+2
-      if(G.inv._elecConveyorActive&&hasTag(bId,'electronic')){
-        const ek=`${r},${c}`;
-        G.bldgUpgrades[ek]=(G.bldgUpgrades[ek]||0)+2;
-        addLog(`  ⚡ 電子輸送帶：${BLDG[bId].name} 永久+2`,'g');
-        G.inv._elecConveyorActive=false;
-      }
+      // 電子輸送帶：已於 stepWithMover 進入此 cell 時統一處理（FX dispatch 之前）
       const _prevVal=el.value; // 大熱波：記錄轉換前數值
       if(isCenterCell(r,c)){ G.inv.cenHits=(G.inv.cenHits||0)+1; G.inv.hwCenter=true; }
       const prev={...el};
@@ -5828,12 +5845,17 @@ function startTurn(){
     addLog('🏰 巨人村：人材歸0，獲得+8人材','g');
     if(typeof renderTalentPanel==='function') renderTalentPanel();
   });
-  // 大型電子供給站：每回合開始，若未被重疊過，在自身疊加一個大型電子供給站
+  // 大型電子供給站：每回合開始，最頂端那個（base 或最後一個 overlay）若未被覆蓋 → 疊加一個於自身
+  // 等價：每回合對每格 mega_elec_supply 永遠 +1 個 overlay（topmost 是 mega_elec_supply 才觸發）
   findCells((r,c,b)=>b==='mega_elec_supply').forEach(([mr,mc])=>{
-    if(getOverlays(mr,mc).length>0) return;
     if(!G.cellOverlay) G.cellOverlay={};
-    setOverlays(mr,mc,['mega_elec_supply']);
-    addLog(`🔋 大型電子供給站 (${mr+1},${mc+1})：自動疊加於自身`,'g');
+    const ovs=getOverlays(mr,mc);
+    // 確認 topmost 仍是 mega_elec_supply（避免被其他疊加機制接管後仍堆疊）
+    const topmost=ovs.length>0?ovs[ovs.length-1]:G.grid[mr][mc];
+    if(topmost!=='mega_elec_supply') return;
+    ovs.push('mega_elec_supply');
+    setOverlays(mr,mc,ovs);
+    addLog(`🔋 大型電子供給站 (${mr+1},${mc+1})：自動疊加，總計 ${ovs.length+1} 個`,'g');
   });
 
   // 稅務局：每回合開始隨機升級一個設施
@@ -6707,7 +6729,8 @@ function renderGrid(){
     }
     if(b){
       const totalMod=modVal;
-      const baseBonus=(b.fn(1)-1)+(G.bldgUpgrades?.[`${r},${c}`]||0);
+      const elecExtra=hasTag(bId,'electronic')?(G.bldgUpgradesElec?.[`${r},${c}`]||0):0;
+      const baseBonus=(b.fn(1)-1)+(G.bldgUpgrades?.[`${r},${c}`]||0)+elecExtra;
       if(b.special==='redirect'){
         const ovs=getOverlays(r,c);
         // 物流中心：emoji 顯示為當前方向箭頭
@@ -8186,7 +8209,12 @@ function leyaUpgrade(r,c,bId){
 function applyUpgradeBonus(r, c, val, bName){
   if(_inOverlayCtx) return val;
   const key=`${r},${c}`;
-  const upg=G.bldgUpgrades&&G.bldgUpgrades[key]||0;
+  let upg=G.bldgUpgrades&&G.bldgUpgrades[key]||0;
+  // 電子專用加成：base 為電子設施才吃
+  const baseBId=G.grid[r]&&G.grid[r][c];
+  if(baseBId&&hasTag(baseBId,'electronic')){
+    upg+=G.bldgUpgradesElec&&G.bldgUpgradesElec[key]||0;
+  }
   if(upg>0){
     addLog(`    ⬆ ${bName}升級加成：+${upg}`,'g');
     return val+upg;
@@ -9231,6 +9259,7 @@ function deserializeGame(save){
   // permCellMods：舊存檔可能沒有此欄位，初始化為空物件
   if(!data.permCellMods||typeof data.permCellMods!=='object') data.permCellMods={};
   if(!data.cellRedirectDir||typeof data.cellRedirectDir!=='object') data.cellRedirectDir={};
+  if(!data.bldgUpgradesElec||typeof data.bldgUpgradesElec!=='object') data.bldgUpgradesElec={};
   // 跨存檔不應殘留的動畫/pending 旗標
   data._winPending = false;
   data._turnPitchOffset = 0;
