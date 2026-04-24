@@ -2538,3 +2538,46 @@ VT/
 - **影響**：收益被高估；非阻塞性 bug
 - **建議修法**：擇一：(a) overlay FX 跳過 `applyUpgradeBonus`、(b) `applyOverlayPipeline` 不對「自帶 applyUpgradeBonus 的 special」再加 `upgradeBonus`、(c) 用 flag 避免 double apply
 
+---
+
+### Session 19（2026-04-24）— desc/實作對照修復
+
+#### A. 設施對照審查（共找 6 項真實不一致，本 session 處理 2 項）
+
+審查所有 BLDG 條目的 desc 與 FACILITY_FX/MEGA_SIM_FX 實作。發現 6 項不一致，依設計確認結果先處理 #1（clearance/bulk_store 互換）。
+
+| # | 設施 | 嚴重度 | 處理狀態 |
+|---|---|---|---|
+| 1 | `clearance` / `bulk_store` 機制混淆 | 🔴 | ✅ 本 session 修復 |
+| 2 | `demolish_fab` 缺 +8 base 與廢墟計數 | 🔴 | ⏳ 待處理 |
+| 3 | `talent_storage` 閾值/數值/類型 三項不符 | 🟠 | ⏳ 待處理 |
+| 4 | `talent_market` 動態 3% vs 固定 -8/+4 | 🟠 | ⏳ 待處理 |
+| 5 | `trade_port` 缺類型轉換、公式錯、無上限 | 🟠 | ⏳ 待處理 |
+| 6 | `trade_zone` ×1.5 vs +2 永久 | 🟡 | ⏳ 待處理 |
+
+#### B. clearance / bulk_store 機制互換（B 與 C）
+
+##### B1. 問題
+兩設施 desc 幾乎一字不差（「失一半 + 每 4 個 +8 + +4 累積 + 100 自毀」），但只有 `bulk_store` 的實作對齊 desc，`clearance` 的實作則是另一套無關的「商品 ×4 全部入收益、商品歸 1」。經 PM 確認：
+- `clearance` 應該保持原 desc，實作補完
+- `bulk_store` 改為新設計
+
+##### B2. clearance 改動（`index.html:1238 / 4367`）
+- BLDG 不變（desc 已正確）
+- FX 重寫為「失一半 + 每 4 個 +bonusPer + bonusPer 永久 +4 累積 + ≥100 自毀」
+- 收益沿用 `G.inv.clearanceBonus` 結算入帳機制（與舊版相容）
+- 累積以 `G.bulkStoreBonus[k]` 存放（為避免遷移成本沿用變數名）
+
+##### B3. bulk_store 改動（`index.html:1206 / 4025`）
+- BLDG desc：`商店。商品→金錢+4。投入前每投入過一次工廠，再額外獲得收益+4。`
+- BLDG 欄位：`out:'goods'` → `out:'money'`、`fn:v=>v` → `fn:v=>v+4`（供 mega_sim fallback 使用）
+- FX 重寫：`商品→金錢+4`，掃描 `G.inv.facPath` 計算過往工廠數（factory + adv_factory），每次 +4 收益
+- 移除 per-cell 累積機制（不再需要）
+
+##### B4. MEGA_SIM_FX 同步
+- `bulk_store(sim, mega, ctx)`：`商品→金錢+4`，過往設施數×4 加進 `ctx.bonusProfit`（簡化估算，無法精確區分工廠類型）
+- `clearance(sim, mega, ctx)`：失一半 + 每 4 個 +8（簡化：mega 模擬不模擬永久累積）
+
+#### C. 待處理（後續 session）
+2、3、4、5、6 號設施需設計層確認意圖才動工。優先序建議：#2 `demolish_fab`（明確的設計 vs 實作脫節）→ #3 `talent_storage`（off-by-one 簡單 bug）→ #4/#5/#6（需設計確認）。
+

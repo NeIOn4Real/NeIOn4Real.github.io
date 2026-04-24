@@ -1203,7 +1203,7 @@ const BLDG = {
   shop:       { name:'商店',   emoji:'🏪', desc:'商品→金錢 +2。', req:'goods',    out:'money',    fn:v=>v+2, isShop:true },
   small_shop: { name:'小型販售商', emoji:'🛍️', desc:'視為商店。商品→金錢+2；金錢→商品→金錢+4', req:'any', out:'money', fn:v=>v, special:'small_shop', isShop:true },
   scalper:    { name:'黃牛販子', emoji:'🎫', desc:'商店。商品→金錢+1→商品+1。本回合沒有獲得收益時，最終收益-8。', req:'goods', out:'goods', fn:v=>v, special:'scalper', isShop:true },
-  bulk_store: { name:'量販店', emoji:'🛒', desc:'商店。投入商品時失去一半的數量，每失去 4 個商品，獲得 +8 收益，之後使這個收益 +4（永久累積）。當這個設施一次提供 100 收益時，消滅這個設施。', req:'goods', out:'goods', fn:v=>v, special:'bulk_store', isShop:true },
+  bulk_store: { name:'量販店', emoji:'🛒', desc:'商店。商品→金錢+4。投入前每投入過一次工廠，再額外獲得收益+4。', req:'goods', out:'money', fn:v=>v+4, special:'bulk_store', isShop:true },
   dept_store: { name:'百貨公司', emoji:'🏬', desc:'大型。商店。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。只能蓋在 2×2 商店上，此設施視為 4 商店。商品→金錢+8→商品+8→金錢+8', req:'goods', out:'money', fn:v=>v, special:'dept_store', isShop:true, needs2x2:true },
   dept_store_part:{ name:'百貨公司', emoji:'🏬', desc:'百貨公司的一部分', req:null, out:null, fn:v=>v, special:'dept_store_part', isShop:true },
   refinery:   { name:'精煉廠', emoji:'🔩', desc:'原料→原料 +4。', req:'material', out:'material', fn:v=>v+4 },
@@ -4025,26 +4025,19 @@ const FACILITY_FX={
   bulk_store(fx){
     if(fx.el.type!=='goods') return;
     const prev=fx.el.value;
-    const lost=Math.floor(prev/2);
-    const kept=prev-lost;
-    const k=`${fx.r},${fx.c}`;
-    if(!G.bulkStoreBonus) G.bulkStoreBonus={};
-    if(G.bulkStoreBonus[k]===undefined) G.bulkStoreBonus[k]=8;
-    const bonusPer=G.bulkStoreBonus[k];
-    const groups=Math.floor(lost/4);
-    const totalBonus=groups*bonusPer;
-    fx.el={value:Math.max(1,kept),type:'goods'};
-    if(totalBonus>0){
-      G.profit+=totalBonus;
-      G.bulkStoreBonus[k]+=4;
-      addLog(`  🛒 量販店: 📦${prev}→${kept}（失去${lost}），${groups}組×${bonusPer} = +${totalBonus}收益（下次每組+${bonusPer+4}）`,'g');
-      profitFlyFromCell(fx.r,fx.c,totalBonus);
-      if(totalBonus>=100){
-        addLog(`  🛒 量販店：單次 +${totalBonus} ≥ 100，消滅自身`,'b');
-        setTimeout(()=>destroyFacility(fx.r,fx.c),250);
-      }
+    // 投入前已經過的工廠數（不含本格；facPath 在 fx.hit 才 push）
+    const factoryHits=(G.inv.facPath||[]).filter(id=>id==='factory'||id==='adv_factory').length;
+    const extra=factoryHits*4;
+    // 商品→金錢+4
+    let nv=prev+4;
+    nv=applyUpgradeBonus(fx.r,fx.c,nv,'量販店');
+    fx.el={value:nv,type:'money'};
+    if(extra>0){
+      G.profit+=extra;
+      addLog(`  🛒 量販店: 📦${prev}→💰${nv}（+4），經過${factoryHits}個工廠 +${extra}收益`,'g');
+      profitFlyFromCell(fx.r,fx.c,extra);
     } else {
-      addLog(`  🛒 量販店: 📦${prev}→${kept}（失去${lost}，不足4組無加成）`);
+      addLog(`  🛒 量販店: 📦${prev}→💰${nv}（+4）`,'g');
     }
     fx.hit();
   },
@@ -4372,14 +4365,32 @@ const FACILITY_FX={
     fx.hit();
   },
   clearance(fx){
+    // 投入商品時失去一半的數量；每失去 4 個商品 +bonusPer 收益（結算時入帳）；
+    // 之後使這個收益 +4（永久累積，每格獨立）；單次提供 ≥100 收益時消滅自身。
     if(fx.el.type!=='goods') return;
     const prev=fx.el.value;
-    const bonus=prev*4;
-    G.inv.clearanceBonus=(G.inv.clearanceBonus||0)+bonus;
-    if(!G.inv.clearanceCells) G.inv.clearanceCells=[];
-    G.inv.clearanceCells.push({r:fx.r,c:fx.c,bonus});
-    addLog(`  🏷️ 清倉拍賣場: 📦${prev}×4 → +${bonus}收益（結算時入帳），商品變為1`,'g');
-    fx.el={value:1,type:'goods'};
+    const lost=Math.floor(prev/2);
+    const kept=prev-lost;
+    const k=`${fx.r},${fx.c}`;
+    if(!G.bulkStoreBonus) G.bulkStoreBonus={};
+    if(G.bulkStoreBonus[k]===undefined) G.bulkStoreBonus[k]=8;
+    const bonusPer=G.bulkStoreBonus[k];
+    const groups=Math.floor(lost/4);
+    const totalBonus=groups*bonusPer;
+    fx.el={value:Math.max(1,kept),type:'goods'};
+    if(totalBonus>0){
+      G.inv.clearanceBonus=(G.inv.clearanceBonus||0)+totalBonus;
+      if(!G.inv.clearanceCells) G.inv.clearanceCells=[];
+      G.inv.clearanceCells.push({r:fx.r,c:fx.c,bonus:totalBonus});
+      G.bulkStoreBonus[k]+=4;
+      addLog(`  🏷️ 清倉拍賣場: 📦${prev}→${kept}（失去${lost}），${groups}組×${bonusPer} = +${totalBonus}收益（結算時入帳，下次每組+${bonusPer+4}）`,'g');
+      if(totalBonus>=100){
+        addLog(`  🏷️ 清倉拍賣場：單次 +${totalBonus} ≥ 100，消滅自身`,'b');
+        setTimeout(()=>destroyFacility(fx.r,fx.c),250);
+      }
+    } else {
+      addLog(`  🏷️ 清倉拍賣場: 📦${prev}→${kept}（失去${lost}，不足4組無加成）`);
+    }
     fx.hit();
   },
   demolish_fab(fx){
@@ -9257,12 +9268,14 @@ const MEGA_SIM_FX={
     if(sim.type==='goods'){const m=sim.value+1;sim.value=Math.max(1,Math.ceil(m*0.9));} // goods→money+1→goods(-10%)
   },
   bulk_store(sim,mega,ctx){
+    // 商品→金錢+4；投入前每經過工廠 +4 收益
     if(sim.type!=='goods') return;
-    const prev=sim.value;
-    const lost=Math.floor(prev/2);
-    sim.value=Math.max(1,prev-lost);
-    const groups=Math.floor(lost/4);
-    if(groups>0) ctx.bonusProfit+=groups*8; // 模擬簡化：每組固定+8（不累積成長）
+    sim.value+=4;
+    sim.type='money';
+    // 簡化：用 ctx.facHit 當作「之前經過設施數」近似 — mega 模擬無法區分工廠類型，採保守估算
+    // 若需精確，改為掃描 mega.path 過往 cells 篩選 factory/adv_factory；此處保留簡化
+    const factoryHits=ctx.facHit||0;
+    if(factoryHits>0) ctx.bonusProfit+=factoryHits*4;
   },
   dept_store(sim){
     if(sim.type==='goods'){sim.value=Math.floor(sim.value*2);sim.type='money';}
@@ -9300,7 +9313,13 @@ const MEGA_SIM_FX={
     if(sim.type==='goods'){const pct=Math.floor(sim.value/10);if(pct>0) sim.value+=Math.max(1,Math.ceil(sim.value*pct/100));}
   },
   clearance(sim,mega,ctx){
-    if(sim.type==='goods'){ctx.bonusProfit+=(sim.value*4);sim.value=1;}
+    // 失一半；每 4 個 +8（簡化：mega 模擬不累積成長，一律每組 +8）
+    if(sim.type!=='goods') return;
+    const prev=sim.value;
+    const lost=Math.floor(prev/2);
+    sim.value=Math.max(1,prev-lost);
+    const groups=Math.floor(lost/4);
+    if(groups>0) ctx.bonusProfit+=groups*8;
   },
   futures_market(sim){
     const pct=(Math.random()<0.5?-1:1)*(Math.floor(Math.random()*10)+1);
