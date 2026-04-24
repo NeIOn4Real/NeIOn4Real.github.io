@@ -1231,10 +1231,10 @@ const BLDG = {
   env_sensor:     { name:'環境感應站',   emoji:'📊', desc:'資源投入時，周圍 4 格每有1個設施，這個設施時獲得+2。', req:'any', out:null, fn:v=>v, special:'env_sensor' },
 
   // ── 貿易流設施 ──
-  trade_port:     { name:'外貿港口',     emoji:'⚓', desc:'這個設施無法被重疊。商品→金錢+2。投入商品時，每有一個商品，這個設施額外獲得+2收益，最高為當前收益目標的一半。', req:'goods', out:'goods', fn:v=>v, special:'trade_port' },
+  trade_port:     { name:'外貿港口',     emoji:'⚓', desc:'這個設施無法被重疊。商品→金錢+2。投入商品時，每有一個商品，這個設施額外獲得+2收益，最高為當前收益目標的一半。', req:'goods', out:'money', fn:v=>v+2, special:'trade_port', noOverlay:true },
   exchange_board: { name:'匯率波動板',   emoji:'📈', desc:'這個設施無法被重疊。資源投入時，這個設施隨機獲得+2或-2，重複小鎮上已有設施的數量。', req:'any', out:null, fn:v=>v, special:'exchange_board' },
   futures_market: { name:'期貨交易所',   emoji:'🏛', desc:'這個設施無法被重疊。回合開始時，這個設施獲得+0、+2、+4或+8，每次投入商品時，都會使這個效果重複一次。', req:'any', out:null, fn:v=>v, special:'futures_market' },
-  trade_zone:     { name:'貿易特區',     emoji:'🌏', desc:'這個設施無法被重疊。周圍 4 格有商店被設置時，每有一個使這個設施永久獲得+2。', req:'any', out:null, fn:v=>v, special:'trade_zone' },
+  trade_zone:     { name:'貿易特區',     emoji:'🌏', desc:'商店。商品→金錢。周圍8格每有一個商店被設置，這個設施永久獲得+2。這個設施無法被重疊。', req:'goods', out:'money', fn:v=>v, special:'trade_zone', isShop:true, noOverlay:true },
   clearance:      { name:'清倉拍賣場',   emoji:'🏷️', desc:'投入商品時失去一半的數量，每失去4個商品，獲得+8收益，之後使這個收益+4。當這個設施一次提供100收益時，消滅這個設施。', req:'goods', out:'goods', fn:v=>v, special:'clearance' },
   import_tax:     { name:'進出口稅站',   emoji:'🧾', desc:'商品→金錢 +4。金錢→商品 +4。此回合投入之前有經過物流中心時，每經過一個，這個設施獲得+2。', req:'any', out:null, fn:v=>v, special:'import_tax' },
   free_market:    { name:'自由市場',     emoji:'🗽', desc:'任意資源進入，輸出金錢（當前數值）', req:'any', out:'money', fn:v=>v },
@@ -3550,6 +3550,10 @@ function tryPlaceAtCell(r,c,bldgId){
 
   // ── 蕾雅：相同設施疊加（視為不同建築，每次永久 +2）──
   if(G.grid[r][c]&&G.grid[r][c]===bldgId&&hasPartner('leya')){
+    if(BLDG[bldgId]&&BLDG[bldgId].noOverlay){
+      addLog(`🚫 ${BLDG[bldgId].name}無法被重疊`,'b');
+      return false;
+    }
     if(!handItem||handItem.count<=0){ addLog('👩‍🔧 蕾雅：手牌不足','b'); return false; }
     handItem.count--;
     const ovs=getOverlays(r,c);
@@ -3593,6 +3597,12 @@ function tryPlaceAtCell(r,c,bldgId){
     const facOnLog=existing&&existing.special==='redirect'&&placing&&placing.special!=='redirect'&&ovs.length<maxOv;
     const logOnFac=existing&&existing.special!=='redirect'&&placing&&placing.special==='redirect'&&isFacility(G.grid[r][c])&&ovs.length===0;
     if(facOnLog||logOnFac){
+      // noOverlay 阻擋：放置端或基底端任一禁止疊加即拒絕
+      if((placing&&placing.noOverlay)||(existing&&existing.noOverlay)){
+        const blockName=(placing&&placing.noOverlay)?placing.name:existing.name;
+        addLog(`🚫 ${blockName}無法被重疊`,'b');
+        return false;
+      }
       if(!handItem||handItem.count<=0) return false;
       if(hasPartner('storage_queen')&&!hasPartner('logistics_king')){
         if(G.profit<2){ addLog('👑 倉儲女王：收益不足（需要2）','b'); return false; }
@@ -3876,19 +3886,21 @@ function onCellDragOver(e,r,c){
   }
   // 中央限定：非中央格不預覽
   if(BLDG[bldgDragging]&&BLDG[bldgDragging].centerOnly&&!isCenterCell(r,c)) return;
-  // 蕾雅：允許拖到相同設施的格子（百貨公司：拖到錨點或部分格都算）
-  const isLeyaUpgrade = hasPartner('leya')&&(
+  // 蕾雅：允許拖到相同設施的格子（百貨公司：拖到錨點或部分格都算；noOverlay 設施除外）
+  const _draggingNoOverlay=BLDG[bldgDragging]&&BLDG[bldgDragging].noOverlay;
+  const isLeyaUpgrade = !_draggingNoOverlay && hasPartner('leya')&&(
     G.grid[r][c]===bldgDragging||
     (bldgDragging==='dept_store'&&(G.grid[r][c]==='dept_store'||G.grid[r][c]==='dept_store_part'))
   );
   // 廢墟紀念碑：允許拖到廢墟格
   const isRuinPlace = bldgDragging==='ruin_monument' && G.grid[r][c]==='ruin';
-  // 物流之王/倉儲女王：允許雙向疊加
+  // 物流之王/倉儲女王：允許雙向疊加（noOverlay 兩端任一即拒）
   const existB=G.grid[r][c]&&BLDG[G.grid[r][c]];
   const placingB=BLDG[bldgDragging];
   const hasOverlayPartner=hasPartner('logistics_king')||hasPartner('storage_queen');
   const _ovs=getOverlays(r,c), _maxOv=hasPartner('storage_queen')?2:1;
-  const isOverlay = hasOverlayPartner&&existB&&(
+  const _ovBlocked=(placingB&&placingB.noOverlay)||(existB&&existB.noOverlay);
+  const isOverlay = hasOverlayPartner&&existB&&!_ovBlocked&&(
     (existB.special==='redirect'&&placingB&&placingB.special!=='redirect'&&_ovs.length<_maxOv)||
     (existB.special!=='redirect'&&placingB&&placingB.special==='redirect'&&isFacility(G.grid[r][c])&&_ovs.length===0)
   );
@@ -3972,7 +3984,7 @@ function sendEl(dir,idx){
   G.inv={facHit:0, logSet:new Set(), envyPen:false, cenHits:0, logHits:0,
     speedAct:false, ampAct:false, fxM2G:false, fxG2M:false, arbM2G:false, arbG2M:false,
     windOK:hasPartner('wind_master')&&!!G.windDir, hwCenter:false, exchBoard:false,
-    clearanceBonus:0, clearanceCells:[],
+    clearanceBonus:0, clearanceCells:[], ruinHits:0,
     facPath:[], facProfitMap:{}, sendDir:dir, sendIdx:idx, cellPath:[]};
   const startVal=startCard.value;
   const startType=startCard.type;
@@ -4153,20 +4165,19 @@ const FACILITY_FX={
     fx.hit();
   },
   talent_market(fx){
-    if(fx.el.type==='money'){
-      if(fx.el.value<3){
-        G.talentCards=(G.talentCards||0)+1;
-        addLog(`  🏦 人材市場: 💰${fx.el.value}（不足3），免費+1人材（共${G.talentCards}）`,'g');
-      } else {
-        const cost=Math.max(3,Math.ceil(fx.el.value*0.03));
-        fx.el={...fx.el,value:fx.el.value-cost};
-        G.talentCards=(G.talentCards||0)+2;
-        addLog(`  🏦 人材市場: 消耗💰${cost}（3%），+2人材（共${G.talentCards}），剩餘💰${fx.el.value}`,'g');
-      }
-      renderTalentPanel();
-    } else {
-      addLog(`  🏦 人材市場: 需要金錢，${TLABEL[fx.el.type]}略過`);
+    // 投入金錢且 ≥8 時：金錢 -8、人材 +4；否則略過（不計 hit、不觸發疊加）
+    if(fx.el.type!=='money'){
+      addLog(`  🏦 人材市場: 需要金錢，${TLABEL[fx.el.type]||fx.el.type}略過`);
+      fx.next(300); return;
     }
+    if(fx.el.value<8){
+      addLog(`  🏦 人材市場: 金錢不足 8（目前 💰${fx.el.value}），略過`);
+      fx.next(300); return;
+    }
+    fx.el={...fx.el,value:fx.el.value-8};
+    G.talentCards=(G.talentCards||0)+4;
+    addLog(`  🏦 人材市場: 💰-8 → ${fx.el.value}，+4人材（共${G.talentCards}）`,'g');
+    renderTalentPanel();
     fx.hit();
   },
   import_tax(fx){
@@ -4278,10 +4289,17 @@ const FACILITY_FX={
     fx.hit();
   },
   talent_storage(fx){
-    let ts_bonus=(G.talentCards||0)>=5?5:0;
-    ts_bonus=applyUpgradeBonus(fx.r,fx.c,ts_bonus,'人材倉庫');
-    if(ts_bonus) fx.el={...fx.el,value:fx.el.value+ts_bonus};
-    addLog(`  🗃️ 人材倉庫: +${ts_bonus}（人材${G.talentCards||0}個）`);
+    // 啟用條件由 startTurn 決定：當輪開始時持有 ≥4 人材
+    if(!G._talentStorageActive){
+      addLog(`  🗃️ 人材倉庫: 通過（回合開始時人材<4，本回合無效）`);
+      fx.hit();
+      return;
+    }
+    const prevType=fx.el.type;
+    let nv=fx.el.value+4;
+    nv=applyUpgradeBonus(fx.r,fx.c,nv,'人材倉庫');
+    fx.el={value:nv,type:'goods'};
+    addLog(`  🗃️ 人材倉庫: ${TLABEL[prevType]||prevType}→📦+4 → ${nv}`,'g');
     fx.hit();
   },
   dispatch_hq(fx){
@@ -4313,13 +4331,22 @@ const FACILITY_FX={
     fx.hit();
   },
   trade_port(fx){
+    // 商品→金錢+2；每單位商品額外+2收益，單次最高為當前目標一半
     if(fx.el.type!=='goods') return;
-    const tiers=Math.floor(fx.el.value/10);
-    if(tiers>0){
-      const tp_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
-      const tp_add=Math.max(1,Math.ceil(fx.el.value*tiers*0.01))+tp_upg;
-      fx.el={...fx.el,value:fx.el.value+tp_add};
-      addLog(`  ⚓ 外貿港口: +${tp_add}（${tiers}階×1%${tp_upg>0?`，升級+${tp_upg}`:''}）`,'g');
+    const prevVal=fx.el.value;
+    let nv=prevVal+2;
+    nv=applyUpgradeBonus(fx.r,fx.c,nv,'外貿港口');
+    fx.el={value:nv,type:'money'};
+    const cap=Math.max(0,Math.floor((G.goal||0)/2));
+    const rawBonus=prevVal*2;
+    const bonus=Math.min(rawBonus,cap);
+    if(bonus>0){
+      G.profit+=bonus;
+      const capMsg=rawBonus>cap?`（截至上限 ${cap}）`:'';
+      addLog(`  ⚓ 外貿港口: 📦${prevVal}→💰${nv}（+2），${prevVal}×2=+${bonus}收益${capMsg}`,'g');
+      profitFlyFromCell(fx.r,fx.c,bonus);
+    } else {
+      addLog(`  ⚓ 外貿港口: 📦${prevVal}→💰${nv}（+2）`,'g');
     }
     fx.hit();
   },
@@ -4348,20 +4375,14 @@ const FACILITY_FX={
     fx.hit();
   },
   trade_zone(fx){
-    const hasShop=hasAdjacentShop(fx.r,fx.c);
-    const prevVal=fx.el.value;
-    let tz_val=fx.el.value;
-    let tz_parts=[];
-    if(hasShop){
-      tz_val=Math.floor(tz_val*1.5);
-      tz_parts.push('相鄰商店×1.5');
-    }
-    tz_val=applyUpgradeBonus(fx.r,fx.c,tz_val,'貿易特區');
+    // 商店：商品→金錢；周圍 8 格商店加成寫在 bldgUpgrades，由 applyUpgradeBonus 套用
+    if(fx.el.type!=='goods') return;
+    const prev=fx.el.value;
+    let nv=fx.el.value;
+    nv=applyUpgradeBonus(fx.r,fx.c,nv,'貿易特區');
+    fx.el={value:nv,type:'money'};
     const upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
-    if(upg>0) tz_parts.push(`升級+${upg}`);
-    fx.el={...fx.el,value:tz_val};
-    const calcStr=tz_parts.length?`（${tz_parts.join('，')}）`:'';
-    addLog(`  🌏 貿易特區: ${TLABEL[fx.el.type]}${prevVal}→${tz_val}${calcStr}`,'g');
+    addLog(`  🌏 貿易特區: 📦${prev}→💰${nv}${upg>0?`（含永久加成${upg}）`:''}`,'g');
     fx.hit();
   },
   clearance(fx){
@@ -4394,9 +4415,16 @@ const FACILITY_FX={
     fx.hit();
   },
   demolish_fab(fx){
-    let df_val=applyUpgradeBonus(fx.r,fx.c,fx.el.value*2,'建築廢料廠');
-    fx.el={...fx.el,value:df_val};
-    addLog(`  🏗 建築廢料廠: ×2→${fx.el.value}，自毀！`,'g');
+    // 投入時消滅自身，最終收益 +8；投入前每經過一次廢墟，額外 +2 收益。
+    const ruinHits=G.inv.ruinHits||0;
+    const bonus=8+ruinHits*2;
+    G.profit+=bonus;
+    if(ruinHits>0){
+      addLog(`  🏗 建築廢料廠: 自毀，+8 收益（基底）+ 廢墟${ruinHits}×2 = +${bonus}`,'g');
+    } else {
+      addLog(`  🏗 建築廢料廠: 自毀，+8 收益`,'g');
+    }
+    profitFlyFromCell(fx.r,fx.c,bonus);
     destroyFacility(fx.r,fx.c);
     fx.hit();
   },
@@ -4709,6 +4737,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
   // ── 廢墟：資源直接通過，不產生任何交互 ──
   if(bId==='ruin'){
     G._ruinPassedThisTurn=true; // 移動都市負面檢查用
+    G.inv.ruinHits=(G.inv.ruinHits||0)+1; // 建築廢料廠用：本次投入經過廢墟次數
     // 無冕之王：每次投入廢墟前，所有廢墟收益+2（累積）
     if(hasPartner('uncrowned_king')){
       const ruinCount=G.ruinCells?G.ruinCells.size:0;
@@ -5668,6 +5697,7 @@ function cancelRearrange(){
   G.freeRearrange=false; G.moveSrc=null;
   G._demolitionRearrange=false;
   G._demolishBureauPending=false;
+  G._tradeZonePending=null;
   addLog('↩ 取消排列，設施已還原');
   render();
 }
@@ -5688,6 +5718,11 @@ function confirmRearrange(){
       bureaus.forEach(([br,bc])=>profitFlyFromCell(br,bc,4));
     }
     G._demolishBureauPending=false;
+  }
+  // 貿易特區：排列期間累積的 +2 加成此時結算
+  if(G._tradeZonePending&&G._tradeZonePending.length>0){
+    G._tradeZonePending.forEach(p=>_addTradeZoneBonus(p.zr,p.zc,p.reason));
+    G._tradeZonePending=null;
   }
   // 莫菲定律：重排後重置未移動計數
   if(G._murphyTrack) G._murphyTrack.noMove=0;
@@ -5724,6 +5759,8 @@ function startTurn(){
   G._omniGainedThisTurn = false;
   G._dispatchHqFiredThisTurn = false;
   G._logCenterRotated = new Set(); // 物流中心：每回合最多旋轉一次
+  // 人材倉庫：回合開始時若持有 ≥4 人材，本回合此設施對任意資源 → 商品 +4
+  G._talentStorageActive = (G.talentCards||0) >= 4;
   // 防呆：每回合開始時保證 元素卡額外投入狀態 歸零，避免上一輪殘留導致按鈕失效
   G.elementExtraUses = 0;
   G._extraUsePhase = false;
@@ -6863,6 +6900,34 @@ function pulse(r,c){
   setTimeout(()=>el.classList.remove('pulse'),450);
 }
 
+// 貿易特區：永久 +2 加成助手
+function _addTradeZoneBonus(zr,zc,reason){
+  const k=`${zr},${zc}`;
+  G.bldgUpgrades[k]=(G.bldgUpgrades[k]||0)+2;
+  addLog(`🌏 貿易特區 (${zr+1},${zc+1})：${reason}，永久+2（累計${G.bldgUpgrades[k]}）`,'g');
+}
+function _maybeAddTradeZoneBonus(zr,zc,reason){
+  if(G.freeRearrange){
+    if(!G._tradeZonePending) G._tradeZonePending=[];
+    G._tradeZonePending.push({zr,zc,reason});
+  } else {
+    _addTradeZoneBonus(zr,zc,reason);
+  }
+}
+// (r,c) 的 8 鄰居（不含自己）
+function _eachAdj8(r,c,fn){
+  const gn=GN();
+  for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+    if(dr===0&&dc===0) continue;
+    const nr=r+dr, nc=c+dc;
+    if(nr<0||nr>=gn||nc<0||nc>=gn) continue;
+    fn(nr,nc);
+  }
+}
+function _isWithin8(r1,c1,r2,c2){
+  return Math.max(Math.abs(r1-r2),Math.abs(c1-c2))===1;
+}
+
 // 設施放置時觸發的永久效果（放置瞬間結算一次）
 // opts.bldgId 指定剛放置的設施 id（疊加 / 複雜情境），未指定則讀 G.grid[r][c]
 function onFacilityPlaced(r,c,bldgId){
@@ -6876,6 +6941,25 @@ function onFacilityPlaced(r,c,bldgId){
       G.bldgUpgrades[k]=(G.bldgUpgrades[k]||0)+elecCount*2;
       addLog(`⚡ 電子工廠 (${r+1},${c+1})：場上 ${elecCount} 個電子設施，永久+${elecCount*2}（累計+${G.bldgUpgrades[k]}）`,'g');
     }
+  }
+  // 貿易特區規則：「商店被設置在周圍 8 格」就 +2
+  // 1) 任何商店（含 trade_zone 自己）放置時，掃描 8 鄰居中的所有 trade_zone +2
+  if(BLDG[bldgId]&&BLDG[bldgId].isShop){
+    _eachAdj8(r,c,(nr,nc)=>{
+      if(G.grid[nr][nc]==='trade_zone'){
+        _maybeAddTradeZoneBonus(nr,nc,`周圍 (${r+1},${c+1}) 設置${BLDG[bldgId].name}`);
+      }
+    });
+  }
+  // 2) trade_zone 自己被放置：自己作為商店 +2，再掃描 8 鄰居既有商店每個 +2
+  if(bldgId==='trade_zone'){
+    _maybeAddTradeZoneBonus(r,c,`自身為商店`);
+    _eachAdj8(r,c,(nr,nc)=>{
+      const nb=G.grid[nr][nc];
+      if(nb&&BLDG[nb]&&BLDG[nb].isShop){
+        _maybeAddTradeZoneBonus(r,c,`既有 (${nr+1},${nc+1}) ${BLDG[nb].name}`);
+      }
+    });
   }
 }
 
@@ -8040,6 +8124,24 @@ function onFacilityMoved(r,c,sr,sc){
       addLog(`🏚️ 地皮炒家：(${sr+1},${sc+1}) 變成空格，永久+4`,'g');
     }
   }
+  // 貿易特區：商店被移動到 trade_zone 周圍時 +2（僅當「從非鄰接移入鄰接」才觸發）
+  // 處理兩端：交換時兩個位置都可能是新移入的商店
+  if(sr!==undefined){
+    const _checkMovedShop=(newR,newC,oldR,oldC)=>{
+      const bId=G.grid[newR][newC];
+      if(!bId||bId==='trade_zone'||!BLDG[bId]||!BLDG[bId].isShop) return;
+      eachCell((zr,zc,zb)=>{
+        if(zb!=='trade_zone'||(zr===newR&&zc===newC)) return;
+        const wasAdj=_isWithin8(oldR,oldC,zr,zc);
+        const nowAdj=_isWithin8(newR,newC,zr,zc);
+        if(nowAdj&&!wasAdj){
+          _maybeAddTradeZoneBonus(zr,zc,`${BLDG[bId].name} 移入 (${newR+1},${newC+1})`);
+        }
+      });
+    };
+    _checkMovedShop(r,c,sr,sc);   // (sr,sc) → (r,c) 端
+    _checkMovedShop(sr,sc,r,c);   // 交換時的另一端
+  }
 }
 
 // ── 蕾雅升級（+1 upgrade, +2% pct） ──
@@ -9114,6 +9216,7 @@ function deserializeGame(save){
   delete data._demoExpertMode; delete data._yongqingSellMode; delete data._yongqingSellUsed;
   delete data._demolitionRearrange; delete data._laborMinisterUsed; delete data._hrTalentUsedCount;
   delete data._currentEventId; delete data._demolishBureauPending;
+  delete data._tradeZonePending;
   delete data._gridSnapshot; delete data._keyedSnapshot; delete data._ruinCellsSnapshot;
   delete data._talentUsedOnElement; delete data._hrUsedThisTurn;
   delete data._tanyaSwapPending; delete data._tanyaSwapPool;
@@ -9301,16 +9404,17 @@ const MEGA_SIM_FX={
     for(let i=0;i<fcount;i++) total += Math.random()<0.5 ? 2 : -2;
     sim.value=Math.max(0, sim.value+total);
   },
-  trade_zone(sim,mega,ctx){
-    // 計算快照中相鄰商店數
-    const[r,c]=ctx.cell;const gn=mega.gridSize;let hasShop=false;
-    [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([ar,ac])=>{
-      if(ar>=0&&ar<gn&&ac>=0&&ac<gn){const bid=mega.grid[ar]&&mega.grid[ar][ac];if(bid&&BLDG[bid]&&BLDG[bid].isShop) hasShop=true;}
-    });
-    if(hasShop) sim.value=Math.ceil(sim.value*1.5);
+  trade_zone(sim){
+    // 商店：商品→金錢（+2 永久加成寫在 bldgUpgrades，由 simFacilityPath 主迴圈統一套用）
+    if(sim.type==='goods'){ sim.type='money'; }
   },
-  trade_port(sim){
-    if(sim.type==='goods'){const pct=Math.floor(sim.value/10);if(pct>0) sim.value+=Math.max(1,Math.ceil(sim.value*pct/100));}
+  trade_port(sim,mega,ctx){
+    // 商品→金錢+2；每單位商品額外+2收益（mega 模擬無 G.goal 上下文，省略上限）
+    if(sim.type!=='goods') return;
+    const prevVal=sim.value;
+    sim.value=prevVal+2;
+    sim.type='money';
+    ctx.bonusProfit+=prevVal*2;
   },
   clearance(sim,mega,ctx){
     // 失一半；每 4 個 +8（簡化：mega 模擬不累積成長，一律每組 +8）

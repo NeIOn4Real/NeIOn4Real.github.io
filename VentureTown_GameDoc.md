@@ -2581,3 +2581,109 @@ VT/
 #### C. 待處理（後續 session）
 2、3、4、5、6 號設施需設計層確認意圖才動工。優先序建議：#2 `demolish_fab`（明確的設計 vs 實作脫節）→ #3 `talent_storage`（off-by-one 簡單 bug）→ #4/#5/#6（需設計確認）。
 
+---
+
+### Session 20（2026-04-24）— desc/實作對照修復（第 2 批）
+
+承 Session 19 找到的 6 項不一致，逐項對齊（含設計者澄清的新行為）。
+
+#### A. demolish_fab 建築廢料廠
+
+##### A1. 修復內容
+- desc 不變：「投入時消滅這個設施，你的最終收益獲得+8。投入前每投入一次廢墟，投入這個設施時額外獲得收益+2。」
+- 移除舊實作的 `value ×2`（desc 沒寫，屬於錯誤副作用）
+- 新增 `G.inv.ruinHits` 計數：在廢墟 handler 增加 `G.inv.ruinHits++`
+- FX：`G.profit += 8 + ruinHits×2`、自毀、資源 value 不變
+
+##### A2. 觸點
+- `G.inv` 初始化加 `ruinHits:0`
+- 廢墟 handler 加 `G.inv.ruinHits=(G.inv.ruinHits||0)+1`
+- `FACILITY_FX.demolish_fab` 全部重寫
+
+#### B. talent_storage 人材倉庫
+
+##### B1. 修復內容（依 PM 釐清）
+- desc 不變
+- 機制：**回合開始時** 若持有 ≥4 人材 → 本回合此設施對任意資源 → 商品 +4
+- 修正 off-by-one（4 而非 5）
+- 修正 type 轉換（任意 → goods）
+- 修正觸發時機（startTurn 設旗標而非通過時 dynamic check）
+
+##### B2. 觸點
+- `startTurn` 加 `G._talentStorageActive = (G.talentCards||0) >= 4`
+- `FACILITY_FX.talent_storage` 重寫：active 才 type→goods、value+4；non-active 通過無效果
+
+#### C. talent_market 人材市場
+
+##### C1. 修復內容
+- desc 不變：「投入金錢時 -8，獲得人材 +4。」
+- type ≠ money 或 value < 8 → 略過（用 `fx.next`，不計 hit、不觸發疊加）
+- 否則 value -= 8、`G.talentCards += 4`
+
+##### C2. 設計議題
+- 略過用 `fx.next` 還是 `fx.hit`：選 `fx.next` 對齊 elec_factory 等設施的「略過」慣例
+- 不調用 `applyUpgradeBonus`：desc 沒提加成
+
+#### D. trade_port 外貿港口
+
+##### D1. 修復內容
+- desc 不變：「這個設施無法被重疊。商品→金錢+2。投入商品時，每有一個商品，這個設施額外獲得+2收益，最高為當前收益目標的一半。」
+- BLDG 調整：`out:'goods'` → `out:'money'`、`fn:v=>v` → `fn:v=>v+2`、新增 `noOverlay:true`
+- FX：`商品→金錢+2`、bonus = `min(prevVal × 2, floor(G.goal / 2))` 加進 `G.profit`
+- 上限「目標的一半」是「外貿港口本身單次貢獻」上限，與其他設施收益無關
+
+##### D2. noOverlay 全域機制（同時涵蓋 trade_zone）
+新增 BLDG 屬性 `noOverlay:true`，在以下位置攔截：
+1. **蕾雅同設施疊加**：`G.grid[r][c]===bldgId&&hasPartner('leya')` 分支首檢
+2. **物流之王/倉儲女王雙向疊加**：placing 端或 existing 端任一帶 `noOverlay` 即拒
+3. **拖曳預覽 (`isLeyaUpgrade` / `isOverlay`)**：同樣檢查兩端 noOverlay
+- 不需修改 `setOverlays`（內部呼叫，只在合法路徑觸發）
+- 不影響 `mega_elec_supply` 自疊加（內部直接呼叫，不經 placeBldg 路徑）
+
+##### D3. MEGA_SIM_FX.trade_port
+- 加入：`商品→金錢+2`，過往設施數 ×2 加進 `ctx.bonusProfit`（mega 環境無 G.goal，省略上限）
+
+#### E. trade_zone 貿易特區（依 PM 全面重新設計）
+
+##### E1. desc/BLDG 改動
+- **新 desc**：「商店。商品→金錢。周圍8格每有一個商店被設置，這個設施永久獲得+2。這個設施無法被重疊。」
+- BLDG：`req:'any'` → `req:'goods'`、`out:null` → `out:'money'`、`fn:v=>v`、新增 `isShop:true`、`noOverlay:true`
+- 標籤：本身就是商店，會被 `countAllShops()`、`isShopType()`、`findShop2x2()` 計入
+
+##### E2. FACILITY_FX.trade_zone
+- 移除舊「相鄰商店 ×1.5」邏輯
+- 新邏輯：商品→金錢（value 不變）+ `applyUpgradeBonus`（永久 +2 寫在 bldgUpgrades）
+- 非商品略過
+
+##### E3. 永久 +2 的觸發時機（核心邏輯）
+**規則**：周圍 8 格每有一個商店被設置或移入 → 此 trade_zone 永久 +2
+
+| 情境 | 觸發點 | 處理 |
+|---|---|---|
+| 商店放置（含 trade_zone 自身） | `onFacilityPlaced(r,c,bldgId)` | 掃描 8 鄰居中所有 trade_zone +2 |
+| trade_zone 自身被放置 | 同上 | 額外 +2（自身為商店，依 PM 規則）+ 掃描 8 鄰居既有商店各 +2 |
+| 商店移動到 trade_zone 周圍 | `onFacilityMoved(r,c,sr,sc)` | 僅當「從非鄰接移入鄰接」才 +2（避免鄰接內位移重複觸發） |
+| 商店移動離開 trade_zone | 同上 | 不扣回（永久） |
+| trade_zone 自己移動 | 同上 | 不重新計算（避免移位刷加成漏洞） |
+| 交換（兩端皆設施） | 同上 | 兩端都檢查 `_checkMovedShop`（避免漏算） |
+
+##### E4. 排列模式延遲結算
+PM 要求：「必須等拆遷隊的效果確認後，或者其他效果完成移動後才能結算」
+- 新增 `G._tradeZonePending = []` 暫存待結算
+- 通用入口 `_maybeAddTradeZoneBonus(zr,zc,reason)`：若 `G.freeRearrange` 為 true → push pending；否則直接寫入
+- `confirmRearrange`：flush pending（依序 `_addTradeZoneBonus` + log）
+- `cancelRearrange`：清空 pending（不結算）
+- `deserializeGame`：刪除 `_tradeZonePending`（跨存檔不應殘留）
+
+##### E5. MEGA_SIM_FX.trade_zone
+- 簡化為純 `goods → money`；永久 +2 寫在 bldgUpgrades，由 `simFacilityPath` 主迴圈統一套用
+
+##### E6. 輔助函式（新增於 onFacilityPlaced 上方）
+- `_eachAdj8(r,c,fn)`：對 8 鄰居（不含自身）執行 fn
+- `_isWithin8(r1,c1,r2,c2)`：Chebyshev 距離 = 1 判定
+- `_addTradeZoneBonus(zr,zc,reason)`：直接 +2 與 log
+- `_maybeAddTradeZoneBonus(zr,zc,reason)`：依 freeRearrange 決定立即 / 延遲
+
+#### F. 後續追蹤項目（無變動）
+- B1（電子商店升級加成三次套用）— 仍待修
+
