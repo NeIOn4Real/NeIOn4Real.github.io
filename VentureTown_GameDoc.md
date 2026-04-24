@@ -88,6 +88,41 @@
 - `G._XxxFiredThisTurn` (Set/bool) — 防止同回合多次 send 重複觸發
 - 兩者都在 `startTurn()` 重置
 
+### 通用「flag-based 跨格 buff」死碼陷阱
+若實作用 `G.inv.someFlag` 在通用 fn 處理器內消費（line 4900+ 區），會被 special FX 設施 `if(_fxDone) return;` 跳過，導致對 special 設施失效。**正確做法**：消費點要放在 `if(bId)` 起始後、special FX dispatch 之前。
+
+歷史踩坑修復：
+- `logistics_amp` 物流放大器（S26）
+- `elec_conveyor` 電子輸送帶（S22）
+- `elec_discharge_demon` 電子放電惡魔（S28）
+- `forex_trader` 外匯交易員（S30）
+
+新增「跨格 buff」設施／合夥人時務必檢查此 pattern。
+
+---
+
+## 對照表（Excel）
+
+`VentureTown_實作對照表.xlsx`（與 GameDoc.md 同目錄）為**程式碼當下實作**自動產生的設施與合夥人對照表。
+
+### 結構
+- **單一工作表「設施＆合夥人對照表」**
+- 9 欄：合夥人名稱 / Emoji / 效果文本 / 稀有度 / 分隔 / 設施名稱 / Emoji / 效果文本 / 稀有度
+- 依 tag 分類：基礎 / 電子 / 物流 / 中央 / 大型 / 人力 / 貿易 / 拆遷 / 商店 / 惡魔 / 特殊
+- 合夥人「負面效果」用「【負面】」前綴附加在 pos 之後
+
+### 與 `新合夥人表.xlsx`（設計稿）的差異
+- `新合夥人表.xlsx` 是**設計目標**（PM 維護）
+- `VentureTown_實作對照表.xlsx` 是**目前程式實作**自動匯出（每次重大修改後重新產生）
+- 兩者應該逐漸一致（每次審查 Session 修復差異）
+
+### 重新產生方式
+透過 `python` 腳本從 `index.html` 提取 `BLDG` / `PARTNERS` / `BLDG_RARITY` / `PARTNER_RARITY` / `TAGS`：
+```bash
+python <generate_xlsx_script>
+```
+（腳本內容見 commit history）
+
 ---
 
 ## 設施系統
