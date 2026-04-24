@@ -2872,3 +2872,76 @@ setOverlays(mr,mc,ovs);
 - 守備：若 topmost 已被其他疊加機制（如蕾雅疊加其他建築）接管，停止堆疊
 - 注意：無上限，理論上可無限堆疊（SSR 級設計，由玩家自行決定要不要場上一直留著）
 
+---
+
+### Session 23（2026-04-24）— 大型系設施全面驗證
+
+依 PM 指示審查大型系 4 個設施（含已修過的 mega_elec_supply 共 5 個）。發現多項缺漏並補完。
+
+#### A. dept_store / mega_elec_supply 補旗標
+舊狀態：兩設施 desc 寫「大型」「不會被消滅」，但 BLDG 缺旗標：
+- `dept_store`：缺 `isLarge` + `indestructible` → 不進入「只能 1 個大型」限制、destroyFacility 不擋下
+- `mega_elec_supply`：缺 `isLarge` → 不進入大型限制
+
+修法：
+- `dept_store` 加 `isLarge:true` + `indestructible:true`
+- `mega_elec_supply` 加 `isLarge:true`（desc 沒明寫不會消滅，不加 indestructible）
+
+#### B. dept_store FX 改為 desc 字面三段鏈
+
+##### B1. 舊實作
+公式：`value × 2 → +2%`（×2 + 2% 加成），跟 desc 完全脫鉤
+
+##### B2. 新實作
+依 desc「商品→金錢+8 → 商品+8 → 金錢+8」三段鏈：
+```js
+const step1 = prev + 8;       // goods → money +8
+const step2 = step1 + 8;      // money → goods +8
+let nv = step2 + 8;           // goods → money +8
+```
+總增量固定 24，最終 type=money。保留 2×2 cell 加成聚合（`cellMods`/`bldgUpgrades`/`cellPctMods`/`leyaPctMods`）
+
+##### B3. MEGA_SIM_FX.dept_store 同步
+`sim.value += 24; sim.type = 'money';`
+
+#### C. ancient_factory「視為 4 工廠」+ 2×2 工廠檢查（依 PM 規格）
+
+##### C1. PM 規格
+- **設置**：必須蓋在 2×2 的工廠（factory / adv_factory）區域上
+- **計數**：在「場上工廠數」計算時算 4 個（如中央工廠監督局）
+- **投入**：投入路徑經過時只算 1 個工廠（不重複）
+
+##### C2. 新增 `ancient_factory_part` BLDG（類比 dept_store_part）
+```js
+ancient_factory_part:{
+  name:'古代的機械工廠', emoji:'🏛',
+  desc:'古代機械工廠的一部分',
+  req:null, out:null, fn:v=>v,
+  special:'ancient_factory_part',
+  indestructible:true
+}
+```
+加入 BLDG_TAGS（`['large','production']`）與 COMPOUND_EXCLUDE。
+
+##### C3. 新增 `findFactory2x2` 與 `placeAncientFactory`
+類比 `findShop2x2` / `placeDeptStore`：
+- `findFactory2x2(r, c)`：找 4 格都是 factory/adv_factory 的 2×2
+- `placeAncientFactory(r, c, anchor)`：anchor 占左上、其餘 3 格為 `ancient_factory_part`
+
+##### C4. placeBldg 路徑擴展
+`needs2x2` 分支加入 `isAncient` 條件分支，調用 `findFactory2x2` + `placeAncientFactory`。大財團（`big_corp`）仍可取代任意 2×2 區域。
+
+##### C5. ancient_factory_part FX
+`fx.next(200)` — passthrough，不計入 facHit / facPath（不會重複觸發 ancient_factory 效果）
+
+##### C6. 計數邏輯
+- **「場上工廠數」**（中央工廠監督局 finish）：targets 加入 `'ancient_factory'` 和 `'ancient_factory_part'` → 4 cells × 1 = 4 工廠 ✓
+- **「投入路徑經過工廠數」**（古代機械工廠自身 finish 加成）：filter 加入 `'ancient_factory'`（不含 part，因為 part 是 fx.next 不進 facPath）→ 經過 ancient_factory 算 1 次 ✓
+
+#### D. world_wonder / giant_village
+- `world_wonder`：✅ 對齊（`finish` 中 `tc * 8` 加成正確）
+- `giant_village`：🟡 desc 模糊（「人材為 0」是條件還是動作？實作走「重置為 8」），PM 未答覆，本 session 暫不動
+
+#### E. 邊界備註（未處理）
+- ancient_factory + 3 part 在 Murphy 事件被打亂時可能分裂（與 dept_store 同樣問題）。indestructible 旗標只擋 destroyFacility，不擋 Murphy。如需處理需新增 anchor/parts 對應追蹤。本 session 不處理，作為已知邊界。
+

@@ -1204,7 +1204,7 @@ const BLDG = {
   small_shop: { name:'小型販售商', emoji:'🛍️', desc:'視為商店。商品→金錢+2；金錢→商品→金錢+4', req:'any', out:'money', fn:v=>v, special:'small_shop', isShop:true },
   scalper:    { name:'黃牛販子', emoji:'🎫', desc:'商店。商品→金錢+1→商品+1。本回合沒有獲得收益時，最終收益-8。', req:'goods', out:'goods', fn:v=>v, special:'scalper', isShop:true },
   bulk_store: { name:'量販店', emoji:'🛒', desc:'商店。商品→金錢+4。投入前每投入過一次工廠，再額外獲得收益+4。', req:'goods', out:'money', fn:v=>v+4, special:'bulk_store', isShop:true },
-  dept_store: { name:'百貨公司', emoji:'🏬', desc:'大型。商店。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。只能蓋在 2×2 商店上，此設施視為 4 商店。商品→金錢+8→商品+8→金錢+8', req:'goods', out:'money', fn:v=>v, special:'dept_store', isShop:true, needs2x2:true },
+  dept_store: { name:'百貨公司', emoji:'🏬', desc:'大型。商店。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。只能蓋在 2×2 商店上，此設施視為 4 商店。商品→金錢+8→商品+8→金錢+8', req:'goods', out:'money', fn:v=>v, special:'dept_store', isShop:true, needs2x2:true, isLarge:true, indestructible:true },
   dept_store_part:{ name:'百貨公司', emoji:'🏬', desc:'百貨公司的一部分', req:null, out:null, fn:v=>v, special:'dept_store_part', isShop:true },
   refinery:   { name:'精煉廠', emoji:'🔩', desc:'原料→原料 +4。', req:'material', out:'material', fn:v=>v+4 },
   warehouse:  { name:'倉庫',   emoji:'📦', desc:'商品→商品 +4。', req:'goods',    out:'goods',    fn:v=>v+4 },
@@ -1278,7 +1278,7 @@ const BLDG = {
   center_elec_net:{ name:'中央電子網路', emoji:'🔌', desc:'中央。電子。僅能蓋在中央格子。你可以將中央建築蓋在此設施上。', req:'any', out:null, fn:v=>v, special:'center_elec_net', centerOnly:true },
 
   // ── 電子系設施 ──
-  mega_elec_supply:{ name:'大型電子供給站', emoji:'🔋', desc:'大型。電子。金錢→原料+4。商品→原料+4。回合開始時，如果這個設施此回合沒有被重疊過，這個設施將自動設置一個大型電子供給站於自身。', req:'any', out:'material', fn:v=>v+4, special:'mega_elec_supply', needs2x2:true },
+  mega_elec_supply:{ name:'大型電子供給站', emoji:'🔋', desc:'大型。電子。金錢→原料+4。商品→原料+4。回合開始時，如果這個設施此回合沒有被重疊過，這個設施將自動設置一個大型電子供給站於自身。', req:'any', out:'material', fn:v=>v+4, special:'mega_elec_supply', needs2x2:true, isLarge:true },
   elec_factory:   { name:'電子工廠', emoji:'⚡', desc:'電子。原料→金錢。場上每有一個電子設施，這個設施設置時永久獲得+2。', req:'material', out:'money', fn:v=>v, special:'elec_factory' },
   elec_conveyor:  { name:'電子輸送帶', emoji:'⚡', desc:'電子。原料投入時，下一個投入的設施若為電子，使其永久獲得+2。', req:'material', out:'material', fn:v=>v, special:'elec_conveyor' },
   elec_shop:      { name:'電子商店', emoji:'⚡', desc:'電子。金錢→原料。商品→原料。原料→金錢+2。', req:'any', out:null, fn:v=>v, special:'elec_shop' },
@@ -1286,6 +1286,7 @@ const BLDG = {
   // ── 大型設施（2×2）──
   giant_village:  { name:'巨人村', emoji:'🏰', desc:'大型。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。回合開始時，你的人材為0，獲得+8人材。', req:'any', out:null, fn:v=>v, special:'giant_village', needs2x2:true, isLarge:true, indestructible:true },
   ancient_factory:{ name:'古代的機械工廠', emoji:'🏛', desc:'大型。工廠。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。只能蓋在 2×2 工廠上，此設施視為 4 工廠。所有的工廠被投入時，獲得+8。原料→商品。', req:'material', out:'goods', fn:v=>v, special:'ancient_factory', needs2x2:true, isLarge:true, indestructible:true },
+  ancient_factory_part:{ name:'古代的機械工廠', emoji:'🏛', desc:'古代機械工廠的一部分', req:null, out:null, fn:v=>v, special:'ancient_factory_part', indestructible:true },
   world_wonder:   { name:'世界奇觀', emoji:'🏟', desc:'大型。這個設施佔用2*2的格子，不會被消滅。小鎮中只能存在一個大型設施。最終收益時，你每有一個人材，獲得+8。', req:'any', out:null, fn:v=>v, special:'world_wonder', needs2x2:true, isLarge:true, indestructible:true },
 
   // ── 拆遷系新設施 ──
@@ -2451,7 +2452,7 @@ const TAGS={
   mega_elec_supply:['electronic','large'], elec_factory:['electronic','production'],
   elec_conveyor:['electronic'], elec_shop:['electronic','shop'],
   // 大型設施
-  giant_village:['large','hr'], ancient_factory:['large','production'], world_wonder:['large'],
+  giant_village:['large','hr'], ancient_factory:['large','production'], ancient_factory_part:['large','production'], world_wonder:['large'],
   // 拆遷系新設施
   mobile_city:['demolish'], scrap_city:['demolish'], disaster_bureau:['demolish'],
   // 物流系新設施
@@ -3217,7 +3218,7 @@ const COMPOUND_EXCLUDE=new Set([
   'dept_store','dept_store_part',
   'logistics_up','logistics_down','logistics_left','logistics_right','logistics_center',
   // 新增：2×2 大型設施 + 不可消滅設施
-  'giant_village','ancient_factory','world_wonder','mega_elec_supply','disaster_bureau',
+  'giant_village','ancient_factory','ancient_factory_part','world_wonder','mega_elec_supply','disaster_bureau',
   // 僅中央設施（複合卡兩格無法保證都在中央）
   'center_trade','center_tech','center_factory_bureau','center_shop_bureau','center_mat_bureau','center_elec_net'
 ]);
@@ -3246,6 +3247,17 @@ function addHandMaybeCompound(id){
 
 // ── 百貨公司 2×2 放置：尋找包含(r,c)的 2×2 商店區域 ──
 function _isNonDeptShop(bId){ return isShopType(bId)&&bId!=='dept_store'&&bId!=='dept_store_part'; }
+function _isFactoryType(bId){ return bId==='factory'||bId==='adv_factory'; }
+function findFactory2x2(r,c){
+  const gn=GN();
+  for(let dr=0;dr>=-1;dr--) for(let dc=0;dc>=-1;dc--){
+    const tr=r+dr, tc=c+dc;
+    if(tr<0||tc<0||tr+1>=gn||tc+1>=gn) continue;
+    if(_isFactoryType(G.grid[tr][tc])&&_isFactoryType(G.grid[tr][tc+1])&&
+       _isFactoryType(G.grid[tr+1][tc])&&_isFactoryType(G.grid[tr+1][tc+1])) return [tr,tc];
+  }
+  return null;
+}
 function findShop2x2(r,c){
   const gn=GN();
   // 檢查(r,c)可能作為哪個 2x2 的一部分（4 種可能的左上角），排除已有的百貨公司
@@ -3300,6 +3312,21 @@ function placeDeptStore(r,c,anchor){
     if(!G.deptStoreParts) G.deptStoreParts={};
     G.deptStoreParts[k]=ak;
   });
+}
+
+// 古代機械工廠：anchor 占左上，其餘 3 格為 ancient_factory_part（皆 indestructible）
+// 「視為 4 工廠」由 4 格各自的 BLDG ID 自然支援（透過 targets 包含 ancient_factory + ancient_factory_part）
+function placeAncientFactory(r,c,anchor){
+  const [tr,tc]=anchor;
+  for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
+    const key=`${tr+dr},${tc+dc}`;
+    delete G.bldgUpgrades[key];
+    delete G.leyaPctMods[key];
+  }
+  G.grid[tr][tc]='ancient_factory';
+  G.grid[tr][tc+1]='ancient_factory_part';
+  G.grid[tr+1][tc]='ancient_factory_part';
+  G.grid[tr+1][tc+1]='ancient_factory_part';
 }
 
 function isCompoundHand(h){ return h&&h.compound===true; }
@@ -3503,16 +3530,18 @@ function tryPlaceAtCell(r,c,bldgId){
   // ── 百貨公司 / 大型設施 2×2 放置 ──
   if(BLDG[bldgId]&&BLDG[bldgId].needs2x2){
     const isDept=bldgId==='dept_store';
-    // 先試專屬條件（百貨公司：2×2 商店）
-    let anchor = isDept ? findShop2x2(r,c) : null;
+    const isAncient=bldgId==='ancient_factory';
+    // 先試專屬條件（百貨公司：2×2 商店；古代機械工廠：2×2 工廠）
+    let anchor = isDept ? findShop2x2(r,c) : (isAncient ? findFactory2x2(r,c) : null);
     let useBigCorp = false;
-    // 大財團：若專屬條件失敗（或本來就不是 dept_store），嘗試任意 2×2 非大型區域
+    // 大財團：若專屬條件失敗（或本來就不是 dept/ancient），嘗試任意 2×2 非大型區域
     if(!anchor && hasPartner('big_corp')){
       anchor = findAny2x2(r,c);
       if(anchor) useBigCorp = true;
     }
     if(!anchor){
       if(isDept) addLog('🏬 百貨公司需要 2×2 的一般商店區域（不含已有的百貨公司）','b');
+      else if(isAncient) addLog('🏛 古代機械工廠需要 2×2 的工廠區域（factory/adv_factory）','b');
       else addLog(`🚫 ${BLDG[bldgId].name}需要 2×2 空間（大財團可取代非大型區域）`,'b');
       return false;
     }
@@ -3536,8 +3565,11 @@ function tryPlaceAtCell(r,c,bldgId){
     if(isDept){
       addLog(`🏬 百貨公司：取代 2×2 ${useBigCorp?'區域':'商店'} (${tr+1},${tc+1})~(${tr+2},${tc+2})`,'g');
       placeDeptStore(r,c,anchor);
+    } else if(isAncient){
+      addLog(`🏛 古代機械工廠：取代 2×2 ${useBigCorp?'區域':'工廠'} (${tr+1},${tc+1})~(${tr+2},${tc+2})`,'g');
+      placeAncientFactory(r,c,anchor);
     } else {
-      // 非百貨公司的大型設施：目前實作為單格（居主格），其餘 3 格以 null 佔住 anchor 標記
+      // 非百貨公司/古代機械工廠的大型設施：目前實作為單格（居主格），其餘 3 格以 null 佔住 anchor 標記
       // 依現行實作保持單格行為，僅消滅 2×2 區域釋出空間
       G.grid[r][c]=bldgId;
       addLog(`放置 ${BLDG[bldgId].emoji}${BLDG[bldgId].name} (${r+1},${c+1})`,'g');
@@ -4079,9 +4111,12 @@ const FACILITY_FX={
     fx.hit();
   },
   dept_store(fx){
+    // 三段鏈：商品→金錢+8 → 商品+8 → 金錢+8（每段 +8，最終為金錢，總增量 24）
     if(fx.el.type!=='goods'){ fx.next(200); return; }
-    const prev=fx.el.value, step1=prev*2;
-    let nv=Math.max(1,Math.floor(step1*1.02));
+    const prev=fx.el.value;
+    const step1=prev+8;          // goods → money +8
+    const step2=step1+8;         // money → goods +8
+    let nv=step2+8;              // goods → money +8
     // 聚合 2×2 四格的加成（cellMods/cellPctMods/bldgUpgrades/leyaPctMods）
     const ar=fx.r, ac=fx.c;
     let totalMod=0, totalPct=0, totalUpg=0, totalLeya=0;
@@ -4104,7 +4139,7 @@ const FACILITY_FX={
     if(totalLeya) parts.push(`蕾雅+${totalLeya}%`);
     const extra=parts.length?`（${parts.join('，')}）`:'';
     fx.el={value:nv,type:'money'};
-    addLog(`  🏬 百貨公司: 📦${prev}→💰${step1}(×2)→+2%→${nv}${extra}`);
+    addLog(`  🏬 百貨公司: 📦${prev}→💰${step1}→📦${step2}→💰${nv}${extra}`,'g');
     fx.hit();
   },
   dept_store_part(fx){
@@ -4603,6 +4638,10 @@ const FACILITY_FX={
     // 原料→商品，工廠效果在 onSettle 中實作
     if(fx.el.type==='material'){ fx.el={value:fx.el.value,type:'goods'}; addLog(`  🏛 古代機械工廠：原料→商品 → ${fx.el.value}`); }
     fx.hit();
+  },
+  ancient_factory_part(fx){
+    // 古代機械工廠的一部分：通過時無效果（4 格中 anchor 才執行 FX，part 是視覺/計數佔位）
+    fx.next(200);
   },
   world_wonder(fx){
     // 通過時無效果（收益加成在 onSettle）
@@ -5197,9 +5236,9 @@ function finish(el,startVal){
     const tc=G.talentCards||0;
     if(tc>0){ const wb=tc*8; G.profit+=wb; addLog(`🏟 世界奇觀：${tc}人材×8 → +${wb}收益`,'g'); }
   }
-  // H3: 古代的機械工廠：所有工廠被投入+8
+  // H3: 古代的機械工廠：所有工廠被投入+8（含自身一次；ancient_factory_part 為視覺佔位、不計）
   if(findCells((r,c,b)=>b==='ancient_factory').length>0&&profit>0){
-    const factoryHits=(G.inv.facPath||[]).filter(id=>id==='factory'||id==='adv_factory').length;
+    const factoryHits=(G.inv.facPath||[]).filter(id=>id==='factory'||id==='adv_factory'||id==='ancient_factory').length;
     if(factoryHits>0){ const ab=factoryHits*8; G.profit+=ab; addLog(`🏛 古代機械工廠：${factoryHits}次工廠投入×8 → +${ab}收益`,'g'); }
   }
   // H4: 廢鐵城：回合結束消滅所有廢墟，+x收益（x每消滅設施+2累積）
@@ -5236,7 +5275,8 @@ function finish(el,startVal){
   {
     if(!G._bureauHitThisTurn) G._bureauHitThisTurn=new Set();
     if(!G._bureauFiredThisTurn) G._bureauFiredThisTurn=new Set();
-    const bureauTypes={center_factory_bureau:['factory','adv_factory'],center_shop_bureau:'_shop',center_mat_bureau:['mat_factory','adv_mat_factory']};
+    // 古代機械工廠 + 3 part = 4 工廠（每個 cell 各算 1，自然得到 4）
+    const bureauTypes={center_factory_bureau:['factory','adv_factory','ancient_factory','ancient_factory_part'],center_shop_bureau:'_shop',center_mat_bureau:['mat_factory','adv_mat_factory']};
     Object.entries(bureauTypes).forEach(([bId,targets])=>{
       findCells((r,c,b)=>b===bId).forEach(([br,bc])=>{
         const k=`${br},${bc}`;
@@ -9444,7 +9484,9 @@ const MEGA_SIM_FX={
     if(factoryHits>0) ctx.bonusProfit+=factoryHits*4;
   },
   dept_store(sim){
-    if(sim.type==='goods'){sim.value=Math.floor(sim.value*2);sim.type='money';}
+    // 三段鏈：商品→金錢+8 → 商品+8 → 金錢+8
+    if(sim.type!=='goods') return;
+    sim.value=sim.value+24; sim.type='money';
   },
   spiral_hub(sim,mega,ctx){sim.value+=2;}, // 簡化：每次通過+2
   terminal(sim,mega,ctx){sim.value+=ctx.facHit*4;},
