@@ -3339,3 +3339,51 @@ desc：「此回合投入 8 人材時，使場上所有設施投入 2 人材」
 | 快遞達人 | ✅ onSettle 通過格 > 4 時，每多 1 格 +4 收益 |
 | 阿北，物流之王 | ✅ placeBldg 路徑 maxOv=1 疊加 |
 
+---
+
+### Session 30（2026-04-24）— 貿易合夥人全面驗證
+
+5 個貿易詞條合夥人審查：3 ✅ 對齊、1 死碼修復、1 desc 更新。
+
+#### A. 外匯交易員 死碼修復 + desc 更新
+
+##### A1. 舊問題
+追蹤點 `G.inv._forexMoneyCount++` 寫在 stepWithMover 通用 fn 處理器（`index.html:5173`）。跟先前修過的同類問題（logistics_amp / elec_conveyor / elec_discharge_demon）一樣：所有 special FX 設施早 return，通用處理器不執行。實質上 `_forexMoneyCount` 永遠為 0，onSettle 從未觸發過。
+
+##### A2. PM 提供新 desc
+「金錢→金錢+4。**金錢投入任意設施時獲得+4 或者 -2 收益**，此回合每次以金錢投入任意設施時，這個效果就觸發 2 次。」
+
+##### A3. 新實作
+- 追蹤點移到 `if(bId)` 起始後、special FX dispatch 之前
+- 條件：`hasPartner('forex_trader') && el.type === 'money'`（此時 el.type 是進入 cell 前的類型）
+- per-cell 計數（不另計 overlay）
+- onSettle 保持原邏輯：count × 2 triggers，每 trigger 隨機 +4 或 -2 到 G.profit
+
+#### B. 套利者 desc 改用 X 標記
+
+##### B1. PM 確認
+- 「那個值 +2X，之後使 X+1」
+- X 初始為 1，跨回合永久累積
+
+##### B2. 新 desc
+「此回合金錢→商品且商品→金錢後，那個值+2X，之後使X+1（X 初始為 1，跨回合永久累積）。」
+
+##### B3. 實作（數學等價，變數改名為 `x`）
+- `partnerState.arbitrageur = {x: 1}`（取代舊 `{bonus: 2}`）
+- onSettle：`bonus = 2 * st.x`；`G.profit += bonus`；`st.x += 1`
+- 相容舊存檔：若只有 `bonus` 欄位，換算為 `x = bonus / 2`
+
+數學等價：
+| 觸發次序 | 舊 bonus | 新 2×X | 結果 |
+|:---:|:---:|:---:|:---:|
+| 1 | 2 | 2×1 | +2 |
+| 2 | 4 | 2×2 | +4 |
+| 3 | 6 | 2×3 | +6 |
+
+#### C. 其餘貿易合夥人驗證結果（無需改）
+| 合夥人 | 機制 |
+|---|---|
+| 黑市商人 | ✅ 每輪第 1 次商品→金錢 ×125%；mult -0.5 下限 ×1（實際之後無加成）|
+| 壟斷者 | ✅ shop ≥ 4 → G.profit += shop×6；shop < 4 → stepWithMover 商店 value 還原 |
+| 進貨合作員 | ✅ onTurnStart：商品+4；非商品轉商品+2 |
+

@@ -1548,7 +1548,7 @@ const PARTNERS = {
   // ── 貿易流合夥人 ──
   forex_trader: {
     id:'forex_trader', name:'外匯交易員', emoji:'💹',
-    pos:'金錢→金錢+4 或者 -2 。此回合每投入一次金錢，這個效果就觸發2次。', neg:'無', desc:'外匯交易員',
+    pos:'金錢→金錢+4。金錢投入任意設施時獲得+4 或者 -2 收益，此回合每次以金錢投入任意設施時，這個效果就觸發2次。', neg:'無', desc:'外匯交易員',
     onSettle(G, profit, el){
       // 每次投入金錢時觸發2次：隨機+4或-2
       const moneyInputs=G.inv._forexMoneyCount||0;
@@ -1578,16 +1578,18 @@ const PARTNERS = {
   },
   arbitrageur: {
     id:'arbitrageur', name:'套利者', emoji:'⚖️',
-    pos:'此回合金錢→商品且商品→金錢時，使那個數值+2，之後使這個效果永久+2。', neg:'你的原料→商品不會增加數值。', desc:'套利者',
+    pos:'此回合金錢→商品且商品→金錢後，那個值+2X，之後使X+1（X 初始為 1，跨回合永久累積）。', neg:'你的原料→商品不會增加數值。', desc:'套利者',
     onSettle(G, profit, el){
       const hadBoth=G.inv.arbM2G&&G.inv.arbG2M;
       if(hadBoth){
-        const st=G.partnerState.arbitrageur||{bonus:2};
-        const bonus=st.bonus;
+        const st=G.partnerState.arbitrageur||{x:1};
+        // 相容舊存檔：若只有 bonus 欄位，換算為 x（bonus=2 → x=1, bonus=4 → x=2, ...）
+        if(st.x===undefined&&typeof st.bonus==='number'){ st.x=Math.max(1,st.bonus/2); delete st.bonus; }
+        const bonus=2*st.x;
         G.profit+=bonus;
-        addLog(`⚖️ 套利者：雙向轉換，+${bonus}收益（永久累積）`,'g');
+        addLog(`⚖️ 套利者：雙向轉換，+2×X = +${bonus}收益（X=${st.x}→${st.x+1}，永久累積）`,'g');
         setTimeout(()=>profitFlyFromPartner(this.id,bonus),150);
-        st.bonus+=2; // 永久+2
+        st.x+=1;
         G.partnerState.arbitrageur=st;
       }
     },
@@ -4875,6 +4877,11 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       });
     }
 
+    // ── 外匯交易員：金錢投入任意設施時計數（per-cell，涵蓋所有 special 設施） ──
+    if(hasPartner('forex_trader')&&el.type==='money'){
+      G.inv._forexMoneyCount=(G.inv._forexMoneyCount||0)+1;
+    }
+
     // ── 物流放大器：下一設施本回合 +8 value（不論是否為 special FX）──
     // 在 special FX dispatch 之前消費 ampAct，避免 special FX 早 return 跳過通用處理器導致死碼
     if(G.inv.ampAct){
@@ -5169,8 +5176,8 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       // 追蹤轉換方向（外匯交易員/套利者用）
       if(prev.type==='money'&&nt==='goods'){ G.inv.fxM2G=true; G.inv.arbM2G=true; }
       if(prev.type==='goods'&&nt==='money'){ G.inv.fxG2M=true; G.inv.arbG2M=true; }
-      // 外匯交易員：追蹤金錢投入次數
-      if(prev.type==='money') G.inv._forexMoneyCount=(G.inv._forexMoneyCount||0)+1;
+      // 外匯交易員：已於 stepWithMover 進入此 cell 時統一處理（FX dispatch 之前），
+      // 涵蓋 special 設施；per-cell 計數（不重複計算 overlay）
 
       el={value:nv,type:nt};
 
