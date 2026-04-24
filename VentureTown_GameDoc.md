@@ -3009,3 +3009,100 @@ desc：「此回合投入 8 人材時，使場上所有設施投入 2 人材」
 #### F. 待釐清（未處理）
 - `giant_village` 巨人村「人材為 0，獲得 +8 人材」desc 仍模糊（條件 vs 動作），PM 未答覆，本 session 暫不動
 
+---
+
+### Session 25（2026-04-24）— 拆遷系設施全面驗證
+
+11 個拆遷系設施審查（含已修過的 demolish_fab 共 11 個）。發現多項問題並全數修復。
+
+#### A. dynamic_amp 動態加強器 — 完全重做
+
+##### A1. 舊實作問題
+- BLDG `req:'any', out:null, fn:v=>v`（沒換成金錢）
+- FX 用 `turnFacMoved`（場上總移動數）×2，與此設施無關
+
+##### A2. 新實作（依 PM 規格）
+- BLDG `out:'money', fn:v=>v+4`（任意→金錢+4 base）
+- 新增 `G.dynamicAmpMoves = {[r,c]: count}`：per-cell 本回合被移動次數
+- onFacilityMoved 兩端都檢查：若是 dynamic_amp 則對該 cell key 計數 +1
+- FX：`value += 4 + moves×4`、type='money'
+- startTurn 重置 dynamicAmpMoves
+
+#### B. unstable_base 地基不穩定站 — 完全重做
+
+##### B1. 舊實作問題
+- 完全沒「交換位置」邏輯
+- 而是檢查相鄰 cellMods 正/負，調整自身 value（×2 if neg, -1 if pos）
+
+##### B2. 新實作（依 PM 規格）
+- 通過時：找周圍 4 格設施（排除大型/part），shuffle 後兩兩配對交換位置
+- 每對交換：swapCellData + 各自 onFacilityMoved 觸發連鎖效果（拆遷補償局/動態加強器計數等）
+- 兩格本回合 cellMods += 2（下回合自動清除，符合 desc「下回合清除」）
+- 奇數時最後一個落單
+
+#### C. magnet_plate 磁力板 — 排除大型設施
+
+##### C1. 修法
+舊：只排除 `dept_store`/`dept_store_part`
+新：排除所有 `isLarge:true` 設施 + `dept_store_part` + `ancient_factory_part`
+- 涵蓋 `dept_store / mega_elec_supply / giant_village / ancient_factory / world_wonder` 與其 part
+
+#### D. ruin_monument 廢墟紀念碑 — 改為 G.profit 直接收益
+
+##### D1. 修法
+- BLDG `fn:v=>v+4` → `fn:v=>v`（避免 mega_sim fallback 加值）
+- FX：原本 `value += ruinN*4`（加到通過資源 value），改為 `G.profit += ruinN*4` + `profitFlyFromCell` 動畫
+- 符合 desc「獲得**收益**」字面語意
+
+#### E. disaster_bureau 災害控管局 — per-turn fix
+
+##### E1. 舊實作問題
+用 `G.inv._facilitiesDestroyedThisTurn`（per-send Set）。每次 send 各自結算。
+
+##### E2. 修法
+- 新增 `G._facilitiesDestroyedThisTurn`（per-turn 累計）+ `G._disasterBureauFiredThisTurn`（防多 send 重複）
+- destroyFacility 三個寫入點全部改寫到 G._facilitiesDestroyedThisTurn
+- finish 檢查 fired 旗標
+- startTurn 重置兩者
+
+#### F. mobile_city 移動都市 — UI 完整化
+
+##### F1. 舊實作問題
+- 按鈕標題寫「未使用」，給人停用感
+- 模式內只能交換一次（首次成功就 `_mobileCityUsedThisTurn=true`）
+- 沒有視覺提示哪些格子可移動
+- 沒有「完成移動」按鈕
+
+##### F2. 新實作（依 PM 規格）
+**視覺提示**：
+- 未使用且場上有 mobile_city → mobile_city 自身 `upgrade-glow`（外框發光）
+- 模式中 → 周圍 8 格的可移動設施全部 `upgrade-glow`
+- 已選 src → src 顯示 `move-src`
+
+**操作流程**：
+- 啟動模式：點按鈕「🏙 啟動移動都市」（btn-glow 強調）
+- 點第一個設施 → 選為 src
+- 點第二個格子 → 交換 + 計數 +1
+- 可繼續多次交換（只要 src 與 dst 都在範圍內）
+- 按「✅ 完成移動 (N)」結束 + `_mobileCityUsedThisTurn=true`
+- 或按「🏙 取消」結束（不算用過）
+
+**規則**：
+- 只能在 mobile_city 周圍 8 格內互相交換
+- 不能移動 mobile_city 自身
+- 不能移動大型設施與其 part（`isLarge` / `dept_store_part` / `ancient_factory_part`）
+- 每次交換各自觸發 onFacilityMoved（拆遷補償局/動態加強器/貿易特區商店搬入加成都會生效）
+
+##### F3. 計數
+- `G._mobileCityMoveCount` per-turn 計數，按鈕顯示總交換次數
+- startTurn 重置
+
+#### G. 其他驗證結果（無需改）
+| 設施 | 狀態 |
+|---|---|
+| `bomb_device` 爆破裝置 | ✅ startTurn 倒數 3 回合 → 消滅自己 + 隨機相鄰 |
+| `temp_shed` 臨時工棚 | ✅ doNext 自動賣出 +2 + 隨機賣廢墟 +2 |
+| `demolish_bureau` 拆遷補償局 | ✅ onFacilityMoved/destroyFacility 觸發 +4，freeRearrange 整段 1 次 |
+| `scrap_city` 廢鐵城 | ✅ destroyFacility 三點寫入 _scrapCity.x；finish 賣廢墟給 +x 收益 |
+| `demolish_fab` 建築廢料廠 | ✅ Session 20 修過 |
+

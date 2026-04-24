@@ -1244,9 +1244,9 @@ const BLDG = {
   demolish_fab:   { name:'建築廢料廠',   emoji:'🏗', desc:'投入時消滅這個設施，你的最終收益獲得+8。投入前每投入一次廢墟，投入這個設施時額外獲得收益+2。', req:'any', out:null, fn:v=>v, special:'demolish_fab' },
   temp_shed:      { name:'臨時工棚',     emoji:'🛖', desc:'回合結束時，自動賣出自己獲得+2收益；若場上有廢墟，隨機賣出一個廢墟並獲得+2收益。', req:'any', out:null, fn:v=>v, special:'temp_shed' },
   magnet_plate:   { name:'磁力板',       emoji:'🧲', desc:'每回合開始與相鄰隨機設施交換位置，並使其永久獲得+2。', req:'any', out:null, fn:v=>v, special:'magnet_plate' },
-  ruin_monument:  { name:'廢墟紀念碑',   emoji:'🗿', desc:'只能設置在廢墟上，資源通過時，小鎮每有一個廢墟，這個設施獲得收益+4。這個設施消滅時，不會設置廢墟。', req:'any', out:null, fn:v=>v+4, special:'ruin_monument', ruinOnly:true },
+  ruin_monument:  { name:'廢墟紀念碑',   emoji:'🗿', desc:'只能設置在廢墟上，資源通過時，小鎮每有一個廢墟，這個設施獲得收益+4。這個設施消滅時，不會設置廢墟。', req:'any', out:null, fn:v=>v, special:'ruin_monument', ruinOnly:true },
   demolish_bureau:{ name:'拆遷補償局',   emoji:'🏢', desc:'此回合，每次設施更動位置（排列模式整段視為 1 次），或者被消滅時，都會獲得收益 +4。', req:'any', out:null, fn:v=>v, special:'demolish_bureau' },
-  dynamic_amp:    { name:'動態加強器',   emoji:'🔋', desc:'任意→金錢 +4。此回合這個設施更動位置時，每次使這個設施額外獲得 +4。', req:'any', out:null, fn:v=>v, special:'dynamic_amp' },
+  dynamic_amp:    { name:'動態加強器',   emoji:'🔋', desc:'任意→金錢 +4。此回合這個設施更動位置時，每次使這個設施額外獲得 +4。', req:'any', out:'money', fn:v=>v+4, special:'dynamic_amp' },
   unstable_base:  { name:'地基不穩定站', emoji:'⚠️', desc:'使周圍4格的設施隨機交換位置，此回合使其獲得 +2。', req:'any', out:null, fn:v=>v, special:'unstable_base' },
 
   ruin:         { name:'廢墟', emoji:'🏚️', desc:'被消滅的設施殘骸', req:null, out:null, fn:v=>v, isRuin:true },
@@ -3737,34 +3737,39 @@ function onCell(r,c){
     return;
   }
 
-  // 移動都市：周圍 8 格兩兩交換（每回合一次）
+  // 移動都市：周圍 8 格兩兩交換（每回合一次模式，可在模式內多次交換，按確定結束）
   if(G._mobileCityMode){
     const mcCells=findCells((rr,cc,bb)=>bb==='mobile_city');
     const gn=GN();
     const inRangeOfAny=(rr,cc)=>mcCells.some(([mr,mc])=>Math.abs(rr-mr)<=1&&Math.abs(cc-mc)<=1&&!(rr===mr&&cc===mc));
     const bId=G.grid[r][c];
+    const _isMovableHere=(rr,cc,b)=>{
+      if(!inRangeOfAny(rr,cc)) return false;
+      if(b==='mobile_city') return false;
+      if(BLDG[b]&&BLDG[b].isLarge) return false;
+      if(b==='dept_store_part'||b==='ancient_factory_part') return false;
+      return true;
+    };
     if(!G._mobileCitySrc){
       if(!isFacility(bId)){addLog('🏙 請點擊移動都市周圍 8 格內的設施','b');return;}
-      if(!inRangeOfAny(r,c)){addLog('🏙 該格不在任何移動都市周圍 8 格內','b');return;}
-      if(bId==='mobile_city'){addLog('🏙 不能選擇移動都市本身','b');return;}
-      if(bId==='dept_store'||bId==='dept_store_part'){addLog('🏙 百貨公司不可移動','b');return;}
+      if(!_isMovableHere(r,c,bId)){addLog('🏙 該格不在範圍或不可移動（移動都市本身/大型/2×2 part 不可選）','b');return;}
       G._mobileCitySrc=[r,c];
-      addLog(`🏙 選中 ${BLDG[bId].emoji}${BLDG[bId].name} (${r+1},${c+1})，再點擊目標格（周圍 8 格內的空地/廢墟/設施）`);
+      addLog(`🏙 選中 ${BLDG[bId].emoji}${BLDG[bId].name} (${r+1},${c+1})，再點擊目標格`);
       render(); return;
     } else {
       const [sr,sc]=G._mobileCitySrc;
       if(r===sr&&c===sc){G._mobileCitySrc=null;addLog('🏙 取消選擇');render();return;}
       if(!inRangeOfAny(r,c)){addLog('🏙 目標格不在任何移動都市周圍 8 格內','b');return;}
       if(bId==='mobile_city'){addLog('🏙 不能覆寫移動都市本身','b');return;}
-      if(bId==='dept_store'||bId==='dept_store_part'){addLog('🏙 百貨公司不可移動','b');return;}
+      if(BLDG[bId]&&BLDG[bId].isLarge){addLog('🏙 大型設施不可移動','b');return;}
+      if(bId==='dept_store_part'||bId==='ancient_factory_part'){addLog('🏙 大型設施 part 不可移動','b');return;}
       const srcId=G.grid[sr][sc];
       swapCellData(sr,sc,r,c);
       onFacilityMoved(r,c,sr,sc);
       if(isFacility(bId)) onFacilityMoved(sr,sc,r,c);
-      addLog(`🏙 移動都市：交換 ${BLDG[srcId].emoji}${BLDG[srcId].name} (${sr+1},${sc+1}) ↔ (${r+1},${c+1})`,'g');
-      G._mobileCityMode=false;
+      G._mobileCityMoveCount=(G._mobileCityMoveCount||0)+1;
+      addLog(`🏙 移動都市：交換 ${BLDG[srcId].emoji}${BLDG[srcId].name} (${sr+1},${sc+1}) ↔ (${r+1},${c+1})（已移動 ${G._mobileCityMoveCount} 次，按「完成移動」結束）`,'g');
       G._mobileCitySrc=null;
-      G._mobileCityUsedThisTurn=true;
       pulse(r,c); render(); return;
     }
   }
@@ -4254,11 +4259,16 @@ const FACILITY_FX={
     fx.hit(300);
   },
   ruin_monument(fx){
+    // 投入此設施時，小鎮每有一個廢墟，G.profit += 4（直接收益，非 value 加成）
     const ruinN=G.ruinCells?G.ruinCells.size:0;
-    const add=ruinN*4;
-    const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value+add,'廢墟紀念碑');
-    addLog(`  🗿 廢墟紀念碑: +${add}（${ruinN}廢墟×4）→${nv2}`,'g');
-    fx.el={...fx.el,value:nv2};
+    if(ruinN>0){
+      const bonus=ruinN*4;
+      G.profit+=bonus;
+      addLog(`  🗿 廢墟紀念碑: ${ruinN}廢墟×4 = +${bonus}收益`,'g');
+      profitFlyFromCell(fx.r,fx.c,bonus);
+    } else {
+      addLog(`  🗿 廢墟紀念碑: 場上無廢墟，無加成`);
+    }
     fx.hit();
   },
   futures_market(fx){
@@ -4464,25 +4474,53 @@ const FACILITY_FX={
     fx.hit();
   },
   dynamic_amp(fx){
-    const mult=(G.turnFacMoved||0)>0?2:1;
-    let da_val=applyUpgradeBonus(fx.r,fx.c,fx.el.value*mult,'動態加強器');
-    fx.el={...fx.el,value:da_val};
-    const da_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
-    const da_parts=[`×${mult}`]; if(mult===2) da_parts.push('有移動'); if(da_upg>0) da_parts.push(`升級+${da_upg}`);
-    addLog(`  🔋 動態加強器: →${fx.el.value}（${da_parts.join('，')}）`);
+    // 任意→金錢+4 base；本回合此 cell 被移動的次數 ×4 額外加值
+    const k=`${fx.r},${fx.c}`;
+    const moves=(G.dynamicAmpMoves&&G.dynamicAmpMoves[k])||0;
+    const moveBonus=moves*4;
+    let da_val=fx.el.value+4+moveBonus;
+    da_val=applyUpgradeBonus(fx.r,fx.c,da_val,'動態加強器');
+    fx.el={value:da_val,type:'money'};
+    const parts=['+4'];
+    if(moveBonus>0) parts.push(`移動${moves}次×4=+${moveBonus}`);
+    addLog(`  🔋 動態加強器: →💰${fx.el.value}（${parts.join('，')}）`,'g');
     fx.hit();
   },
   unstable_base(fx){
-    const adj=[[fx.r-1,fx.c],[fx.r+1,fx.c],[fx.r,fx.c-1],[fx.r,fx.c+1]];
-    const adjMods=adj.map(([ar,ac])=>{
-      if(ar<0||ar>=GN()||ac<0||ac>=GN()) return 0;
-      const k=`${ar},${ac}`;
-      return (G.cellMods[k]||0)+(G.permCellMods&&G.permCellMods[k]||0);
-    });
-    const hasNeg=adjMods.some(m=>m<0);
-    const hasPos=adjMods.some(m=>m>0);
-    if(hasNeg){ fx.el={...fx.el,value:fx.el.value*2}; addLog(`  ⚠️ 地基不穩定站: ×2（相鄰有減益）`,'g'); }
-    else if(hasPos){ fx.el={...fx.el,value:Math.max(0,fx.el.value-1)}; addLog(`  ⚠️ 地基不穩定站: -1（相鄰有增益）`,'b'); }
+    // 周圍 4 格設施兩兩交換（隨機配對）；被交換的設施本回合 cellMods += 2
+    const gn=GN();
+    const adj=[[fx.r-1,fx.c],[fx.r+1,fx.c],[fx.r,fx.c-1],[fx.r,fx.c+1]]
+      .filter(([ar,ac])=>ar>=0&&ar<gn&&ac>=0&&ac<gn)
+      .filter(([ar,ac])=>{
+        const b=G.grid[ar][ac];
+        if(!isFacility(b)) return false;
+        // 排除大型設施與其 part（避免破壞 2×2 結構）
+        if(BLDG[b]&&BLDG[b].isLarge) return false;
+        if(b==='dept_store_part'||b==='ancient_factory_part') return false;
+        return true;
+      });
+    if(adj.length<2){
+      addLog(`  ⚠️ 地基不穩定站: 周圍可交換設施不足，無效果`);
+      fx.hit(); return;
+    }
+    // 隨機配對（洗牌後 0-1, 2-3 配對）；奇數時最後一個落單
+    const shuffled=[...adj].sort(()=>Math.random()-.5);
+    const swapped=[];
+    for(let i=0;i+1<shuffled.length;i+=2){
+      const [r1,c1]=shuffled[i], [r2,c2]=shuffled[i+1];
+      const b1=G.grid[r1][c1], b2=G.grid[r2][c2];
+      swapCellData(r1,c1,r2,c2);
+      onFacilityMoved(r2,c2,r1,c1);
+      onFacilityMoved(r1,c1,r2,c2);
+      // 兩格本回合 cellMods +2
+      const k1=`${r1},${c1}`, k2=`${r2},${c2}`;
+      G.cellMods[k1]=(G.cellMods[k1]||0)+2;
+      G.cellMods[k2]=(G.cellMods[k2]||0)+2;
+      swapped.push(`${BLDG[b1].name}(${r1+1},${c1+1})↔${BLDG[b2].name}(${r2+1},${c2+1})`);
+    }
+    if(swapped.length>0){
+      addLog(`  ⚠️ 地基不穩定站: 兩兩交換 ${swapped.join('、')}，被交換設施本回合 +2`,'g');
+    }
     fx.hit();
   },
   staffing(fx){
@@ -5254,10 +5292,15 @@ function finish(el,startVal){
     }
     G.partnerState._scrapCity=st;
   });
-  // H5: 災害控管局：回合結束每消滅一個設施+4
-  if(findCells((r,c,b)=>b==='disaster_bureau').length>0){
-    const destroyed=G.inv._facilitiesDestroyedThisTurn||0;
-    if(destroyed>0){ const db=destroyed*4; G.profit+=db; addLog(`🛡 災害控管局：${destroyed}設施被消滅×4 → +${db}收益`,'g'); }
+  // H5: 災害控管局：回合結束每消滅一個設施+4（per-turn 累計，防多 send 重複）
+  if(findCells((r,c,b)=>b==='disaster_bureau').length>0 && !G._disasterBureauFiredThisTurn){
+    const destroyed=G._facilitiesDestroyedThisTurn||0;
+    if(destroyed>0){
+      const db=destroyed*4;
+      G.profit+=db;
+      addLog(`🛡 災害控管局：${destroyed}設施被消滅×4 → +${db}收益`,'g');
+      G._disasterBureauFiredThisTurn=true;
+    }
   }
   // H6: 員工住宅：本回合沒有資源投入此設施 → +4 人材（per-cell；防多 send 重複）
   {
@@ -5840,6 +5883,7 @@ function startTurn(){
   G._mobileCityMode = false;
   G._mobileCitySrc = null;
   G._mobileCityUsedThisTurn = false;
+  G._mobileCityMoveCount = 0;
   G._ruinPassedThisTurn = false;
   G._omniGainedThisTurn = false;
   G._dispatchHqFiredThisTurn = false;
@@ -5848,6 +5892,9 @@ function startTurn(){
   G._bureauFiredThisTurn = new Set(); // 中央監督局：本回合已觸發過加成的格子（防多 send 重複）
   G._staffHousingHitThisTurn = new Set(); // 員工住宅：本回合被資源投入過
   G._staffHousingFiredThisTurn = new Set(); // 員工住宅：本回合已觸發過加成（防多 send 重複）
+  G.dynamicAmpMoves = {}; // 動態加強器：本回合每格被移動次數（per-cell, per-turn）
+  G._facilitiesDestroyedThisTurn = 0; // 災害控管局：本回合消滅設施總數（per-turn 累計）
+  G._disasterBureauFiredThisTurn = false; // 災害控管局：本回合是否已給過加成（防多 send 重複）
   // 人材倉庫：回合開始時若持有 ≥4 人材，本回合此設施對任意資源 → 商品 +4
   G._talentStorageActive = (G.talentCards||0) >= 4;
   // 防呆：每回合開始時保證 元素卡額外投入狀態 歸零，避免上一輪殘留導致按鈕失效
@@ -5926,10 +5973,16 @@ function startTurn(){
     magnets.forEach(([mr,mc])=>{
       const mk=`${mr},${mc}`;
       if(swapped.has(mk)) return;
-      // 排除 dept_store/part（會破壞 2×2 結構）
+      // 排除大型設施與其 part（會破壞 2×2 結構，且大型設施不應被移動）
       const adj=[[mr-1,mc],[mr+1,mc],[mr,mc-1],[mr,mc+1]]
-        .filter(([ar,ac])=>ar>=0&&ar<GN()&&ac>=0&&ac<GN()&&isFacility(G.grid[ar][ac])&&!swapped.has(`${ar},${ac}`)
-          &&G.grid[ar][ac]!=='dept_store'&&G.grid[ar][ac]!=='dept_store_part');
+        .filter(([ar,ac])=>{
+          if(ar<0||ar>=GN()||ac<0||ac>=GN()) return false;
+          const b=G.grid[ar][ac];
+          if(!isFacility(b)||swapped.has(`${ar},${ac}`)) return false;
+          if(BLDG[b]&&BLDG[b].isLarge) return false;
+          if(b==='dept_store_part'||b==='ancient_factory_part') return false;
+          return true;
+        });
       if(adj.length===0) return;
       const [tr,tc]=adj[Math.floor(Math.random()*adj.length)];
       const tmp=G.grid[tr][tc];
@@ -6754,11 +6807,26 @@ function renderGrid(){
     const rearrangeHi=G.freeRearrange&&G.grid[r][c]&&!isRuin&&!G.moveSrc?' upgrade-glow':'';
     const routeSrcHi=G._freeMoveLogisticsSrc&&G._freeMoveLogisticsSrc[0]===r&&G._freeMoveLogisticsSrc[1]===c?' move-src':'';
     const routeTargetHi=G._freeMoveLogistics&&!G._freeMoveLogisticsSrc&&b&&b.special==='redirect'?' upgrade-glow':'';
+    // 移動都市：未使用時自身發光提示；模式中時周圍 8 格可移動設施發光
+    let mcPromptHi='';
+    if(G._mobileCityMode){
+      const mcSrc=G._mobileCitySrc;
+      if(mcSrc&&mcSrc[0]===r&&mcSrc[1]===c){
+        mcPromptHi=' move-src';
+      } else {
+        const mcCells=findCells((rr,cc,bb)=>bb==='mobile_city');
+        const inRange=mcCells.some(([mr,mc])=>Math.abs(r-mr)<=1&&Math.abs(c-mc)<=1&&!(r===mr&&c===mc));
+        const movable=inRange&&isFacility(G.grid[r][c])&&G.grid[r][c]!=='mobile_city'&&!(BLDG[G.grid[r][c]]&&BLDG[G.grid[r][c]].isLarge)&&G.grid[r][c]!=='dept_store_part'&&G.grid[r][c]!=='ancient_factory_part';
+        if(movable) mcPromptHi=' upgrade-glow';
+      }
+    } else if(!G._mobileCityUsedThisTurn&&G.grid[r][c]==='mobile_city'){
+      mcPromptHi=' upgrade-glow'; // 自身發光提示可使用
+    }
     const evPreview=(G.nextEvent&&G.nextEventData&&G.nextEventData.cells&&G.nextEventData.cells.includes(`${r},${c}`))?' event-preview':'';
     const sellHi=(G._yongqingSellMode&&b)?' sell-shake':'';
     const devSelHi=(DEV._selectClearCells&&DEV._selectClearCells.has(`${r},${c}`))?' dev-select-clear':'';
     const isCenter=isCenterCell(r,c);
-    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${evPreview}${sellHi}${devSelHi}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
+    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${mcPromptHi}${evPreview}${sellHi}${devSelHi}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
       onmouseenter="cellHoverStart(event,${r},${c})"
       onmouseleave="cellHoverEnd()"
       onclick="onCell(${r},${c})"
@@ -6896,17 +6964,19 @@ function renderGrid(){
       <button class="abtn" style="flex:1;text-align:center;" onclick="G._freeMoveLogistics=false;G._freeMoveLogisticsSrc=null;addLog('🗺️ 跳過移動物流中心');render();">🗺️ 跳過移動</button>
     </div>`;
   }
-  // 移動都市：每回合一次交換周圍 8 格
+  // 移動都市：每回合可進入一次模式，模式內可多次交換周圍 8 格設施，按「完成移動」結束
   {
     const _mcN=findCells((r,c,b)=>b==='mobile_city').length;
     if(_mcN>0){
       if(G._mobileCityMode){
+        const _mcCnt=G._mobileCityMoveCount||0;
         h+=`<div style="display:flex;gap:6px;margin-top:6px;">
-          <button class="abtn" style="flex:1;text-align:center;" onclick="G._mobileCityMode=false;G._mobileCitySrc=null;addLog('🏙 取消移動都市操作');render();">🏙 取消移動</button>
+          <button class="abtn" style="flex:1;text-align:center;" onclick="G._mobileCityMode=false;G._mobileCitySrc=null;G._mobileCityUsedThisTurn=true;addLog('🏙 完成移動都市操作（共移動 ${_mcCnt} 次）','g');render();">✅ 完成移動 (${_mcCnt})</button>
+          <button class="abtn" style="flex:1;text-align:center;" onclick="G._mobileCityMode=false;G._mobileCitySrc=null;G._mobileCityMoveCount=0;addLog('🏙 取消移動都市操作');render();">🏙 取消</button>
         </div>`;
       } else if(!G._mobileCityUsedThisTurn){
         h+=`<div style="display:flex;gap:6px;margin-top:6px;">
-          <button class="abtn" style="flex:1;text-align:center;" onclick="G._mobileCityMode=true;G._mobileCitySrc=null;addLog('🏙 移動都市：點擊周圍 8 格內要交換的兩格');render();">🏙 移動都市交換（未使用）</button>
+          <button class="abtn btn-glow" style="flex:1;text-align:center;" onclick="G._mobileCityMode=true;G._mobileCitySrc=null;G._mobileCityMoveCount=0;addLog('🏙 移動都市：點擊周圍 8 格內要交換的兩格設施，可多次交換，完成後按「完成移動」');render();">🏙 啟動移動都市</button>
         </div>`;
       }
     }
@@ -8047,7 +8117,7 @@ function destroyFacility(r, c){
               if(G.partnerState._scrapCity){
                 G.partnerState._scrapCity.x=(G.partnerState._scrapCity.x||0)+2;
               }
-              G.inv._facilitiesDestroyedThisTurn=(G.inv._facilitiesDestroyedThisTurn||0)+1;
+              G._facilitiesDestroyedThisTurn=(G._facilitiesDestroyedThisTurn||0)+1;
             });
           }
           G.grid[cr][cc]='ruin';
@@ -8082,7 +8152,7 @@ function destroyFacility(r, c){
         G.partnerState._scrapCity.x=(G.partnerState._scrapCity.x||0)+2;
         addLog(`🏚 廢鐵城：疊加設施消滅，累積+2（x=${G.partnerState._scrapCity.x}）`,'g');
       }
-      G.inv._facilitiesDestroyedThisTurn=(G.inv._facilitiesDestroyedThisTurn||0)+1;
+      G._facilitiesDestroyedThisTurn=(G._facilitiesDestroyedThisTurn||0)+1;
     });
   }
   // 設施破壞者：+4 收益
@@ -8094,8 +8164,8 @@ function destroyFacility(r, c){
   // 廢鐵城：每消滅設施 x 永久+2
   const _scSt=G.partnerState._scrapCity;
   if(_scSt){ _scSt.x=(_scSt.x||0)+2; addLog(`🏚 廢鐵城：消滅設施，累積+2（x=${_scSt.x}）`,'g'); }
-  // 災害控管局：追蹤本回合消滅數
-  G.inv._facilitiesDestroyedThisTurn=(G.inv._facilitiesDestroyedThisTurn||0)+1;
+  // 災害控管局：追蹤本回合消滅數（per-turn 累計）
+  G._facilitiesDestroyedThisTurn=(G._facilitiesDestroyedThisTurn||0)+1;
   // Clear all keyed data for that cell
   const _dk=`${r},${c}`;
   clearKeyedData(_dk);
@@ -8230,6 +8300,21 @@ function onFacilityMoved(r,c,sr,sc){
       if(!G.permCellMods) G.permCellMods={};
       G.permCellMods[`${sr},${sc}`]=(G.permCellMods[`${sr},${sc}`]||0)+4;
       addLog(`🏚️ 地皮炒家：(${sr+1},${sc+1}) 變成空格，永久+4`,'g');
+    }
+  }
+  // 動態加強器：若被移動的設施是 dynamic_amp 本身（兩端任一），per-cell 計數 +1
+  if(sr!==undefined){
+    const _dstId=G.grid[r]&&G.grid[r][c];
+    const _srcId=G.grid[sr]&&G.grid[sr][sc];
+    if(_dstId==='dynamic_amp'){
+      if(!G.dynamicAmpMoves) G.dynamicAmpMoves={};
+      const dk=`${r},${c}`;
+      G.dynamicAmpMoves[dk]=(G.dynamicAmpMoves[dk]||0)+1;
+    }
+    if(_srcId==='dynamic_amp'){
+      if(!G.dynamicAmpMoves) G.dynamicAmpMoves={};
+      const dk=`${sr},${sc}`;
+      G.dynamicAmpMoves[dk]=(G.dynamicAmpMoves[dk]||0)+1;
     }
   }
   // 貿易特區：商店被移動到 trade_zone 周圍時 +2（僅當「從非鄰接移入鄰接」才觸發）
