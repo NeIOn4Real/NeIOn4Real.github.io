@@ -2945,3 +2945,67 @@ ancient_factory_part:{
 #### E. 邊界備註（未處理）
 - ancient_factory + 3 part 在 Murphy 事件被打亂時可能分裂（與 dept_store 同樣問題）。indestructible 旗標只擋 destroyFacility，不擋 Murphy。如需處理需新增 anchor/parts 對應追蹤。本 session 不處理，作為已知邊界。
 
+---
+
+### Session 24（2026-04-24）— 人力系設施全面驗證
+
+11 個人力設施審查（含已修過的 talent_storage / talent_market / giant_village 共 11 個）。發現 3 項問題，全數修復。
+
+#### A. 通用規則（PM 確認）
+**「投入時」如未特別說明，皆視為「投入此設施時」**。各設施 desc 解讀以此為準。
+
+#### B. talent_bank 人力銀行 — 觸發條件改為玩家主動投入
+
+##### B1. 舊實作問題
+desc：「投入 2 人材，下回合開始時 +4 人材」
+舊實作：資源每次通過 talent_bank → 自動消耗 G.talentCards 2 張 → 預約 +4
+- 違反「投入此設施時」規則：自動消耗任意人材，與設施位置無關
+
+##### B2. 新實作
+- **per-cell 計數**：新增 `G.talentBankCount` 欄位（加入 KEYED_DATA_FIELDS、G init、deserializeGame）
+- **觸發點**：`onTalentDropCell(r, c)` 末段加入 talent_bank 檢查
+- **邏輯**：每次玩家投入人材到 talent_bank cell 時 `talentBankCount[r,c] += 1`；達到 2 時 `-= 2` 並 `_talentBankPending += 4`
+- **FX 改為 passthrough**：資源通過時不消耗人材，僅 log 顯示當前累計
+
+##### B3. 跨回合性
+`talentBankCount` 不重置（持續累計），玩家可跨回合分批投入 2 人材觸發。
+
+#### C. dispatch_hq 派遣總部 — 去除 goods 限制
+
+##### C1. 問題
+desc：「此回合投入 8 人材時，使場上所有設施投入 2 人材」
+舊實作：限 `fx.el.type === 'goods'` 才觸發 + BLDG `req:'goods'`
+- desc 完全沒寫此限制
+
+##### C2. 修法
+- BLDG：`req:'goods'` → `req:'any'`、`out:'goods'` → `out:null`
+- FX：移除 `if(fx.el.type !== 'goods') return;`
+- 維持原本「場上設施 cellMods += 2」實作（等同「投入 2 人材」的 value 加成效果，但不觸發合夥人連鎖）
+
+#### D. staff_housing 員工住宅 — per-turn 判定（防多 send 重複）
+
+##### D1. 舊實作問題
+- 用 `G.inv._staffHousingHit`（per-send Set）
+- finish 觸發 → 同回合多次 send 各別 finish 都會給 +4 人材
+
+##### D2. 新實作（同 bureau pattern）
+- 新增 `G._staffHousingHitThisTurn`（per-turn Set）+ `G._staffHousingFiredThisTurn`（防同回合多 send 重複）
+- 兩個 Set 在 startTurn 重置
+- FX 通過時 `_staffHousingHitThisTurn.add(cellKey)`
+- finish 檢查：cell 不在 HitThisTurn 且不在 FiredThisTurn → +4 人材 + 加入 FiredThisTurn
+
+#### E. 其餘人力設施結果
+
+✅ 一致：
+| 設施 | 機制 |
+|---|---|
+| `talent_training` 人力訓練中心 | startTurn 每格 +1 人材 |
+| `labor_convert` 勞動轉換站 | 每投入 2 人材 → 通過時 value +4 |
+| `overtime` 加班辦公室 | 每投入 2 人材 → 通過時 value +8 |
+| `strike_board` 集體罷工台 | 投入時失一半人材，每個 value +8 |
+| `cafeteria` 員工食堂 | 商品通過 +1 人材（可被「重大食安」buff 失效） |
+| `staffing` 人力派遣 | 金錢通過 +1 人材（不消耗 value） |
+
+#### F. 待釐清（未處理）
+- `giant_village` 巨人村「人材為 0，獲得 +8 人材」desc 仍模糊（條件 vs 動作），PM 未答覆，本 session 暫不動
+

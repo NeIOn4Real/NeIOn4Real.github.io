@@ -1218,7 +1218,7 @@ const BLDG = {
   talent_market:  { name:'人材市場',     emoji:'🏦', desc:'投入金錢時 -8，獲得人材 +4。', req:'money', out:'money', fn:v=>v, special:'talent_market' },
   overtime:       { name:'加班辦公室',   emoji:'💼', desc:'每投入2人材，資源通過這個設施時 +8。', req:'any', out:null, fn:v=>v, special:'overtime' },
   talent_bank:    { name:'人力銀行',     emoji:'🏧', desc:'投入2人材，下回合開始時獲得人材 +4。', req:'any', out:null, fn:v=>v, special:'talent_bank' },
-  dispatch_hq:    { name:'派遣總部',     emoji:'🏢', desc:'此回合投入8人材時，使場上所有設施投入2人材。', req:'goods', out:'goods', fn:v=>v, special:'dispatch_hq' },
+  dispatch_hq:    { name:'派遣總部',     emoji:'🏢', desc:'此回合投入8人材時，使場上所有設施投入2人材。', req:'any', out:null, fn:v=>v, special:'dispatch_hq' },
   strike_board:   { name:'集體罷工台',   emoji:'📢', desc:'投入資源時你失去一半人材，每個獲得 +8。', req:'any', out:null, fn:v=>v, special:'strike_board' },
 
   // ── 物流中心流設施 ──
@@ -2163,7 +2163,7 @@ function isDemonNegDisabled(pid){
 }
 
 // 需要隨設施位置交換/轉移的鍵值資料欄位
-const KEYED_DATA_FIELDS=['bldgUpgrades','bldgUpgradesElec','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresPct','bulkStoreBonus','vaultCounts','cellRedirectDir'];
+const KEYED_DATA_FIELDS=['bldgUpgrades','bldgUpgradesElec','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresPct','bulkStoreBonus','vaultCounts','cellRedirectDir','talentBankCount'];
 const TCOLOR={ money:'var(--money)', material:'var(--mat)', goods:'var(--goods)', diamond:'#5bcefa' };
 const TLABEL={ money:'💰金錢', material:'🪨原料', goods:'📦商品', diamond:'💎鑽石' };
 const N=4; // base grid size
@@ -3104,6 +3104,7 @@ function newGame(){
     elementExtraUses:0,   // 元素卡本回合剩餘額外投入次數
     bldgUpgrades:{},      // 格子升級加成 {'r,c': bonus}
     bldgUpgradesElec:{}, // 電子專用格子加成（只有電子實例吃）{'r,c': bonus}
+    talentBankCount:{},  // 人力銀行：每格累計投入人材數，每滿 2 觸發 +4 預約
     leyaPctMods:{},      // 蕾雅升級百分比加成 {'r,c': +2/+4/...}
     cellOverlay:{},      // 物流之王疊加設施 {'r,c': bldgId}
     ruinCells:new Set(), // 廢墟格子
@@ -4176,16 +4177,12 @@ const FACILITY_FX={
     fx.hit();
   },
   talent_bank(fx){
-    // xlsx: 投入 2 人材，下回合開始時獲得人材 +4
-    if((G.talentCards||0)>=2){
-      G.talentCards-=2;
-      G._talentBankPending=(G._talentBankPending||0)+4;
-      addLog(`  🏧 人力銀行：消耗 2 人材，下回合開始 +4 人材（累計預約 ${G._talentBankPending}）`,'g');
-      if(typeof renderTalentPanel==='function') renderTalentPanel();
-    } else {
-      addLog(`  🏧 人力銀行：人材不足 2，略過`,'b');
-    }
-    fx.hit();
+    // 觸發條件改為「玩家主動投入 2 人材到此設施」（在 onTalentDropCell 處理），
+    // 資源通過此設施時不消耗人材，僅 passthrough
+    const k=`${fx.r},${fx.c}`;
+    const cnt=(G.talentBankCount&&G.talentBankCount[k])||0;
+    addLog(`  🏧 人力銀行：通過（已投入人材 ${cnt}/2，每滿 2 觸發 +4 預約）`);
+    fx.next(300);
   },
   strike_board(fx){
     // 投入資源時失去一半人材，每個 +8 數值（依 xlsx 新規格）
@@ -4341,8 +4338,8 @@ const FACILITY_FX={
     fx.hit();
   },
   dispatch_hq(fx){
-    // 依 xlsx 新規格：此回合投入 8 人材以上時，通過此設施觸發「場上所有設施本回合 +2 加成」（每回合最多一次）
-    if(fx.el.type!=='goods') return;
+    // 依 PM 規格：此回合投入 8 人材以上時，通過此設施觸發「場上所有設施本回合 +2 加成」
+    // （每回合最多一次；不限資源類型）
     if((G._hrTalentUsedCount||0)>=8 && !G._dispatchHqFiredThisTurn){
       G._dispatchHqFiredThisTurn=true;
       let count=0;
@@ -4668,9 +4665,9 @@ const FACILITY_FX={
 
   // ══ 人力系新設施 ══
   staff_housing(fx){
-    // 通過時記錄已投入（回合結束時檢查）
-    G.inv._staffHousingHit=G.inv._staffHousingHit||new Set();
-    G.inv._staffHousingHit.add(`${fx.r},${fx.c}`);
+    // 通過時記錄本回合已投入（per-turn，避免多次 send 重複觸發）
+    if(!G._staffHousingHitThisTurn) G._staffHousingHitThisTurn=new Set();
+    G._staffHousingHitThisTurn.add(`${fx.r},${fx.c}`);
     fx.next(300);
   },
 };
@@ -5262,14 +5259,19 @@ function finish(el,startVal){
     const destroyed=G.inv._facilitiesDestroyedThisTurn||0;
     if(destroyed>0){ const db=destroyed*4; G.profit+=db; addLog(`🛡 災害控管局：${destroyed}設施被消滅×4 → +${db}收益`,'g'); }
   }
-  // H6: 員工住宅：回合結束未投入則+4人材
-  findCells((r,c,b)=>b==='staff_housing').forEach(([sr,sc])=>{
-    const hitSet=G.inv._staffHousingHit||new Set();
-    if(!hitSet.has(`${sr},${sc}`)){
+  // H6: 員工住宅：本回合沒有資源投入此設施 → +4 人材（per-cell；防多 send 重複）
+  {
+    if(!G._staffHousingHitThisTurn) G._staffHousingHitThisTurn=new Set();
+    if(!G._staffHousingFiredThisTurn) G._staffHousingFiredThisTurn=new Set();
+    findCells((r,c,b)=>b==='staff_housing').forEach(([sr,sc])=>{
+      const k=`${sr},${sc}`;
+      if(G._staffHousingHitThisTurn.has(k)) return;
+      if(G._staffHousingFiredThisTurn.has(k)) return;
       G.talentCards=(G.talentCards||0)+4;
-      addLog(`🏠 員工住宅 (${sr+1},${sc+1})：未投入，+4人材`,'g');
-    }
-  });
+      addLog(`🏠 員工住宅 (${sr+1},${sc+1})：本回合未投入，+4人材`,'g');
+      G._staffHousingFiredThisTurn.add(k);
+    });
+  }
   // H7: 中央監督局：「此回合沒有資源投入此設施」時，場上每有一個對應設施 +2
   // per-cell 判定（用 G._bureauHitThisTurn）；G._bureauFiredThisTurn 防止同回合多次 send 重複觸發
   {
@@ -5844,6 +5846,8 @@ function startTurn(){
   G._logCenterRotated = new Set(); // 物流中心：每回合最多旋轉一次
   G._bureauHitThisTurn = new Set(); // 中央監督局：本回合被資源投入過的監督局格子
   G._bureauFiredThisTurn = new Set(); // 中央監督局：本回合已觸發過加成的格子（防多 send 重複）
+  G._staffHousingHitThisTurn = new Set(); // 員工住宅：本回合被資源投入過
+  G._staffHousingFiredThisTurn = new Set(); // 員工住宅：本回合已觸發過加成（防多 send 重複）
   // 人材倉庫：回合開始時若持有 ≥4 人材，本回合此設施對任意資源 → 商品 +4
   G._talentStorageActive = (G.talentCards||0) >= 4;
   // 防呆：每回合開始時保證 元素卡額外投入狀態 歸零，避免上一輪殘留導致按鈕失效
@@ -7920,6 +7924,19 @@ function onTalentDropCell(e, r, c) {
     G.cellMods[`${r},${c}`]=(G.cellMods[`${r},${c}`]||0)-2;
     addLog(`🧳 北漂者：非中央設施，本回合-2`,'b');
   }
+  // 人力銀行：每投入 2 人材到此設施，預約下回合 +4 人材（per-cell 累計）
+  if(G.grid[r][c]==='talent_bank'){
+    const k=`${r},${c}`;
+    if(!G.talentBankCount) G.talentBankCount={};
+    G.talentBankCount[k]=(G.talentBankCount[k]||0)+1;
+    if(G.talentBankCount[k]>=2){
+      G.talentBankCount[k]-=2;
+      G._talentBankPending=(G._talentBankPending||0)+4;
+      addLog(`🏧 人力銀行 (${r+1},${c+1})：投入第 2 人材，下回合 +4 人材（累計預約 ${G._talentBankPending}）`,'g');
+    } else {
+      addLog(`🏧 人力銀行 (${r+1},${c+1})：投入第 1 人材，再投入 1 個觸發效果`,'b');
+    }
+  }
   // 分身大師：人材投入時，周遭（8方向）隨機一格設施額外 +2
   if(hasPartner('clone_master')){
     const gn=GN();
@@ -9300,6 +9317,7 @@ function deserializeGame(save){
   if(!data.permCellMods||typeof data.permCellMods!=='object') data.permCellMods={};
   if(!data.cellRedirectDir||typeof data.cellRedirectDir!=='object') data.cellRedirectDir={};
   if(!data.bldgUpgradesElec||typeof data.bldgUpgradesElec!=='object') data.bldgUpgradesElec={};
+  if(!data.talentBankCount||typeof data.talentBankCount!=='object') data.talentBankCount={};
   // 跨存檔不應殘留的動畫/pending 旗標
   data._winPending = false;
   data._turnPitchOffset = 0;
