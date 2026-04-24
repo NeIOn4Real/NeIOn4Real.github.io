@@ -3240,3 +3240,49 @@ desc：「此回合投入 8 人材時，使場上所有設施投入 2 人材」
 | 自由市場 | ✅ 純 fn 處理（任意→金錢，值不變） |
 | 稅務局 | ✅ startTurn 隨機升級 +1；finish 扣本回合增量 10% |
 
+---
+
+### Session 28（2026-04-24）— 電子合夥人全面驗證
+
+4 個電子詞條合夥人審查，發現 1 個死碼 + 1 個範圍漏洞。
+
+#### A. 電子放電惡魔 死碼修復（同 elec_conveyor / logistics_amp 根因）
+
+##### A1. 舊實作問題
+追蹤點 `G.inv._elecHits / _nonElecHits` 寫在 `stepWithMover` 通用 fn 處理器內（原 line 5049）。但所有 special FX 設施（**包含全部電子設施** elec_factory / elec_conveyor / elec_shop / mega_elec_supply / center_elec_net、終點站、廢墟紀念碑、商店類等）都在 `if(_fxDone) return;` 早 return，**永遠走不到通用處理器**。
+
+**後果**：
+- 通過電子工廠等 special 電子設施 → 不算電子命中（+2 收益拿不到）
+- 通過終點站等 special 非電子設施 → 不算非電子命中（-2 也不會扣）
+- 只有純 fn 設施（factory / shop / mat_factory / refinery / warehouse / booster / converter）會被計入
+
+##### A2. 新實作（依 PM 規格）
+- 追蹤點移到 `if(bId)` 起始後、special FX dispatch 之前
+- **base + 每個 overlay 分別計算**（PM 明確指示：物流中心疊加電子設施也會被扣非電子收益、加電子收益）
+- 不看 type，不看 special 類型，只看 `hasTag(id, 'electronic')` 判定
+
+##### A3. 範例
+| 場景 | 電子命中 | 非電子命中 |
+|---|---|---|
+| 通過純 factory | 0 | 1 |
+| 通過 elec_factory 基底 | 1 | 0 |
+| 通過 logistics_up 基底 + 2 個蕾雅疊加 elec_shop | 0（redirect 非電子）→ 1 非電子 | 同上 |
+| 通過 logistics_up 基底 + 2 個 elec_shop 疊加 | **+2 電子命中**（2 overlay）+ **+1 非電子命中**（基底）| 綜合 +4 收益 - 2 收益 = +2 |
+
+#### B. 雷電法王 擴展電子設施抽選池
+
+##### B1. 舊實作
+抽選池硬寫 `['elec_factory','elec_conveyor','elec_shop']`，漏掉 `mega_elec_supply` 與 `center_elec_net`。
+
+##### B2. 新實作（依 PM 選 B）
+改為動態抽選：`Object.keys(BLDG).filter(id => hasTag(id,'electronic') && !id.endsWith('_part'))`
+- 包含全部 5 個電子設施
+- 排除 part（雖目前無電子 part，防未來擴展）
+- 若抽到 mega_elec_supply（需 2×2）或 center_elec_net（需中央格），卡片進手牌可能暫時放不下 — 屬設計特性
+
+#### C. 其餘電子合夥人驗證結果（無需改）
+| 合夥人 | 機制 |
+|---|---|
+| 電子精工師 | ✅ startTurn 計數 +1，≥3 觸發 addHand('elec_factory') |
+| 訪問網路碼語者 | ✅ startTurn addHand('center_elec_net')；onSettle G.profit -= 4 |
+

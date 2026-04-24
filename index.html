@@ -2257,7 +2257,8 @@ function processCountTrigger(pid){
       addLog(`⚡ 雷電法王：雷電計數≥3，消滅 ${BLDG[G.grid[dr][dc]]?.name||'設施'} (${dr+1},${dc+1})！`,'b');
       destroyFacility(dr,dc);
     }
-    const elecFacs=['elec_factory','elec_conveyor','elec_shop'];
+    // 所有帶 electronic tag 的 BLDG 都可能抽到（排除 part 設施）
+    const elecFacs=Object.keys(BLDG).filter(id=>hasTag(id,'electronic')&&!id.endsWith('_part'));
     const pick=elecFacs[Math.floor(Math.random()*elecFacs.length)];
     addHand(pick);
     addLog(`⚡ 雷電法王：獲得 ${BLDG[pick].emoji}${BLDG[pick].name}！`,'g');
@@ -4862,6 +4863,18 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
     const b=BLDG[bId];
     TUT.hookStep(bId);
 
+    // ── 電子放電惡魔：每通過一個設施（base + 每個 overlay）分別計算電子/非電子命中 ──
+    // 必須放在 special FX dispatch 之前，否則 special 設施早 return 導致漏算
+    if(hasPartner('elec_discharge_demon')){
+      if(hasTag(bId,'electronic')) G.inv._elecHits=(G.inv._elecHits||0)+1;
+      else G.inv._nonElecHits=(G.inv._nonElecHits||0)+1;
+      const _eddOvs=getOverlays(r,c);
+      _eddOvs.forEach(ovId=>{
+        if(hasTag(ovId,'electronic')) G.inv._elecHits=(G.inv._elecHits||0)+1;
+        else G.inv._nonElecHits=(G.inv._nonElecHits||0)+1;
+      });
+    }
+
     // ── 物流放大器：下一設施本回合 +8 value（不論是否為 special FX）──
     // 在 special FX dispatch 之前消費 ampAct，避免 special FX 早 return 跳過通用處理器導致死碼
     if(G.inv.ampAct){
@@ -5046,12 +5059,8 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       if(hasPartner('gluttony')&&b.req===effType&&b.req!==el.type) el={...el,type:effType};
       G.inv.facHit=(G.inv.facHit||0)+1;
       if(G.inv.facPath) G.inv.facPath.push(bId);
-      // 電子放電惡魔：追蹤電子/非電子設施命中
-      if(hasPartner('elec_discharge_demon')){
-        const isElec=hasTag(bId,'electronic');
-        if(isElec) G.inv._elecHits=(G.inv._elecHits||0)+1;
-        else G.inv._nonElecHits=(G.inv._nonElecHits||0)+1;
-      }
+      // 電子放電惡魔：已於 stepWithMover 進入此 cell 時統一處理（FX dispatch 之前），
+      // base + 每個 overlay 分別計算，涵蓋所有 special 設施
       // 電子輸送帶：已於 stepWithMover 進入此 cell 時統一處理（FX dispatch 之前）
       const _prevVal=el.value; // 大熱波：記錄轉換前數值
       if(isCenterCell(r,c)){ G.inv.cenHits=(G.inv.cenHits||0)+1; G.inv.hwCenter=true; }
