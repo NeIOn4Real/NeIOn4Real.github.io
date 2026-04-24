@@ -54,6 +54,42 @@
 
 ---
 
+## 效果文本（desc）解讀規則
+
+> ⚠️ **這是所有設施 desc 與實作對照的全域規範**，PM 確認於 Session 26。新增/修改設施時務必依此規則。
+
+| 文本寫法 | 對應實作 | 程式碼欄位 |
+|---|---|---|
+| **「投入時」** | 視為「投入此設施時」 | — |
+| **「獲得 +N」** | 投入資源的 value += N（per-pass）| `fx.el.value += N` |
+| **「獲得收益 +N」** | 直接收益 += N | `G.profit += N` |
+| **「永久獲得 +N」** | 跨回合持久升級 += N | `G.bldgUpgrades[k] += N` |
+| **「本回合獲得 +N」** | 本回合所有經過皆吃 | `G.cellMods[k] += N` |
+| **「投入 N 人材」** | 玩家主動投入人材到此設施 N 次 | （on `onTalentDropCell`）|
+
+### 進階變體
+- **「永久獲得 +N（電子）」** — 只有電子實例（基底/疊加）才吃 → `G.bldgUpgradesElec[k] += N`
+- **「下一個設施 +N」** — 用 flag（如 `G.inv.ampAct` / `G.inv._elecConveyorActive`）在進入下一格時消費 → 必須在 `special FX dispatch` **之前**處理（避免 special FX 早 return 跳過）
+
+### 觸發時機關鍵字
+| 寫法 | 觸發點 |
+|---|---|
+| 「投入時 / 通過時」 | `FACILITY_FX[bId](fx)` 中 |
+| 「回合開始時」 | `startTurn()` 中 |
+| 「回合結束時」 | `finish()` 中（per-send，需注意多 send 累加問題）|
+| 「最終收益時」 | `finish()` 末段（onSettle 之後）|
+| 「設置時 / 放置時」 | `onFacilityPlaced(r,c,bId)` 中 |
+| 「移動時 / 更動位置時」 | `onFacilityMoved(r,c,sr,sc)` 中 |
+| 「消滅時」 | `destroyFacility(r,c)` 中 |
+
+### per-turn 防重複觸發 pattern
+若 desc 是「此回合 ... 觸發一次」類型（如 中央監督局、員工住宅、災害控管局、派遣總部、物流中心轉向），需要：
+- `G._XxxHitThisTurn` (Set) — 追蹤本回合命中過的 cell
+- `G._XxxFiredThisTurn` (Set/bool) — 防止同回合多次 send 重複觸發
+- 兩者都在 `startTurn()` 重置
+
+---
+
 ## 設施系統
 
 ### 基礎設施
