@@ -2712,3 +2712,82 @@ elec_shop 格子 `bldgUpgrades = +2`，蕾雅疊加一個 elec_shop 上去。投
 - 沒呼叫 applyUpgradeBonus 的 special FX（如 `small_shop`、`scalper`、`dept_store` 等）行為不變（這些 base context 本來就沒套 upgrade，是另一個既有議題，不在本 session 範圍）
 - redirect 設施有自己的 upgrade 邏輯（line 4842 條件：`_hasOverlay ? 0 : ...`），不經 `applyUpgradeBonus`，不受影響
 
+---
+
+### Session 21（2026-04-24）— 中央詞條設施全面對齊
+
+依 PM 指示審查 8 個中央 tag 設施，發現 4 項不一致並修復。
+
+#### A. 移除 trade_hub / tech_lab（重複舊版）
+
+##### A1. 問題
+- `trade_hub`（外部貿易代理 R 級）與 `center_trade`（中央貿易代理 SSR 級）desc 幾乎相同但實作差異大（前者 +1% 變動、後者 +4 固定，且舊版缺 material 分支）
+- `tech_lab`（科技研發中心 R 級）與 `center_tech`（中央科技研發 SSR 級）同樣情況
+- PM 確認：舊版（trade_hub / tech_lab）已被新版（center_trade / center_tech）取代，應移除
+
+##### A2. 修法
+- 從 `BLDG` / `BLDG_RARITY` / `TAGS` / `FACILITY_FX` / `MEGA_SIM_FX` / `COMPOUND_EXCLUDE` 全部移除
+- `deserializeGame` 加入舊存檔遷移：`trade_hub` cells → `center_trade`、`tech_lab` cells → `center_tech`
+
+#### B. 中央監督局判定改為 per-cell（依 PM 釐清）
+
+##### B1. 問題
+desc 寫「此回合沒有資源投入時，每經過一個 X，最終收益 +2」。PM 釐清：「沒有資源投入」指「沒有資源投入**此設施**（per-cell）」，並非「整個 invest 沒命中設施」（per-send）。
+
+##### B2. 舊實作（錯）
+```js
+if((G.inv.facHit||0)===0){  // per-send 全域判定
+  // 觸發
+}
+```
+
+##### B3. 新實作
+- 新增兩個 per-turn Set：
+  - `G._bureauHitThisTurn`：本回合被資源投入過的監督局格子
+  - `G._bureauFiredThisTurn`：本回合已觸發加成的格子（防同回合多次 send 重複）
+- 三個 bureau FX (`center_factory_bureau` / `center_shop_bureau` / `center_mat_bureau`) 通過時 `_bureauHitThisTurn.add(cellKey)`
+- finish() 改為 per-cell 判定：cell 不在 `_bureauHitThisTurn` 且不在 `_bureauFiredThisTurn` → 觸發 + 加入 fired
+- startTurn 重置兩個 Set
+
+##### B4. 順帶釐清
+- `_shop` 計數沿用 `countAllShops()`（含疊加層商店，正確）
+- `factory` 計數含 `factory + adv_factory`、`mat` 計數含 `mat_factory + adv_mat_factory`（沿用舊邏輯，正確）
+
+#### C. center_elec_net 中央建築疊加（依 PM 全面實作）
+
+##### C1. desc 重新解讀
+「你可以將中央建築蓋在此設施上」原本完全沒實作。PM 釐清：
+- 擁有「中央」(center) tag 的建築都可以**直接**疊在 `center_elec_net` 上（無需合夥人）
+- 阿北 (logistics_king) / 倉儲女王 (storage_queen)：可在現有規則上額外疊加物流中心，但**總疊加數不超過該合夥人的層數上限**（阿北 1、倉儲女王 2）
+- 蕾雅 (leya)：
+  - center_elec_net 同名可以重疊（蕾雅機制）
+  - 中央建築疊在 center_elec_net 上後，那些**同名**建築也可以疊加（蕾雅疊加路徑要支援「base 或既有 overlay 同名」）
+
+##### C2. 新增疊加路徑
+位置：placeBldg 中、蕾雅同名疊加之後、廢墟紀念碑之前
+```js
+if(G.grid[r][c]==='center_elec_net' && hasTag(bldgId,'center') && bldgId!=='center_elec_net'){
+  if(BLDG[bldgId].noOverlay) return false;
+  const _maxOv=hasPartner('storage_queen')?2:1;
+  if(_ovs.length>=_maxOv) return false;
+  // 疊加並呼叫 onFacilityPlaced
+}
+```
+- 自身（center_elec_net）疊在 center_elec_net 上：透過蕾雅同名路徑，不走此路徑（避免與蕾雅獎勵重疊）
+- noOverlay 設施（trade_port / trade_zone）即使有 center tag 也擋下
+
+##### C3. 蕾雅同名疊加擴展
+- 條件由 `G.grid[r][c]===bldgId` 擴展為 `G.grid[r][c]===bldgId || getOverlays(r,c).includes(bldgId)`
+- 支援「中央建築先疊在 center_elec_net 上 → 蕾雅可繼續同名疊加」的情境
+
+##### C4. 拖曳預覽更新
+- `isLeyaUpgrade` 加入 `_ovsAtCell.includes(bldgDragging)` 條件
+- 新增 `isCenterNetOverlay` 條件，視覺反饋（橘色光暈）
+
+##### C5. 層數合併計算
+所有疊加機制共用 `_maxOv = storage_queen ? 2 : 1`：
+- 無合夥人 + center_elec_net 上：1 層
+- 阿北：1 層（與物流疊加共用）
+- 倉儲女王：2 層（與物流疊加共用）
+- 蕾雅：無上限（蕾雅同名疊加機制本身不檢查層數）
+
