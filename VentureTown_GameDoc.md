@@ -3436,5 +3436,51 @@ desc：「此回合投入 8 人材時，使場上所有設施投入 2 人材」
 | 廢品戰士 | ✅ | onTurnStart addHand('ruin') |
 | 炸彈客 | ✅ | 放 1-3 bomb + 總數×2 收益 |
 | 流浪漢 | ✅ | 放 1 廢墟 + 總數×2 收益 |
-| 廢墟掠奪者 | ⏳ | 「獲得並重疊廢墟」Q3 細節待釐清 |
+| 廢墟掠奪者 | ✅ Session 31 補完（見 E）|
+
+#### E. 廢墟掠奪者 完整實作（PM 選 Q3a.1=B/Q3a.2=B/Q3b=A）
+
+##### E1. PM 規格確認
+- **Q3a.1 = B**：隨機選定場上一個廢墟作為疊加目標（非玩家手動）
+- **Q3a.2 = B**：疊加廢墟計入「場上廢墟數」（影響流浪漢/廢墟紀念碑/無冕之王等）
+- **Q3b = A**：per-turn 觸發（整回合只觸發 1 次，不是 per-send）
+
+##### E2. 新增欄位
+- `G.ruinStacks = {'r,c': N}` — per-cell 疊加廢墟計數（基底廢墟之外的額外數量）
+- 加入 `KEYED_DATA_FIELDS`（隨廢墟格移動/清除自動處理；swapCellData 帶著走）
+- G init / deserializeGame 補初始化
+
+##### E3. 新增 helper
+```js
+function countAllRuins(){
+  if(!G.ruinCells) return 0;
+  let total=G.ruinCells.size;
+  if(G.ruinStacks) for(const k in G.ruinStacks){
+    if(G.ruinCells.has(k)) total+=G.ruinStacks[k]||0;  // 只計仍是廢墟的格子
+  }
+  return total;
+}
+```
+
+##### E4. 廢墟掠奪者 FX（ruin handler）
+- 條件：`hasPartner('ruin_scavenger') && !G._ruinScavengerUsedThisTurn`
+- 觸發時：flag=true；value -= penalty (4/6 隨機)；隨機選一個 `G.ruinCells` 成員作為 target；`G.ruinStacks[target] += penalty`
+- `startTurn` 重置 `_ruinScavengerUsedThisTurn`
+
+##### E5. 受 countAllRuins 影響的設施/合夥人
+以下改為用 `countAllRuins()` 取代 `G.ruinCells.size`：
+- 無冕之王 ruin handler 的「每廢墟 ×2 收益」
+- 流浪漢 onTurnStart 的「每廢墟 +2 收益」
+- 廢墟紀念碑 FX 的「每廢墟 +4 收益」
+
+保持用 `ruinCells.size`（格子數）的場景：
+- UI 提示（ruin_monument 放置時「共 N 個廢墟格」）
+- 回收阿罵 onTurnStart 的「廢墟 ≤1 就 return」判斷
+- 臨時工棚 / 廢鐵城 finish 選目標廢墟（需要實際格子）
+
+##### E6. 回收阿罵 stacks 轉移
+集中廢墟時：非 target 格的 `ruinStacks + 1 (base ruin)` 全部轉移到 target 的 stacks。
+
+##### E7. 渲染
+廢墟 cell 右上角顯示 `+N`（疊加數量），cname 顯示「廢墟 ×N+1」（總數包含基底）。
 

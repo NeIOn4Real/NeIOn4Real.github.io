@@ -1840,18 +1840,24 @@ const PARTNERS = {
       const target=ruins[0];
       const [tr,tc]=target.split(',').map(Number);
       let moveCount=0;
+      let stackedIn=0; // 廢墟掠奪者疊加計數轉移
+      if(!G.ruinStacks) G.ruinStacks={};
       for(let i=1;i<ruins.length;i++){
         const [r,c]=ruins[i].split(',').map(Number);
+        // 保留此格的疊加計數並併入目標（clearKeyedData 會清掉，所以先讀）
+        const srcStack=(G.ruinStacks[ruins[i]])||0;
         G.grid[r][c]=null;
         G.ruinCells.delete(ruins[i]);
-        // 清理附帶資料
         clearKeyedData(ruins[i]);
+        // 重新疊加：原本此格的廢墟（+1 base）+ 該格已有的疊加（srcStack）全部算進目標
+        G.ruinStacks[target]=(G.ruinStacks[target]||0)+1+srcStack;
+        stackedIn+=1+srcStack;
         moveCount++;
-        // 視為移動一次設施 → 觸發 onFacilityMoved 連鎖（拆遷補償局/動態加強器/地皮炒家/貿易特區等）
+        // 視為移動一次設施 → 觸發 onFacilityMoved 連鎖
         onFacilityMoved(tr,tc,r,c);
       }
       if(moveCount>0){
-        addLog(`👵 回收阿罵：${moveCount}個廢墟集中到 (${tr+1},${tc+1})，視為${moveCount}次移動`,'g');
+        addLog(`👵 回收阿罵：${moveCount}個廢墟格集中到 (${tr+1},${tc+1})（共疊加 ${stackedIn}），視為${moveCount}次移動`,'g');
       }
     },
   },
@@ -1902,11 +1908,11 @@ const PARTNERS = {
         G.ruinCells.add(`${r},${c}`);
         addLog(`🚶 流浪漢：(${r+1},${c+1}) 設置廢墟`);
       }
-      const ruinCount=G.ruinCells?G.ruinCells.size:0;
+      const ruinCount=countAllRuins();
       if(ruinCount>0){
         const bonus=ruinCount*2;
         G.profit+=bonus;
-        addLog(`🚶 流浪漢：${ruinCount}個廢墟，+${bonus}收益`,'g');
+        addLog(`🚶 流浪漢：${ruinCount}個廢墟（含疊加），+${bonus}收益`,'g');
       }
     },
   },
@@ -2161,7 +2167,7 @@ function isDemonNegDisabled(pid){
 }
 
 // 需要隨設施位置交換/轉移的鍵值資料欄位
-const KEYED_DATA_FIELDS=['bldgUpgrades','bldgUpgradesElec','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresValue','bulkStoreBonus','vaultCounts','cellRedirectDir','talentBankCount'];
+const KEYED_DATA_FIELDS=['bldgUpgrades','bldgUpgradesElec','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresValue','bulkStoreBonus','vaultCounts','cellRedirectDir','talentBankCount','ruinStacks'];
 const TCOLOR={ money:'var(--money)', material:'var(--mat)', goods:'var(--goods)', diamond:'#5bcefa' };
 const TLABEL={ money:'💰金錢', material:'🪨原料', goods:'📦商品', diamond:'💎鑽石' };
 const N=4; // base grid size
@@ -3112,6 +3118,7 @@ function newGame(){
     inv:{}, // 每次投入重置的臨時 flags（sendEl 初始化）
     logisticsVault:{},  // 物流倉儲存值
     futuresValue:{},    // 期貨交易所本回合加成值 {'r,c': 0|2|4|8}
+    ruinStacks:{},       // 廢墟掠奪者疊加廢墟計數 {'r,c': N}（該 cell 除了基底廢墟外的額外疊加數）
     bulkStoreBonus:{},  // 量販店每格每組獎勵值（初始 8，每次觸發 +4 累積）
     vaultCounts:{},     // 物流倉每格計數（xlsx 新規格：計數≥3時 +8 收益）
     cellRedirectDir:{}, // 物流中心當前方向 {"r,c": 'right'|'down'|'left'|'top'}
@@ -3246,6 +3253,17 @@ function addHandMaybeCompound(id){
 
 // ── 百貨公司 2×2 放置：尋找包含(r,c)的 2×2 商店區域 ──
 function _isNonDeptShop(bId){ return isShopType(bId)&&bId!=='dept_store'&&bId!=='dept_store_part'; }
+// 場上廢墟總數（基底廢墟格 + 廢墟掠奪者疊加計數；只計目前仍是廢墟的格子，避免殘留計數誤算）
+function countAllRuins(){
+  if(!G.ruinCells) return 0;
+  let total=G.ruinCells.size;
+  if(G.ruinStacks){
+    for(const k in G.ruinStacks){
+      if(G.ruinCells.has(k)) total+=G.ruinStacks[k]||0;
+    }
+  }
+  return total;
+}
 function _isFactoryType(bId){ return bId==='factory'||bId==='adv_factory'; }
 function findFactory2x2(r,c){
   const gn=GN();
@@ -4274,8 +4292,8 @@ const FACILITY_FX={
     fx.hit(300);
   },
   ruin_monument(fx){
-    // 投入此設施時，小鎮每有一個廢墟，G.profit += 4（直接收益，非 value 加成）
-    const ruinN=G.ruinCells?G.ruinCells.size:0;
+    // 投入此設施時，小鎮每有一個廢墟（含疊加），G.profit += 4（直接收益）
+    const ruinN=countAllRuins();
     if(ruinN>0){
       const bonus=ruinN*4;
       G.profit+=bonus;
@@ -4854,21 +4872,28 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
   if(bId==='ruin'){
     G._ruinPassedThisTurn=true; // 移動都市負面檢查用
     G.inv.ruinHits=(G.inv.ruinHits||0)+1; // 建築廢料廠用：本次投入經過廢墟次數
-    // 無冕之王：每次投入廢墟前，所有廢墟收益+2（累積）
+    // 無冕之王：每次投入廢墟前，所有廢墟（含疊加）收益+2（累積）
     if(hasPartner('uncrowned_king')){
-      const ruinCount=G.ruinCells?G.ruinCells.size:0;
+      const ruinCount=countAllRuins();
       const add=ruinCount*2;
       G.inv._uncrownedBonus=(G.inv._uncrownedBonus||0)+add;
       addLog(`  👑 無冕之王：投入廢墟，${ruinCount}廢墟×2 = +${add}（累計${G.inv._uncrownedBonus}）`,'g');
     }
-    // 廢墟掠奪者：每回合第一次投入廢墟時，資源-4或-6，重疊等量廢墟
-    if(hasPartner('ruin_scavenger')&&!G.inv._ruinScavengerUsed){
-      G.inv._ruinScavengerUsed=true;
+    // 廢墟掠奪者：每回合第一次投入廢墟時，資源-4或-6，隨機選一個廢墟疊加等量計數
+    if(hasPartner('ruin_scavenger')&&!G._ruinScavengerUsedThisTurn){
+      G._ruinScavengerUsedThisTurn=true;
       const penalty=Math.random()<0.5?4:6;
       el={...el,value:Math.max(1,el.value-penalty)};
       addLog(`  💀 廢墟掠奪者：投入廢墟，資源-${penalty}→${el.value}`,'b');
-      // 在該格重疊等量廢墟（概念上堆疊，不影響格子狀態但記錄）
-      addLog(`  💀 廢墟掠奪者：${penalty}個廢墟重疊至 (${r+1},${c+1})`);
+      // 隨機選一個場上廢墟作為疊加目標
+      const ruinKeys=G.ruinCells?[...G.ruinCells]:[];
+      if(ruinKeys.length>0){
+        const targetKey=ruinKeys[Math.floor(Math.random()*ruinKeys.length)];
+        const [tr,tc]=targetKey.split(',').map(Number);
+        if(!G.ruinStacks) G.ruinStacks={};
+        G.ruinStacks[targetKey]=(G.ruinStacks[targetKey]||0)+penalty;
+        addLog(`  💀 廢墟掠奪者：${penalty}個廢墟疊加至 (${tr+1},${tc+1})（該格總疊加 ${G.ruinStacks[targetKey]}）`,'b');
+      }
       updateCard(el); updateMover(el);
     }
     _next(300); return;
@@ -5923,6 +5948,7 @@ function startTurn(){
   G._talentUsedOnElement = false;
   G._demoExpertMode = false;
   G._demoExpertUsedThisTurn = false; // 爆破工程師每回合限 1 次
+  G._ruinScavengerUsedThisTurn = false; // 廢墟掠奪者每回合限 1 次
   G._yongqingSellMode = false;
   G._yongqingSellUsed = false;
   G._hrUsedThisTurn = false; // 人力資源總監每回合重置
@@ -6854,7 +6880,9 @@ function renderGrid(){
       ondragleave="onCellDragLeave(${r},${c});onTalentDragLeaveCell(${r},${c});onRearrangeDragLeave(${r},${c})"
       ondrop="onCellDrop(event,${r},${c});onTalentDropCell(event,${r},${c});onRearrangeDrop(event,${r},${c})">`;
     if(isRuin){
-      h+=`<div class="cemoji" style="opacity:.45;">🏚️</div><div class="cname" style="opacity:.45;">廢墟</div>`;
+      const _stackN=(G.ruinStacks&&G.ruinStacks[`${r},${c}`])||0;
+      h+=`<div class="cemoji" style="opacity:.45;">🏚️</div><div class="cname" style="opacity:.45;">廢墟${_stackN>0?` ×${_stackN+1}`:''}</div>`;
+      if(_stackN>0) h+=`<div style="position:absolute;top:2px;right:2px;font-size:10px;font-weight:900;color:#fff;background:rgba(120,100,80,.8);border-radius:99px;padding:1px 5px;line-height:1.2;">+${_stackN}</div>`;
     } else if(!b && isCenter){
       h+=`<div style="position:absolute;width:6px;height:6px;border-radius:50%;background:rgba(179,58,0,.15);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>`;
     }
@@ -9427,6 +9455,7 @@ function deserializeGame(save){
   if(!data.bldgUpgradesElec||typeof data.bldgUpgradesElec!=='object') data.bldgUpgradesElec={};
   if(!data.talentBankCount||typeof data.talentBankCount!=='object') data.talentBankCount={};
   if(!data.futuresValue||typeof data.futuresValue!=='object') data.futuresValue={};
+  if(!data.ruinStacks||typeof data.ruinStacks!=='object') data.ruinStacks={};
   delete data.futuresPct; // 舊欄位已被 futuresValue 取代
   // 跨存檔不應殘留的動畫/pending 旗標
   data._winPending = false;
