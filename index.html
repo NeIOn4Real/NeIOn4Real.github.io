@@ -1250,7 +1250,7 @@ const BLDG = {
   unstable_base:  { name:'地基不穩定站', emoji:'⚠️', desc:'使周圍4格的設施隨機交換位置，此回合使其獲得 +2。', req:'any', out:null, fn:v=>v, special:'unstable_base' },
 
   ruin:         { name:'廢墟', emoji:'🏚️', desc:'被消滅的設施殘骸', req:null, out:null, fn:v=>v, isRuin:true },
-  envy_factory:{ name:'嫉妒工廠', emoji:'💚', desc:'金錢→1鑽石，鑽石過商店×12', req:'money', out:'diamond', fn:v=>1, special:'envy' },
+  envy_factory:{ name:'嫉妒工廠', emoji:'💚', desc:'任意→隨機資源；本回合首個投入此設施時永久獲得投入資源 +4；最終輸出符合此設施輸出時最終收益 +8（效果永久 +8）', req:'any', out:null, fn:v=>v, special:'envy' },
   logistics_up:   { name:'物流↑', emoji:'⬆️', desc:'轉向：向上繼續', req:'any', out:null, fn:v=>v, special:'redirect', dir:'top'    },
   logistics_down: { name:'物流↓', emoji:'⬇️', desc:'轉向：向下繼續', req:'any', out:null, fn:v=>v, special:'redirect', dir:'bottom' },
   logistics_left: { name:'物流←', emoji:'⬅️', desc:'轉向：向左繼續', req:'any', out:null, fn:v=>v, special:'redirect', dir:'left'   },
@@ -1284,7 +1284,7 @@ const BLDG = {
   elec_shop:      { name:'電子商店', emoji:'⚡', desc:'電子。金錢→原料。商品→原料。原料→金錢+2。', req:'any', out:null, fn:v=>v, special:'elec_shop' },
 
   // ── 大型設施（2×2）──
-  giant_village:  { name:'巨人村', emoji:'🏰', desc:'大型。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。回合開始時，你的人材為0，獲得+8人材。', req:'any', out:null, fn:v=>v, special:'giant_village', needs2x2:true, isLarge:true, indestructible:true },
+  giant_village:  { name:'巨人村', emoji:'🏰', desc:'大型。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。回合開始時，若你的人材為0，獲得+8人材；人材大於0時不發揮效果。', req:'any', out:null, fn:v=>v, special:'giant_village', needs2x2:true, isLarge:true, indestructible:true },
   ancient_factory:{ name:'古代的機械工廠', emoji:'🏛', desc:'大型。工廠。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。只能蓋在 2×2 工廠上，此設施視為 4 工廠。所有的工廠被投入時，獲得+8。原料→商品。', req:'material', out:'goods', fn:v=>v, special:'ancient_factory', needs2x2:true, isLarge:true, indestructible:true },
   ancient_factory_part:{ name:'古代的機械工廠', emoji:'🏛', desc:'古代機械工廠的一部分', req:null, out:null, fn:v=>v, special:'ancient_factory_part', indestructible:true },
   world_wonder:   { name:'世界奇觀', emoji:'🏟', desc:'大型。這個設施佔用2*2的格子，不會被消滅。小鎮中只能存在一個大型設施。最終收益時，你每有一個人材，獲得+8。', req:'any', out:null, fn:v=>v, special:'world_wonder', needs2x2:true, isLarge:true, indestructible:true },
@@ -1308,17 +1308,18 @@ const PARTNERS = {
   poverty_god: {
     id:'poverty_god', name:'貧窮神', emoji:'🪙',
     pos:'最終收益時，如果收益為0，則獲得收益 +8，之後使這個效果 +8。',
-    neg:'如果本回合獲得的收益大於0，則清空這個效果。',
+    neg:'如果本回合投入設施獲得的收益大於0，則清空這個效果。',
     desc:'貧窮神',
-    onSettle(G, profit, el){
+    onTurnEnd(G){
       const st = G.partnerState.poverty_god || { bonus:8 };
-      if(profit === 0){
+      const turnGain = (G.profit||0) - (G._turnStartProfit||0);
+      if(turnGain <= 0){
         G.profit += st.bonus;
-        addLog(`🪙 貧窮神：收益為零，獲得 +${st.bonus}`, 'g');
+        addLog(`🪙 貧窮神：本回合收益為 0，獲得 +${st.bonus}（下次 +${st.bonus+8}）`,'g');
         setTimeout(()=>profitFlyFromPartner(this.id,st.bonus),100);
         st.bonus += 8;
       } else {
-        if(st.bonus > 8) addLog(`🪙 貧窮神：收益 >0，效果清空`);
+        if(st.bonus > 8) addLog(`🪙 貧窮神：本回合收益 >0，效果清空`);
         st.bonus = 8;
       }
       G.partnerState.poverty_god = st;
@@ -1326,116 +1327,141 @@ const PARTNERS = {
   },
   gluttony: {
     id:'gluttony', name:'暴食惡魔', emoji:'👹', isDemon:true,
-    pos:'投入時原料視為商品，商品視為原料',
-    neg:'回合開始時，資源為商品或原料時減少10%',
+    pos:'投入時原料視為商品，商品視為原料。',
+    neg:'回合開始時，資源為商品或原料時獲得收益-4。',
     desc:'暴食惡魔',
-    onRoundStart(G){
+    onTurnStart(G){
       if(isDemonNegDisabled('gluttony')) return;
-      if(G.card.type==='material'||G.card.type==='goods'){
-        G.card.value = Math.floor(G.card.value * 0.9);
-        addLog(`👹 暴食惡魔：回合開始資源-10%，現在 ${G.card.value}`,'b');
-        updateCard(G.card);
+      if(G.card && (G.card.type==='material'||G.card.type==='goods')){
+        G.profit = Math.max(0, G.profit - 4);
+        addLog(`👹 暴食惡魔：回合開始資源為${TLABEL[G.card.type]}，收益-4`,'b');
+        setTimeout(()=>profitFlyFromPartner(this.id,-4),100);
       }
     },
   },
   sloth: {
     id:'sloth', name:'怠惰惡魔', emoji:'😴', isDemon:true,
-    pos:'行動選項可放棄選擇，2/3機率資源+10',
-    neg:'放棄選擇時，1/3機率資源變成1',
+    pos:'可以放棄選擇商業行為，2/3 機率資源 +2 或 +8。',
+    neg:'投入時，1/3 機率資源獲得 -6。',
     desc:'怠惰惡魔',
     onSkipAction(G){
       if(!G.card) return;
-      const roll = Math.random();
-      if(roll < 2/3){
-        G.card.value += 10;
-        addLog(`😴 怠惰惡魔：放棄選擇，資源+10！現在 ${G.card.value}`,'g');
-      } else if(!isDemonNegDisabled('sloth')){
-        G.card.value = 1;
-        addLog(`😴 怠惰惡魔：放棄選擇，資源變成1！`,'b');
+      if(Math.random() < 2/3){
+        const gain = Math.random() < 0.5 ? 2 : 8;
+        G.card.value += gain;
+        addLog(`😴 怠惰惡魔：放棄選擇，資源 +${gain}！現在 ${G.card.value}`,'g');
+        updateCard(G.card);
+      } else {
+        addLog(`😴 怠惰惡魔：放棄選擇，本次未獲得加成`,'w');
       }
-      updateCard(G.card);
     }
   },
   lust: {
     id:'lust', name:'慾望惡魔', emoji:'💘', isDemon:true,
-    pos:'僅經過2個設施時，輸出×2',
-    neg:'經過2個以上設施時，資源÷設施數',
+    pos:'僅經過 2 個設施時，那些設施永久 +4。',
+    neg:'經過 2 個以上設施時，每經過一個，資源獲得 -6。',
     desc:'慾望惡魔',
     modifyFinish(G, el, hitCount){
-      if(hitCount === 2){
-        el = {...el, value: el.value * 2};
-        addLog(`💘 慾望惡魔：僅2設施，輸出×2！→ ${el.value}`,'g');
+      if(hitCount === 2 && Array.isArray(G.inv && G.inv.facCellPath)){
+        const cells = G.inv.facCellPath;
+        cells.forEach(([r,c])=>{
+          const k = `${r},${c}`;
+          G.bldgUpgrades[k] = (G.bldgUpgrades[k]||0) + 4;
+        });
+        addLog(`💘 慾望惡魔：僅 2 設施經過，兩設施永久 +4！`,'g');
       } else if(hitCount > 2 && !isDemonNegDisabled('lust')){
-        el = {...el, value: Math.max(1, Math.floor(el.value / hitCount))};
-        addLog(`💘 慾望惡魔：${hitCount}設施，資源÷${hitCount} → ${el.value}`,'b');
+        const cut = hitCount * 6;
+        const newVal = Math.max(1, el.value - cut);
+        addLog(`💘 慾望惡魔：經過 ${hitCount} 設施，每個 -6 → 資源 ${el.value} → ${newVal}`,'b');
+        el = {...el, value: newVal};
       }
       return el;
     }
   },
   wrath: {
     id:'wrath', name:'激情惡魔', emoji:'🔥', isDemon:true,
-    pos:'減少效果被逆轉為增加',
-    neg:'超過5回合未遇減少效果，收益減33%',
+    pos:'每回合你會獲得三張設施。',
+    neg:'回合結束時，如果你手牌大於 1，每多一張本輪的目標 +10%。',
     desc:'激情惡魔',
-    // 計數於每回合開始累加（不再每次投入），確保「5 回合」是真正的回合數
     onTurnStart(G){
-      const st = G.partnerState.wrath || { noDebuffTurns:0 };
-      const hadDebuff = Object.values(G.cellMods||{}).some(v=>v<0)
-                     || Object.values(G.permCellMods||{}).some(v=>v<0)
-                     || Object.values(G.cellPctMods||{}).some(v=>v<0);
-      if(hadDebuff) st.noDebuffTurns=0;
-      else st.noDebuffTurns++;
-      G.partnerState.wrath = st;
+      const pool = Object.keys(BLDG).filter(id=>isPoolableBldg(id)&&getBldgRarity(id)==='N');
+      if(!pool.length) return;
+      const picks = [];
+      for(let i=0;i<3;i++){
+        const pick = pool[Math.floor(Math.random()*pool.length)];
+        addHand(pick);
+        picks.push(BLDG[pick].emoji+BLDG[pick].name);
+      }
+      addLog(`🔥 激情惡魔：本回合獲得 3 張設施 (${picks.join('、')})`,'g');
+      if(typeof renderFanHand==='function') renderFanHand();
     },
-    onSettle(G, profit, el){
-      const st = G.partnerState.wrath || { noDebuffTurns:0 };
-      if(st.noDebuffTurns > 5 && !isDemonNegDisabled('wrath')){
-        const cut = Math.floor(G.profit * 0.33);
-        G.profit = Math.max(0, G.profit - cut);
-        addLog(`🔥 激情惡魔：超過5回合無減益，收益-33%`,'b');
-        setTimeout(()=>profitFlyFromPartner(this.id,-cut),150);
+    onTurnEnd(G){
+      if(isDemonNegDisabled('wrath')) return;
+      const handCount = (G.hand||[]).reduce((s,h)=>s+(h.compound?1:(h.count||0)),0);
+      const extra = handCount - 1;
+      if(extra > 0){
+        const oldGoal = G.goal;
+        G.goal = Math.ceil(G.goal * (1 + extra*0.1));
+        addLog(`🔥 激情惡魔：回合結束手牌 ${handCount} 張（多 ${extra} 張），本輪目標 +${extra*10}% (${oldGoal}→${G.goal})`,'b');
       }
     }
   },
   envy: {
     id:'envy', name:'嫉妒惡魔', emoji:'💚', isDemon:true,
-    pos:'獲得嫉妒工廠（金錢→1鑽石；鑽石過商店×12）',
-    neg:'非鑽石進入嫉妒工廠時，最終收益-50%',
+    pos:'獲得嫉妒工廠（任意→隨機資源；本回合首次投入時此設施永久獲得投入資源 +4；最終輸出與此設施輸出相符時最終收益 +8 並使效果永久 +8）。',
+    neg:'嫉妒工廠被消滅或者賣出時，遊戲結束。',
     desc:'嫉妒惡魔',
   },
   greed: {
     id:'greed', name:'貪婪惡魔', emoji:'💰', isDemon:true,
-    pos:'每回合結束額外獲得本回合收益50%',
-    neg:'每輪開始目標+50%',
+    pos:'本回合最終收益達到目標的 50% 時，所有設施獲得永久 +4。',
+    neg:'每輪開始時，目標增加 50%。',
     desc:'貪婪惡魔',
     onRoundStart(G){
       if(isDemonNegDisabled('greed')) return;
       G.goal = Math.ceil(G.goal * 1.5);
-      addLog(`💰 貪婪惡魔：本輪目標+50% → ${G.goal}`,'b');
+      addLog(`💰 貪婪惡魔：本輪目標 +50% → ${G.goal}`,'b');
     },
-    onSettle(G, profit, el){
-      const bonus = Math.floor(profit * 0.5);
-      if(bonus > 0){
-        G.profit += bonus;
-        addLog(`💰 貪婪惡魔：回合收益+50% → +${bonus}`,'g');
-        setTimeout(()=>profitFlyFromPartner(this.id,bonus),200);
+    onTurnEnd(G){
+      const turnGain = (G.profit||0) - (G._turnStartProfit||0);
+      const half = G.goal * 0.5;
+      if(turnGain >= half){
+        let count = 0;
+        eachCell((r,c,b)=>{
+          if(isFacility(b)){
+            const k = `${r},${c}`;
+            G.bldgUpgrades[k] = (G.bldgUpgrades[k]||0) + 4;
+            count++;
+          }
+        });
+        if(count > 0){
+          addLog(`💰 貪婪惡魔：本回合收益 ${turnGain} ≥ 目標 50% (${Math.ceil(half)})，所有設施 (${count}) 永久 +4！`,'g');
+        }
       }
     }
   },
   pride: {
     id:'pride', name:'傲慢惡魔', emoji:'👑', isDemon:true,
-    pos:'所有惡魔負面效果不生效，每個惡魔輸出+10%',
+    pos:'所有惡魔負面效果不生效，每有一個惡魔，最終收益便獲得 +8。回合結束時，使這個效果永久 +2。',
     neg:'無',
     desc:'傲慢惡魔',
     onSettle(G, profit, el){
-      const demonCount=G.partners.filter(pid=>PARTNERS[pid]&&PARTNERS[pid].isDemon).length;
-      if(demonCount>0){
-        const bonus=Math.ceil(profit*demonCount*0.1);
-        G.profit+=bonus;
-        addLog(`👑 傲慢惡魔：${demonCount}個惡魔，收益+${demonCount*10}% → +${bonus}`,'g');
-        setTimeout(()=>profitFlyFromPartner(this.id,bonus),150);
+      const demonCount = G.partners.filter(pid=>PARTNERS[pid]&&PARTNERS[pid].isDemon).length;
+      const st = G.partnerState.pride || {bonus:8};
+      if(demonCount > 0){
+        const total = demonCount * st.bonus;
+        G.profit += total;
+        addLog(`👑 傲慢惡魔：${demonCount} 惡魔 × +${st.bonus} → +${total} 收益`,'g');
+        setTimeout(()=>profitFlyFromPartner(this.id,total),150);
       }
+      G.partnerState.pride = st;
     },
+    onTurnEnd(G){
+      const st = G.partnerState.pride || {bonus:8};
+      st.bonus += 2;
+      G.partnerState.pride = st;
+      addLog(`👑 傲慢惡魔：每惡魔效果永久 +2（現 +${st.bonus} / 惡魔）`,'g');
+    }
   },
   ore_merchant: {
     id:'ore_merchant', name:'基礎原料商', emoji:'⛏️',
@@ -1467,9 +1493,10 @@ const PARTNERS = {
   },
   union_chief: {
     id:'union_chief', name:'工會主席', emoji:'✊',
-    pos:'持有8個人材以上時，每次將人材投入設施時，使其額外投入人材+2。', neg:'無', desc:'工會主席',
+    pos:'持有8個人材以上時，每次投入人材時（不論投到資源或設施），使該次的人材數量額外+2（以投入前的人材數判定，投入後降至8以下仍生效）。', neg:'無', desc:'工會主席',
     // 效果在人材拖曳系統（onTalentDrop/onTalentDropCell）中實作：
-    // 持有8+人材時，每次投入人材額外 +2 人材（即 elementExtraUses += 2）
+    // 對資源：elementExtraUses += 2（基礎 +1 變 +3）
+    // 對設施：cellMods += 2（基礎 +1 變 +3）
   },
   labor_minister: {
     id:'labor_minister', name:'勞動部長', emoji:'🎩',
@@ -1689,7 +1716,7 @@ const PARTNERS = {
 
   tanya: {
     id:'tanya', name:'譚雅', emoji:'👩‍💼', avatar:'img/T_1.png',
-    pos:'每回合可以用手牌設施交換一張稀有度更高的設施。之後，當手牌設施與場上設施總和小於24時，獲得隨機一張設施。',
+    pos:'每回合可以用手牌設施交換一張稀有度更高的設施。交換後手牌設施與場上設施總和小於24時，獲得隨機一張設施。每回合開始若手牌為空，自動獲得一張隨機設施。',
     neg:'無',
     desc:'譚雅',
     onTurnStart(G){
@@ -1759,20 +1786,25 @@ const PARTNERS = {
       });
     },
     onSettle(G, profit, el){
-      // 若資源投入了公路之星的+2格，則+2變永久（不清除）
-      if(G._hwStarCells&&G.inv.hwCenter){
+      // 若資源「經過該標記格子」才使 +2 變永久（per-cell 而非任一中央格）
+      if(G._hwStarCells&&G._hwStarCells.length>0){
+        const cellPath=G.inv.cellPath||[];
+        const pathKeys=new Set(cellPath.map(([r,c])=>`${r},${c}`));
+        const remaining=[];
         G._hwStarCells.forEach(k=>{
-          // 保持加成（不在回合結束時清除）— 透過 bldgUpgrades 持久化
-          G.bldgUpgrades[k]=(G.bldgUpgrades[k]||0)+2;
-          addLog(`🌟 公路之星：(${k}) 投入成功，+2變為永久！`,'g');
+          if(pathKeys.has(k)){
+            // 投入該格：+2 從 cellMods 轉為永久 bldgUpgrades（避免雙重計算）
+            G.cellMods[k]=(G.cellMods[k]||0)-2;
+            if(G.cellMods[k]===0) delete G.cellMods[k];
+            G.bldgUpgrades[k]=(G.bldgUpgrades[k]||0)+2;
+            addLog(`🌟 公路之星：(${k}) 投入成功，+2變為永久！`,'g');
+          } else {
+            // 未投入：保留待本回合後續 send 檢查（回合結束時 cellMods 隨 round 自然清理）
+            remaining.push(k);
+          }
         });
-      } else if(G._hwStarCells){
-        // 未經中央：清除暫時+2
-        G._hwStarCells.forEach(k=>{
-          G.cellMods[k]=(G.cellMods[k]||0)-2;
-        });
+        G._hwStarCells=remaining;
       }
-      G._hwStarCells=null;
       // 未經中央收益減半
       if(!G.inv.hwCenter&&profit>0){
         const cut=Math.floor(profit*0.5);
@@ -1995,8 +2027,8 @@ const PARTNERS = {
   // ══ 中央流新合夥人 ══
   spread_demon: {
     id:'spread_demon', name:'擴散惡魔', emoji:'🌀', isDemon:true,
-    pos:'中央。每回合開始時，這個合夥人獲得1擴散計數。擴散計數大於等於3時，消耗所有擴散計數，此回合你所有設施視為在中央。每回合開始時，你的隨機一個設施與中央的格子交換。',
-    neg:'無', desc:'擴散惡魔',
+    pos:'中央。每回合開始時，這個合夥人獲得1擴散計數。擴散計數大於等於3時，消耗所有擴散計數，此回合你所有設施視為在中央。',
+    neg:'每回合開始時，你的隨機一個設施與中央的格子交換。', desc:'擴散惡魔',
     onTurnStart(G){
       const st=G.partnerState.spread_demon||{count:0};
       st.count++;
@@ -2005,7 +2037,8 @@ const PARTNERS = {
       if(!processCountTrigger('spread_demon')){
         addLog(`🌀 擴散惡魔：擴散計數+1（目前${st.count}/3）`);
       }
-      // 隨機一個設施與中央格交換
+      // 隨機一個設施與中央格交換（負面效果，受傲慢惡魔豁免）
+      if(isDemonNegDisabled('spread_demon')) return;
       const nonCenter=findFacilityCells().filter(([r,c])=>!isCenterCell(r,c)&&G.grid[r][c]!=='dept_store'&&G.grid[r][c]!=='dept_store_part');
       const centerCells=findCells((r,c,b)=>isCenterCell(r,c)&&(!b||b==='ruin'));
       if(nonCenter.length>0&&centerCells.length>0){
@@ -2300,7 +2333,6 @@ function processCountTrigger(pid){
   }
   return false;
 }
-const BASIC_FACILITIES=['mat_factory','factory','shop','refinery','warehouse','booster','converter'];
 const LOGISTICS_DIRS=['logistics_up','logistics_down','logistics_left','logistics_right'];
 
 // 可進入一般池的設施過濾（排除特殊/大型/中央限定/物流方向）
@@ -2372,6 +2404,10 @@ const PARTNER_RARITY={
   // 惡魔系（不參與常規招募權重，仍可出現）
   gluttony:'SR', sloth:'SR', lust:'SR', wrath:'SR', envy:'SR', greed:'SR', pride:'SSR',
 };
+
+// 基礎設施抽選池：N 級且無特殊邏輯（從 BLDG_RARITY 自動推導，避免新增 N 級設施漏池）
+// 排除有 special 的（如 bomb_device）；目前推得 7 項：mat_factory/factory/shop/refinery/warehouse/booster/converter
+const BASIC_FACILITIES=Object.keys(BLDG_RARITY).filter(id=>BLDG_RARITY[id]==='N'&&BLDG[id]&&!BLDG[id].special);
 
 function getBldgRarity(id){ return BLDG_RARITY[id]||'N'; }
 function getPartnerRarity(id){ return PARTNER_RARITY[id]||'N'; }
@@ -3162,6 +3198,19 @@ function newGame(){
   };
 }
 
+// 共用：對所有合夥人安全呼叫一個 hook 名（onRoundStart / onTurnStart / onSettle 等）
+// 異常時 console.warn 後跳過，不阻斷其他合夥人觸發
+function runPartnerHook(name, ...args){
+  if(!G||!Array.isArray(G.partners)) return;
+  G.partners.forEach(pid=>{
+    const p=PARTNERS[pid];
+    if(p&&p[name]){
+      try{ p[name].call(p, G, ...args); }
+      catch(e){ console.warn('partner.'+name+' 失敗:',pid,e); }
+    }
+  });
+}
+
 function startRound(){
   G.cellMods={};
   G.cellPctMods={};
@@ -3179,13 +3228,7 @@ function startRound(){
   // 大熱波：每輪重置設施收益追蹤（samePathCount 跨輪保留以偵測固定路徑）
   if(G._heatwave){ G._heatwave.facProfits={}; }
   // partner round start effects
-  G.partners.forEach(pid=>{
-    const p=PARTNERS[pid];
-    if(p&&p.onRoundStart){
-      try{ p.onRoundStart(G); }
-      catch(e){ console.warn('partner.onRoundStart 失敗:',pid,e); }
-    }
-  });
+  runPartnerHook('onRoundStart');
   // 稅務局升級邏輯已移至 startTurn()，每回合觸發
   addLog(`══ 第 ${G.round} 輪　目標收益：${G.goal} ══`,'w');
   // 第一回合的 onTurnStart/場風/UI 統一由 startTurn() 處理（避免重複觸發）
@@ -4071,6 +4114,15 @@ function sendEl(dir,idx){
   if(dir==='top')   for(let r=0;r<_N;r++)     path.push([r,idx]);
   if(dir==='bottom')for(let r=_N-1;r>=0;r--)  path.push([r,idx]);
 
+  // 怠惰惡魔負面：投入時 1/3 機率資源 -6
+  if(hasPartner('sloth') && !isDemonNegDisabled('sloth') && G.card){
+    if(Math.random() < 1/3){
+      const before = G.card.value;
+      G.card.value = Math.max(1, G.card.value - 6);
+      addLog(`😴 怠惰惡魔：投入時不幸觸發，資源 ${before} → ${G.card.value} (-6)`,'b');
+      updateCard(G.card);
+    }
+  }
   let startCard = {...G.card};
   // Gluttony: swap material/goods
   if(hasPartner('gluttony') && !isDemonNegDisabled('gluttony')){
@@ -4081,7 +4133,8 @@ function sendEl(dir,idx){
     speedAct:false, ampAct:false, fxM2G:false, fxG2M:false, arbM2G:false, arbG2M:false,
     windOK:hasPartner('wind_master')&&!!G.windDir, hwCenter:false, exchBoard:false,
     clearanceBonus:0, clearanceCells:[], ruinHits:0,
-    facPath:[], facProfitMap:{}, sendDir:dir, sendIdx:idx, cellPath:[]};
+    facPath:[], facCellPath:[], facProfitMap:{}, sendDir:dir, sendIdx:idx, cellPath:[],
+    _envyOut:null, _envyCell:null};
   const startVal=startCard.value;
   const startType=startCard.type;
   let el={value:startVal,type:startType};
@@ -4304,6 +4357,37 @@ const FACILITY_FX={
     }
     fx.hit();
   },
+  envy(fx){
+    // 嫉妒工廠（嫉妒惡魔專屬）：任意→隨機資源
+    // 本回合「第一個投入的設施」為此格時，此格永久獲得「投入資源 +4」
+    // 同種資源再次經過時套用累積加成
+    // G.inv._envyOut / _envyCell 紀錄此 send 的輸出與格子，供 finish() 比對
+    const k = `${fx.r},${fx.c}`;
+    const inputType = fx.el.type;
+    const st = G.partnerState.envy || {matchBonus:8, cellBonus:{}};
+    if(!st.cellBonus) st.cellBonus = {};
+    if(!st.cellBonus[k]) st.cellBonus[k] = {money:0, material:0, goods:0};
+    // 「本回合第一個投入的設施」判定：startTurn 重置 G._firstFacInvestedThisTurn=false
+    if(!G._firstFacInvestedThisTurn){
+      st.cellBonus[k][inputType] = (st.cellBonus[k][inputType]||0) + 4;
+      addLog(`  💚 嫉妒工廠：本回合第一個投入！${TLABEL[inputType]} 永久 +4`,'g');
+    }
+    G.partnerState.envy = st;
+    // 套用累積加成
+    const bonus = st.cellBonus[k][inputType] || 0;
+    if(bonus > 0){
+      fx.el = {...fx.el, value: fx.el.value + bonus};
+      addLog(`  💚 嫉妒工廠：${TLABEL[inputType]} 累積加成 +${bonus} → ${fx.el.value}`,'g');
+    }
+    // 隨機輸出（鑽石機制已隨舊嫉妒移除，只在三種主資源中抽）
+    const types = ['money','material','goods'];
+    const newType = types[Math.floor(Math.random()*types.length)];
+    fx.el = {value: fx.el.value, type: newType};
+    addLog(`  💚 嫉妒工廠：${TLABEL[inputType]} → 隨機輸出 ${TLABEL[newType]} ${fx.el.value}`,'w');
+    G.inv._envyOut = newType;
+    G.inv._envyCell = [fx.r, fx.c];
+    fx.hit();
+  },
   futures_market(fx){
     // 商品投入時：先重新抽選 0/2/4/8 取代當前值，再加到通過的商品 value
     if(fx.el.type!=='goods'){
@@ -4454,10 +4538,14 @@ const FACILITY_FX={
     fx.el={...fx.el, value: Math.max(0, fx.el.value + total)};
     const plusN=rolls.filter(d=>d>0).length, minusN=rolls.filter(d=>d<0).length;
     addLog(`  📈 匯率波動板: 重複 ${facCount} 次（+2×${plusN} / -2×${minusN}）= ${total>=0?'+':''}${total} → ${fx.el.value}`, total>=0?'g':'b');
-    // 每次 ±2 分批顯示浮動動畫（錯開時間）
+    // 每次 ±2 分批顯示浮動動畫；排程游標確保多次往返時新動畫接在舊動畫之後，避免疊加錯位
+    if(!G._exchangeBoardNextAt) G._exchangeBoardNextAt={};
+    const _ebKey=`${fx.r},${fx.c}`, _ebNow=Date.now();
+    const _ebStart=Math.max(_ebNow, G._exchangeBoardNextAt[_ebKey]||0);
     rolls.forEach((d,i)=>{
-      setTimeout(()=>floatAtCell(fx.r, fx.c, (d>0?'+':'')+d, d>0), i*80);
+      setTimeout(()=>floatAtCell(fx.r, fx.c, (d>0?'+':'')+d, d>0), (_ebStart-_ebNow)+i*80);
     });
+    G._exchangeBoardNextAt[_ebKey]=_ebStart+rolls.length*80;
     fx.hit();
   },
   trade_zone(fx){
@@ -4858,6 +4946,8 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
     G.inv.facHit=(G.inv.facHit||0)+1;
     SFX.hit(G.inv.facHit-1);
     if(G.inv.facPath) G.inv.facPath.push(bId);
+    if(G.inv.facCellPath) G.inv.facCellPath.push([r,c]);
+    G._firstFacInvestedThisTurn = true; // 嫉妒惡魔：標記本回合已有設施被投入
     if(G.inv.facProfitMap){const gain=el.value-_prevValFx;if(gain>0) G.inv.facProfitMap[bId]=(G.inv.facProfitMap[bId]||0)+gain;}
     pulse(r,c);updateCard(el);updateMover(el);
     // 疊加設施也吃相同加成（非 redirect 基座；redirect 分支有自己的 overlay 處理）
@@ -4949,27 +5039,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       G.inv._elecConveyorActive=false;
     }
 
-    // ── 人材幣通過商店：×3 變金錢 ──
-    // (人材幣機制已移除)
-    // ── 鑽石通過商店：×12 變金錢 ──
-    if(el.type==='diamond' && isShopType(bId)){
-      const prev={...el};
-      let nv=el.value*12+(G.bldgUpgrades&&G.bldgUpgrades[`${r},${c}`]||0);
-      el={value:nv,type:'money'};
-      cellEl?.classList.add('transform-flash');
-      setTimeout(()=>cellEl?.classList.remove('transform-flash'),500);
-      if(cellEl){
-        const badge=document.createElement('div');
-        badge.className='change-badge';
-        badge.textContent=`💚 ${BLDG.shop.emoji}商店: 💎${prev.value} → 💰${nv} (×12)`;
-        badge.style.background=TCOLOR.money;
-        cellEl.appendChild(badge);
-        setTimeout(()=>badge.remove(),800);
-      }
-      addLog(`  🏪 商店: 💎鑽石 ${prev.value} → 💰金錢 ${nv} (×12)`,'g');
-      G.partners.forEach(pid=>{ const p=PARTNERS[pid]; if(p&&p.onBuildingHit){ const pb=G.profit; p.onBuildingHit(G,'shop'); const g=G.profit-pb; if(g>0){addLog(`  ${p.emoji}${p.name}：+${g} 收益`,'g');setTimeout(()=>profitFlyFromPartner(pid,g),200);} } });
-      _hit(); return;
-    }
+    // (鑽石機制已隨舊嫉妒工廠移除；新版嫉妒輸出只在 money/material/goods 三種)
 
     // ── 設施特效調度 ──
     if(b.special && FACILITY_FX[b.special]){
@@ -5088,21 +5158,13 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
         addLog(`  🚫 ${b.emoji}${b.name}：運輸異常，原料無法轉為商品，略過`,'b');
         _next(300); return;
       }
-      // 嫉妒惡魔：進入嫉妒工廠前若已有設施命中則中斷
-      if(hasPartner('envy')&&bId==='envy_factory'&&(G.inv.facHit||0)>0){
-        addLog('  💚 嫉妒惡魔：已經過其他設施，嫉妒工廠中斷','b');
-        setTimeout(()=>{ if(_stepAnimGen!==gen) return; mover.style.display='none'; if(stepWithMover._prevActive){stepWithMover._prevActive.classList.remove('active-path');stepWithMover._prevActive=null;} finish(el,startVal); },400);
-        return;
-      }
-      // 嫉妒工廠負面：投入時非鑽石則最終收益-50%
-      if(bId==='envy_factory' && el.type!=='diamond'){
-        G.inv.envyPen=true;
-        addLog('  💚 嫉妒工廠：非鑽石投入，最終收益將-50%','b');
-      }
+      // 嫉妒工廠：新版改由 FACILITY_FX.envy 處理（任意→隨機資源 + 首次投入永久 +4 + 輸出匹配獎勵）
       // 暴食惡魔：若匹配是因為互換，則視為互換類型進入
       if(hasPartner('gluttony')&&b.req===effType&&b.req!==el.type) el={...el,type:effType};
       G.inv.facHit=(G.inv.facHit||0)+1;
       if(G.inv.facPath) G.inv.facPath.push(bId);
+      if(G.inv.facCellPath) G.inv.facCellPath.push([r,c]);
+      G._firstFacInvestedThisTurn = true; // 嫉妒惡魔：標記本回合已有設施被投入
       // 電子放電惡魔：已於 stepWithMover 進入此 cell 時統一處理（FX dispatch 之前），
       // base + 每個 overlay 分別計算，涵蓋所有 special 設施
       // 電子輸送帶：已於 stepWithMover 進入此 cell 時統一處理（FX dispatch 之前）
@@ -5306,6 +5368,8 @@ function finish(el,startVal){
   }
   if(TUT.hookFinishPre(el)) return;
   // (人材幣機制已移除)
+  // 嫉妒工廠：在 diamond→money 轉換前先捕獲 finalType，供匹配比對
+  const _finalTypeForEnvy = el.type;
   // Diamond exits without shop: convert at face value (no bonus)
   if(el.type==='diamond') el={value:el.value,type:'money'};
   // Lust demon
@@ -5329,13 +5393,7 @@ function finish(el,startVal){
   // 執行順序：依 G.partners 陣列順序（即招募順序）。
   // 後面的 onSettle 會吃到前面修改後的 G.profit。
   // 順序在此之後：稅務局(-10%) → 嫉妒工廠(-50%) → 勞工保險(-人材×2%)
-  G.partners.forEach(pid=>{
-    const p=PARTNERS[pid];
-    if(p&&p.onSettle){
-      try{ p.onSettle.call(p, G, profit, el); }
-      catch(e){ console.warn('partner.onSettle 失敗:',pid,e); }
-    }
-  });
+  runPartnerHook('onSettle', profit, el);
   // ── 新設施結算效果 ──
   // H2: 世界奇觀：每有一個人材+8
   if(findCells((r,c,b)=>b==='world_wonder').length>0){
@@ -5423,13 +5481,18 @@ function finish(el,startVal){
       }
     }
   }
-  if(G.inv.envyPen && profit>0 && !isDemonNegDisabled('envy')){
-    const cut=Math.floor(profit*0.5);
-    G.profit-=cut;
-    addLog(`💚 嫉妒工廠負面：收益-50% (-${cut})`,'b');
-    const envyCells=findCells((r,c,b)=>b==='envy_factory');
-    if(envyCells.length>0) setTimeout(()=>profitFlyFromCell(envyCells[0][0],envyCells[0][1],-cut),150);
-    G.inv.envyPen=false;
+  // 嫉妒工廠：最終輸出與此設施隨機輸出相符 → 最終收益 +8（並使該效果永久 +8）
+  // 用 _finalTypeForEnvy（diamond→money 轉換前的原始類型）比對，避免 diamond 被改成 money 後永遠不匹配
+  if(hasPartner('envy') && G.inv._envyOut && _finalTypeForEnvy === G.inv._envyOut){
+    const st = G.partnerState.envy || {matchBonus: 8};
+    G.profit += st.matchBonus;
+    addLog(`💚 嫉妒工廠：最終輸出 ${TLABEL[_finalTypeForEnvy]} 與工廠輸出相符，+${st.matchBonus} 收益（下次匹配 +${st.matchBonus+8}）`,'g');
+    if(G.inv._envyCell){
+      const [er, ec] = G.inv._envyCell;
+      setTimeout(()=>profitFlyFromCell(er, ec, st.matchBonus),150);
+    }
+    st.matchBonus += 8;
+    G.partnerState.envy = st;
   }
   // 黃牛販子：本次投入有經過且最終收益為 0 時 -8
   if((G.inv._scalperHits||0)>0 && profit<=0){
@@ -5528,18 +5591,21 @@ function performWinSettlement(turnsUsed){
   const startRound=G.round;
   const passedGoals=[];
   // 連續結算：只要 profit 仍 >= 當前 goal 就繼續過關（上限 20 輪防護）
+  // 連續結算期間，每輪 goal 用同一個（結算前的）難度倍率計算；
+  // 全部結算完後再呼叫一次 adjustDifficulty()，避免每輪複利加碼
   let _iter=0;
   while(G.profit>=G.goal && _iter<20){
     _iter++;
     const oldGoal=G.goal;
     passedGoals.push({round:G.round,goal:oldGoal});
     G.roundHistory.push({round:G.round,turnsUsed,goal:oldGoal,profit:G.profit});
-    adjustDifficulty();
     G.round++;
     const scaledMult=1.4*G.difficultyMult;
     G.goal=Math.round(oldGoal*scaledMult+8);
   }
   if(passedGoals.length===0) return; // 保險：理論不會發生
+  // 連續結算後一次性評估難度（依累積後完整 roundHistory）
+  adjustDifficulty();
   G._goalReachedTurn=0;
   G.turn=1; G.buff={}; G.sel=null; G.cellMods={}; G.cellPctMods={};
   const diffPct=Math.round((G.difficultyMult-1)*100);
@@ -5729,6 +5795,7 @@ function doAction(id){
     // 進入自由排列模式（無論是否有拆遷隊都一樣）
     saveGridSnapshot();
     G.freeRearrange=true; G.moveMode=false; G.moveSrc=null;
+    G._demolishBureauPending=false; G._tradeZonePending=null;
     addLog('🔧 自由排列模式：拖曳設施到想要的位置，完成後點「確認排列」');
     G.phase='place'; render(); return;
   }
@@ -5974,6 +6041,8 @@ function startTurn(){
   G.elementExtraUses = 0;
   G._extraUsePhase = false;
   G._turnInvested = false;
+  G._turnStartProfit = G.profit||0; // 貧窮神/貪婪惡魔：本回合收益基準
+  G._firstFacInvestedThisTurn = false; // 嫉妒惡魔：本回合是否已有設施被投入過
   // 莫菲定律：追蹤未移動設施的回合數（跨輪累計，但新輪第 1 回合不計）
   if(!G._murphyTrack) G._murphyTrack={lastSend:null,repeatCount:0,noMove:0};
   if(G.turnFacMoved===0&&G.turn>1) G._murphyTrack.noMove++;
@@ -5983,13 +6052,7 @@ function startTurn(){
   _safetyNetRoll = false; // 重置安全網判定
   G._permShopUsed = false; // 重置商店使用
   // 合夥人每回合開始效果
-  G.partners.forEach(pid=>{
-    const p=PARTNERS[pid];
-    if(p&&p.onTurnStart){
-      try{ p.onTurnStart(G); }
-      catch(e){ console.warn('partner.onTurnStart 失敗:',pid,e); }
-    }
-  });
+  runPartnerHook('onTurnStart');
 
   // 勞動部長：效果已移至 onSettle（最終收益時失半人材每個+4）
   // 地皮炒家：負面已移除（舊：>3回合未移動-1）
@@ -6003,12 +6066,12 @@ function startTurn(){
     G._talentBankPending=0;
     if(typeof renderTalentPanel==='function') renderTalentPanel();
   }
-  // H1: 巨人村：回合開始人材歸0，獲得+8
-  findCells((r,c,b)=>b==='giant_village').forEach(()=>{
+  // H1: 巨人村：回合開始時若人材為 0，獲得 +8（人材 >0 時不發揮效果）
+  if((G.talentCards||0)===0 && findCells((r,c,b)=>b==='giant_village').length>0){
     G.talentCards=8;
-    addLog('🏰 巨人村：人材歸0，獲得+8人材','g');
+    addLog('🏰 巨人村：人材為0，獲得+8人材','g');
     if(typeof renderTalentPanel==='function') renderTalentPanel();
-  });
+  }
   // 大型電子供給站：每回合開始，最頂端那個（base 或最後一個 overlay）若未被覆蓋 → 疊加一個於自身
   // 等價：每回合對每格 mega_elec_supply 永遠 +1 個 overlay（topmost 是 mega_elec_supply 才觸發）
   findCells((r,c,b)=>b==='mega_elec_supply').forEach(([mr,mc])=>{
@@ -6204,6 +6267,9 @@ function doNext(){
       profitFlyFromCell(rr,rc,2);
     }
   });
+
+  // 合夥人回合結束效果（貧窮神、貪婪惡魔、傲慢惡魔、激情惡魔等）
+  runPartnerHook('onTurnEnd');
 
   // 每回合結束清除格子修正（只持續一回合）
   G.cellMods={}; G.cellPctMods={};
@@ -6493,7 +6559,7 @@ function renderPartners(){
     const isDemoExpert=pid==='demolition_expert';
     const expertClickable=isDemoExpert&&G.phase==='place'&&G.profit>=2;
     const isYongqing=pid==='yongqing_house';
-    const yqClickable=isYongqing&&G.phase==='place'&&!G._yongqingSellMode;
+    const yqClickable=isYongqing&&G.phase==='place'&&!G._yongqingSellMode&&!G._yongqingSellUsed;
     // Omni accountant：顯示全能計數（點擊開啟灌注面板）
     const isOmni=pid==='omni_accountant';
     const omniCount=isOmni?(G.partnerState?.omni_accountant?.count||0):0;
@@ -7846,6 +7912,7 @@ function useDemolition(){
   if(G.freeRearrange){ addLog('🔨 已在排列模式中','b'); return; }
   saveGridSnapshot();
   G.freeRearrange=true; G.moveMode=false; G.moveSrc=null;
+  G._demolishBureauPending=false; G._tradeZonePending=null;
   G._demolitionRearrange = true; // 標記為拆遷隊啟動的重排
   addLog('🔨 拆遷隊啟動！拖曳設施到想要的位置，完成後點「確認排列」');
   render();
@@ -7897,6 +7964,15 @@ function yongqingSellCell(r,c){
   // 移除設施（不產生廢墟）
   const b=BLDG[bId];
   const k=`${r},${c}`;
+  // 嫉妒惡魔負面：嫉妒工廠被賣出 → 遊戲結束（防重複觸發）
+  if(bId==='envy_factory' && hasPartner('envy') && !isDemonNegDisabled('envy') && !G._envyGameOverFired){
+    G._envyGameOverFired = true;
+    addLog('💚 嫉妒惡魔：嫉妒工廠被賣出，遊戲結束！','b');
+    setTimeout(()=>{
+      try{ if(typeof clearAutoSave==='function') clearAutoSave(); }catch(_){}
+      showModal('lose', `嫉妒工廠被賣出！\n第 ${G.round} 輪結束\n收益 ${G.profit} / 目標 ${G.goal}`);
+    }, 300);
+  }
   G.grid[r][c]=null; // 不用 destroyFacility（那會產生廢墟）
   // 清除附帶資料
   clearKeyedData(k);
@@ -7920,7 +7996,7 @@ function yongqingSellCell(r,c){
   G._yongqingSellMode=false;
   G._yongqingSellUsed=true;
   if(G._yongqingSellEsc){ document.removeEventListener('keydown',G._yongqingSellEsc); G._yongqingSellEsc=null; }
-  addLog(`🏠 擁慶記房屋：賣出 ${b.emoji}${b.name}，+${bonus}收益（${pct}%×${turnsPassed}回合）`,'g');
+  addLog(`🏠 擁慶記房屋：賣出 ${b.emoji}${b.name}，+${bonus}收益（下次賣出 +${st.bonus}）`,'g');
   profitFlyFromCell(r,c,bonus);
   render();
   return true;
@@ -8137,6 +8213,15 @@ function destroyFacility(r, c){
   if(BLDG[bId]&&BLDG[bId].indestructible){
     addLog(`🛡️ ${BLDG[bId].emoji}${BLDG[bId].name} 不會被消滅！`);
     return;
+  }
+  // 嫉妒惡魔負面：嫉妒工廠被消滅 → 遊戲結束（防重複觸發）
+  if(bId==='envy_factory' && hasPartner('envy') && !isDemonNegDisabled('envy') && !G._envyGameOverFired){
+    G._envyGameOverFired = true;
+    addLog('💚 嫉妒惡魔：嫉妒工廠被消滅，遊戲結束！','b');
+    setTimeout(()=>{
+      try{ if(typeof clearAutoSave==='function') clearAutoSave(); }catch(_){}
+      showModal('lose', `嫉妒工廠被消滅！\n第 ${G.round} 輪結束\n收益 ${G.profit} / 目標 ${G.goal}`);
+    }, 300);
   }
   // 炸彈客：爆破裝置消滅時不產生廢墟
   const _bomberNoRuin=hasPartner('bomber')&&bId==='bomb_device';
@@ -9456,6 +9541,9 @@ function deserializeGame(save){
   if(!data.talentBankCount||typeof data.talentBankCount!=='object') data.talentBankCount={};
   if(!data.futuresValue||typeof data.futuresValue!=='object') data.futuresValue={};
   if(!data.ruinStacks||typeof data.ruinStacks!=='object') data.ruinStacks={};
+  // _talentBankPending 結構驗證：必須是非負有限整數、上限 100（防存檔損壞/竄改）
+  const _tbp=data._talentBankPending;
+  if(typeof _tbp!=='number'||!isFinite(_tbp)||_tbp<0||_tbp>100) data._talentBankPending=0;
   delete data.futuresPct; // 舊欄位已被 futuresValue 取代
   // 跨存檔不應殘留的動畫/pending 旗標
   data._winPending = false;
@@ -9720,7 +9808,7 @@ const MEGA_SIM_FX={
 // cells: [[r,c],...] 路徑座標，gridCtx: {grid, gridSize, round, bldgUpgrades?, partners?, partnerState?, talentCards?, buffs?, ...}
 function simFacilityPath(cells, resource, gridCtx){
   let sim={value:resource.value, type:resource.type};
-  let facHit=0, bonusProfit=0, envyPen=false;
+  let facHit=0, bonusProfit=0;
   const logs=[];
   const _partners=gridCtx.partners||[];
   const _hasP=pid=>_partners.includes(pid);
@@ -9780,10 +9868,7 @@ function simFacilityPath(cells, resource, gridCtx){
     if(b.req&&b.req!=='any'&&b.req!==effType&&b.req!==sim.type) continue;
     // buff：運輸異常
     if(_buffs.noMatToGoods&&(sim.type==='material'||effType==='material')&&b.out==='goods') continue;
-    // 嫉妒惡魔：進入嫉妒工廠前若已有設施命中則中斷
-    if(_hasP('envy')&&bId==='envy_factory'&&facHit>0){ logs.push(`  💚 嫉妒惡魔：已通過其他設施，嫉妒工廠中斷`); break; }
-    // 嫉妒工廠負面標記
-    if(bId==='envy_factory'&&sim.type!=='diamond') envyPen=true;
+    // 嫉妒工廠：新版隨機輸出，模擬中保留原 fn (v=>v) 與類型不變（避免影響工業化估算）
     // 暴食惡魔：匹配因互換，以互換類型進入
     if(_hasP('gluttony')&&b.req===effType&&b.req!==sim.type) sim={...sim,type:effType};
 
@@ -9818,8 +9903,7 @@ function simFacilityPath(cells, resource, gridCtx){
     // 格子加成
     const upKey=`${r},${c}`;
     let cellMod=(gridCtx.cellMods&&gridCtx.cellMods[upKey]||0)+(gridCtx.permCellMods&&gridCtx.permCellMods[upKey]||0);
-    // 激情惡魔：逆轉減益
-    if(cellMod<0&&_hasP('wrath')) cellMod=-cellMod;
+    // 激情惡魔：新版改為「每回合獲得 3 張設施」，移除減益逆轉
     const up=gridCtx.bldgUpgrades;if(up&&up[upKey]) sim.value+=up[upKey];
     const lp=gridCtx.leyaPctMods; if(lp&&lp[upKey]) sim.value=Math.max(1,Math.ceil(sim.value*(1+lp[upKey]/100)));
     if(cellMod) sim.value=Math.max(1,sim.value+cellMod);
@@ -9830,10 +9914,16 @@ function simFacilityPath(cells, resource, gridCtx){
   if(sim.type==='diamond') sim={value:sim.value,type:'money'};
 
   // ── 結算：合夥人效果（模擬版，不依賴 DOM/G） ──
-  // 慾望惡魔 modifyFinish
+  // 慾望惡魔 modifyFinish（新版）
   if(_hasP('lust')){
-    if(facHit===2){ sim.value*=2; logs.push(`  💘 慾望惡魔：僅2設施，×2 → ${sim.value}`); }
-    else if(facHit>2&&!_isDemonNeg('lust')){ sim.value=Math.max(1,Math.floor(sim.value/facHit)); logs.push(`  💘 慾望惡魔：${facHit}設施，÷${facHit} → ${sim.value}`); }
+    if(facHit===2){
+      // 正面為「兩設施永久 +4」，模擬中以 +8 數值表示一次獎勵
+      sim.value+=8; logs.push(`  💘 慾望惡魔：僅 2 設施，等效 +8（永久 +4 兩格）→ ${sim.value}`);
+    } else if(facHit>2&&!_isDemonNeg('lust')){
+      const cut=facHit*6;
+      sim.value=Math.max(1,sim.value-cut);
+      logs.push(`  💘 慾望惡魔：${facHit} 設施 × -6 = -${cut} → ${sim.value}`);
+    }
   }
   const finalMoney=sim.type==='money'?sim.value:Math.floor(sim.value*0.6);
   let profit=Math.max(0,finalMoney-resource.value)+bonusProfit;
@@ -9842,11 +9932,7 @@ function simFacilityPath(cells, resource, gridCtx){
   _partners.forEach(pid=>{
     const p=PARTNERS[pid];
     if(!p||!p.onSettle) return;
-    // 模擬常見的百分比加減效果
-    if(pid==='greed'&&profit>0){
-      const bonus=Math.floor(profit*0.5);
-      profit+=bonus; logs.push(`  💰 貪婪惡魔：+50% → +${bonus}`);
-    }
+    // 貪婪惡魔：新版為回合結束時整體加成，per-send 模擬不適用
     if(pid==='black_market'&&profit>0){
       const st=_pState.black_market||{usedThisRound:false,mult:1.25};
       if(!st.usedThisRound){ const bonus=Math.floor(profit*0.25); profit+=bonus; logs.push(`  🕶️ 黑市商人：首次+25% → +${bonus}`); }
@@ -9874,10 +9960,7 @@ function simFacilityPath(cells, resource, gridCtx){
     for(let _r=0;_r<gn;_r++) for(let _c=0;_c<gn;_c++) if(gridCtx.grid[_r]&&gridCtx.grid[_r][_c]==='tax_office') hasTax=true;
     if(hasTax){ const cut=Math.ceil(profit*0.1); profit=Math.max(0,profit-cut); logs.push(`  🏛 稅務局：-10% → -${cut}`); }
   }
-  // 嫉妒工廠負面
-  if(envyPen&&profit>0&&!_isDemonNeg('envy')){
-    const cut=Math.floor(profit*0.5); profit=Math.max(0,profit-cut); logs.push(`  💚 嫉妒工廠負面：-50% → -${cut}`);
-  }
+  // 嫉妒工廠：新版負面為「被消滅/賣出時遊戲結束」，不影響工業化模擬
   // 勞工保險
   if(_buffs.laborInsurance&&profit>0){
     const tc=gridCtx.talentCards||0;const pct=tc*2;
