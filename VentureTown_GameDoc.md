@@ -26,6 +26,7 @@
 | 32 | 全合夥人 desc 審查 + 3 修 | 擁慶記房屋 ReferenceError；擴散惡魔 pride 豁免；公路之星 per-cell cellPath 判定 |
 | 34 | 8 個惡魔合夥人全面改版 | 對齊新合夥人表；新增 onTurnEnd hook；嫉妒工廠完全重做；激情/貪婪/傲慢機制變更 |
 | 35 | Session 34 後續 bug 修復 + 音效動畫系統（5 組 32 接點） | A–G: bug 修復 5 項；H: 7 個關鍵事件音效動畫；I: 🔴 過關/失敗/輪/事件/達標/計數達標 6 項；J: 🟠 合夥人/升級/人材/拖曳錯誤/資源轉換/卡值變化 6 項；K: 🟡 存讀檔/開發者/教學/格選/卡懸停/無法負擔 6 項；L: 🟢 SSR/複合/譚雅稀有/擴大地圖/嫉妒匹配/匯率/物流方向 7 項 |
+| 36 | 設施互動審查 + 多項機制修正 | A: cellBonus orphan / pride 上限 / 事件 banner 靠左；B: 臨時加成格子高亮 + BGM；C: 轉運中心複合卡修；D: 古代機械工廠「視為 4 工廠」計數規則；E: 6 個商店 special FX 跳過 shop_owner 系統性修復；F: 中央監督局嚴格按 facPath；G: 環境感應站每格只算一次；H: 人力派遣 fx.hit；I: 強化增幅裝置改被動光環 |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -34,6 +35,10 @@
 ### 歷史追蹤的「per-send vs per-turn」pattern
 desc 寫「此回合」但實作用 `G.inv.xxx`（per-send），多 send 會重複觸發。**修法**：改用 `G._xxxThisTurn` Set/flag + `G._xxxFiredThisTurn` 防重複，startTurn 重置。
 - S21 中央監督局、S24 員工住宅、S25 災害控管局、S31 廢墟掠奪者
+
+### 歷史追蹤的「special FX 早 return 跳過 onBuildingHit」pattern
+統一根因：FX 內呼叫 `fx.hit()` 時 `_fxDone=true`，stepWithMover 的 `if(_fxDone) return` 會跳過後續通用 onBuildingHit hook，導致 partner 對該設施完全無感（dept_store / ancient_factory 等的「視為 N」計數實作 = 0 而非 N）。**修法**：FX 末尾顯式呼叫 `_runPartnerOnBuildingHit(bId)`；計數型 partner 用 weight helper（`_factoryWeight`/`_shopWeight`）對應「視為 N」效果。
+- S36 dept_store / ancient_factory / small_shop / scalper / bulk_store / trade_zone / convenience
 
 ---
 
@@ -4197,4 +4202,185 @@ const demonCount = G.partners.filter(pid=>PARTNERS[pid]&&PARTNERS[pid].isDemon).
 |---|---|
 | `index.html` | SFX 25 個函式、CSS 26 個動畫 + class、helper 16 個函式、32 個事件接點；audio API 用 Web Audio 無外部檔案；所有動畫 cell-only（破例全屏：showExpandFx + showRoundBanner） |
 | `VentureTown_GameDoc.md` | 索引表更新；H–M 段補完 |
+
+---
+
+### Session 36（2026-04-26）— 設施互動審查 + 多項機制修正
+
+#### A. 前期審查發現的 Bug（3 項）
+
+##### A1. 嫉妒工廠 `cellBonus` orphan（🔴 真 bug）
+- **問題**：`G.partnerState.envy.cellBonus[k]` 用 `r,c` 為 key 儲存「本回合首投永久 +4」累積，但不在 `KEYED_DATA_FIELDS` 中。設施被消滅 / swap / 排列模式 cancel 時 `clearKeyedData` / `swapCellData` / `restoreGridSnapshot` 無法處理 → 移動嫉妒工廠時加成不跟著走、消滅後同格新建嫉妒會繼承舊加成。
+- **修法**：三處 helper 都顯式同步處理：
+  - `clearKeyedData`（index.html:2940）：刪除 `eb[key]`
+  - `swapCellData`（index.html:9421）：交換 `eb[k1]` / `eb[k2]`
+  - `saveGridSnapshot` / `restoreGridSnapshot`（3426/3434）：snapshot `_envyCellBonusSnapshot`
+
+##### A2. 傲慢惡魔 `pride.bonus` 無上限（⚠️ 設計）
+- 每回合 +2 永久，長局 50+ 輪可達 100+。
+- **修法**：`onTurnEnd` 加 `PRIDE_BONUS_CAP=100`，達上限不再增加（log 顯示「已達上限」）。
+
+##### A3. 事件 banner 靠左 bug（🔴 真 bug）
+- `eventBannerSlideIn` keyframe 使用 `transform:translate(-50%, ...)` 但 `#ev-banner` 是普通 block 元素（由 body flex 置中，非 fixed/left:50%），導致動畫結束後 banner 永久向左偏 banner 寬度的一半（`animation-fill-mode: both` 又讓 -50%X 永留）。
+- **修法**：keyframe 改成只動 Y 軸 `translateY(...)`，X 不平移。
+- **驗證**：其他 14 個 `translate(-50%, ...)` keyframe 都搭配 `position:fixed; left:50%` 容器使用，無同類問題。
+
+#### B. 新功能（2 項）
+
+##### B1. 臨時加成格子脈動高亮
+- 新增 CSS `.cell.temp-buff` / `.cell.temp-debuff`（金色 / 紅色脈動光環，1.6s ease-in-out infinite）
+- `renderGrid` 偵測 `cellMods` / `cellPctMods` 任一為非零時加 class（永久加成 `permCellMods` / `leyaPctMods` 不算）
+- 區分臨時加成（事件、加班辦公室、派遣總部、磁力板）與永久升級
+
+##### B2. 背景音樂模組 `BGM`
+- Web Audio API 程序化生成（無外部檔），單檔自包含
+- 鋪底：C2 + G2 + E3 sine/triangle 加 LFO 慢震顫，低通 1400Hz 暖化
+- 琶音：C 大調五聲音階上下行（C4-E4-G4-A4-C5），620ms 一音
+- master gain 0.020（很輕）
+- 新 `🎵`/`🔇` toggle 按鈕在 header（保存偏好至 localStorage）
+- 偏好為「開」時，BOOT 後等首次 user gesture 自動啟動（避開瀏覽器 autoplay policy）
+
+#### C. 轉運中心 / 物流轉運中心 修復
+
+##### C1. desc 文字錯誤
+- 原寫「放置時變成**物流中心**」，實際變成 `logistics_up/down/left/right`（即「**物流方向**」設施，**不是** `logistics_center`）
+- desc 改為「放置時變成物流（→↓←↑）」
+
+##### C2. 複合卡含轉運中心時不觸發 picker（🔴 bug）
+- 單張放置與 overlay 疊加都會呼叫 `showTransferHubDirPicker`，但 **複合卡放置分支沒呼叫**，導致 grid 卡在 `transfer_hub` ID 永不轉換為實際物流方向（默默使用預設 `dir:'right'`）
+- **修法**：複合卡分支加入偵測，若任一 part 為轉運類則呼叫 picker；若兩 part 皆為轉運類，則用 `onDone` callback 串接（`showTransferHubDirPicker(r,c, ()=>showTransferHubDirPicker(r2,c2))`）
+
+##### C3. `showTransferHubDirPicker` 重構
+- 集中 finalize 邏輯：替換舊 picker / Esc / 點外面 / 選方向 4 種路徑統一收斂到 `_finalize()`，保證 cell 永遠不會卡在 `transfer_hub`/`logistics_hub`
+- 加入 `onDone` 參數，給複合卡串接用
+
+#### D. 古代機械工廠「視為 4 工廠」計數規則（PM 規格）
+
+##### D1. PM 規則
+> 投入古代機械工廠時，當成只投入一個設施，但它算做 4 個工廠。即只進行一次投入，**投入觸發的效果只計算一次**。但**涉及「投入工廠次數」的計數時，它算做 4 次**。
+
+##### D2. 新 helper（index.html:4179-4204）
+- `_factoryWeight(bId)`：factory/adv_factory=1, ancient_factory=4, 其他=0
+- `countFactoryHits(path)`：facPath 加權總和
+- `_runPartnerOnBuildingHit(bId)`：抽出 partner hook 觸發邏輯（供 special FX 早 return 路徑顯式呼叫）
+
+##### D3. 修改點
+| 位置 | 變更 |
+|---|---|
+| `bulk_store` factoryHits（5134） | 改用 `countFactoryHits`：ancient ×4 |
+| 古代工廠 +8 bonus（6347） | 改用 `countFactoryHits`：ancient ×4 |
+| `factory_owner.onBuildingHit`（2311-2316） | 加上 `bId==='ancient_factory'` → +4；同時補上 `adv_factory` → +1 |
+| `ore_merchant.onBuildingHit`（2297） | 補上 `adv_mat_factory` → +1（基礎合夥人之前漏認高級版） |
+| `ancient_factory(fx)`（5750） | `fx.hit()` 後顯式呼叫 `_runPartnerOnBuildingHit('ancient_factory')`，補上早 return 跳過的 partner hook |
+| `ancient_factory_part` desc（2104） | 改為「2×2 占位格，本身無獨立效果；計入『視為 4 工廠』的工廠數量」 |
+
+#### E. 商店類 special FX 跳過 shop_owner（系統性修復）
+
+##### E1. 問題
+所有有 special FX 的商店設施，FX 內 `fx.hit()` 設 `_fxDone=true` → 跳過 5970 後的通用 onBuildingHit → **shop_owner 永遠 0 觸發**。涉及 6 個設施：
+
+| 設施 | 行號 | 加入 |
+|---|---|---|
+| dept_store 百貨公司 | 5183 | `_runPartnerOnBuildingHit('dept_store')` |
+| small_shop 小型販售商 | 5119 | `_runPartnerOnBuildingHit('small_shop')` |
+| scalper 黃牛販子 | 5135 | `_runPartnerOnBuildingHit('scalper')` |
+| bulk_store 量販店 | 5152 | `_runPartnerOnBuildingHit('bulk_store')` |
+| trade_zone 貿易特區 | 5514 | `_runPartnerOnBuildingHit('trade_zone')` |
+| convenience 超商 | 5646 | `_runPartnerOnBuildingHit('convenience')` |
+
+##### E2. shop_owner 加入「視為 4 商店」規則
+- 與古代工廠同模式：`bId==='dept_store'` → +4，其他 isShopType → +1（2304-2308）
+- 新 helper `_shopWeight(bId)` / `countShopHits(path)`（同 `_factoryWeight` / `countFactoryHits` 模式）
+
+#### F. 中央監督局 嚴格按 facPath 計算（PM 規格）
+
+##### F1. PM 要求
+> 嚴格按照「每經過一個工廠 +2」執行（desc 字面意思）
+
+##### F2. 改動（6423-6443）
+- 舊：`eachCell` 計場上工廠**格數** × 2（含 `_bureauFiredThisTurn` 防多 send 重複）
+- 新：`countFactoryHits(G.inv.facPath)` / `countShopHits(G.inv.facPath)` / `countMatFactoryHits(G.inv.facPath)`，每次 send 按該 send 實際**經過數**獨立計算
+- 移除 `_bureauFiredThisTurn`（無需防重複，每 send facPath 不同）
+- 新 helper `countMatFactoryHits(path)`：filter `mat_factory` / `adv_mat_factory`
+
+#### G. 環境感應站 每格只算一次
+
+##### G1. 問題
+desc：「周圍 4 格每有 1 個**設施** +2」（per-cell），但 `countAdjacentFacilities` 連疊加設施都算（一格 base + overlay = 2）
+
+##### G2. 修法（9647-9664）
+- 移除 `getOverlays(ar,ac).forEach(()=>count++);` 行
+- 保留 dept_store anchor 唯一識別邏輯（避免 2×2 part 重複計數）
+
+#### H. 人力派遣 改用 `fx.hit()`
+
+##### H1. 問題
+`staffing` 用 `fx.next()` 不推 facPath，跟同類「資源通過時 +1 人材」的 `cafeteria`（用 `fx.hit()`）不一致 → 終點站 / 螺旋物流站等「通過設施數」計數忽略人力派遣
+
+##### H2. 修法（5613-5631）
+- 改用 `fx.hit()`
+- 移除原本顯式 `fx.pulse(); fx.updateCard();`（`fx.hit` 內部已含）
+- 保留 transform-flash + badge 視覺反饋
+
+#### I. 強化增幅裝置 改被動光環機制（PM 規格）
+
+##### I1. PM 規則
+> 只要強化增幅裝置在小鎮上，周圍 4 格的設施獲得 +2。位置變動（自己或鄰格設施移動）→ 離開光環範圍的設施失去 +2
+
+##### I2. 舊行為（被改）
+- `adv_booster(fx)` 每次資源通過時，周圍 4 格 cellMods += 2
+- 多次通過同回合會累積疊加（+2 / +4 / +6）
+
+##### I3. 新架構：derived 欄位 `G.boosterAura`
+- `recomputeBoosterAura()`（3541-3554）：掃 grid，每個 強化增幅裝置 給周圍 4 格設施 +2 寫入 `G.boosterAura[k]`
+- 設施位置變動時呼叫，覆蓋整張 dict
+- derived 性質：可從 grid 完全重建，不需序列化
+
+##### I4. 接點
+| 觸發點 | 行號 | 用途 |
+|---|---|---|
+| `onFacilityPlaced` 結尾 | 8282 | 放置設施 |
+| `onFacilityMoved` 結尾 | 9757 | 移動設施 |
+| `destroyFacility` 末段 | 9608 | 消滅設施 |
+| `restoreGridSnapshot` | 3571 | 排列模式 cancel |
+| `deserializeGame` 末段 | 10911 | 讀檔重建 |
+| 地震事件結尾 | 3729 | 全圖打亂 |
+| 內亂事件結尾 | 3899 | 全圖打亂 |
+| `mega` 物件序列化 | 11026 | 工業化 snapshot |
+
+##### I5. 7 個 cellMods 讀取點同步加入 `boosterAura`
+| 用途 | 行號 |
+|---|---|
+| dept_store FX 2×2 加成聚合 | 5211 |
+| 疊加 pipeline cellMod | 5843 |
+| stepWithMover 通用 cellMod | 6218 |
+| renderGrid 顯示 modVal | 7950 |
+| 設施 tooltip（單獨顯示「強化增幅裝置光環: +N」） | 8628 |
+| MEGA_SIM gridCtx | 11236 |
+
+##### I6. `adv_booster(fx)` 簡化（5697-5703）
+- 移除舊「周圍 cellMods += 2」邏輯
+- 僅保留「投入時自身 +4」base FX
+- 光環由 helper 維護
+
+##### I7. desc 改寫（2090）
+舊：「任意+4。周圍設施獲得 +2。」
+新：「任意+4。周圍 4 格設施被動獲得 +2（位置變動時更新）。」
+
+#### J. 變更檔案
+
+| 檔案 | 修改 |
+|---|---|
+| `index.html` | A 段 3 個 bug 修；B 段 BGM 模組 + temp-buff CSS；C 段 picker 重構 + 複合卡分支 + desc；D 段 3 個 helper（`_factoryWeight` / `countFactoryHits` / `_runPartnerOnBuildingHit`）+ 4 處改用；E 段 6 個 special FX 加顯式 partner hook + 2 個 helper（`_shopWeight` / `countShopHits`）；F 段中央監督局重寫 + `countMatFactoryHits`；G 段 `countAdjacentFacilities` 移除 overlay；H 段 staffing fx.hit；I 段 `recomputeBoosterAura` + 11 個接點 + 7 個讀取點 |
+| `VentureTown_GameDoc.md` | 索引表 + 新 pattern 補完；本 Session 36 |
+
+#### K. 已知未處理項目
+
+- 大型設施（巨人村 / 世界奇觀 / 移動都市）效果未審
+- 電子系（電子工廠 / 電子輸送帶）疊加邏輯未審
+- 中央貿易代理 / 中央科技研發 / 中央電子網路 未審
+- 拆遷系（爆破裝置倒數 / 地基不穩定站 / 磁力板）未審
+- 物流系（螺旋物流站 / 物流放大器 flag 機制）未審
+- 人力銀行 / 派遣總部 互動未審
+- 強化增幅裝置 desc 疑問已決：被動光環（PM 確認）
 
