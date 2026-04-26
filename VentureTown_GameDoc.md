@@ -25,6 +25,7 @@
 | 31 | 拆遷合夥人 | 爆破工程師 3 項修正；混沌建築師排除巨型；廢墟掠奪者完整實作（ruinStacks） |
 | 32 | 全合夥人 desc 審查 + 3 修 | 擁慶記房屋 ReferenceError；擴散惡魔 pride 豁免；公路之星 per-cell cellPath 判定 |
 | 34 | 8 個惡魔合夥人全面改版 | 對齊新合夥人表；新增 onTurnEnd hook；嫉妒工廠完全重做；激情/貪婪/傲慢機制變更 |
+| 35 | Session 34 後續 bug 修復 + 音效動畫系統（5 組 32 接點） | A–G: bug 修復 5 項；H: 7 個關鍵事件音效動畫；I: 🔴 過關/失敗/輪/事件/達標/計數達標 6 項；J: 🟠 合夥人/升級/人材/拖曳錯誤/資源轉換/卡值變化 6 項；K: 🟡 存讀檔/開發者/教學/格選/卡懸停/無法負擔 6 項；L: 🟢 SSR/複合/譚雅稀有/擴大地圖/嫉妒匹配/匯率/物流方向 7 項 |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -3847,4 +3848,353 @@ envy_factory:{ name:'嫉妒工廠', emoji:'💚', desc:'任意→隨機資源；
 | `index.html` | PARTNERS 8 改、BLDG.envy_factory 1 改、FACILITY_FX 新增 envy handler、stepWithMover 嫉妒舊邏輯移除、_hit/inline 加 facCellPath、finish 嫉妒匹配新邏輯、destroyFacility/yongqingSellCell 加遊戲結束、startTurn 加旗標、sendEl 加怠惰 -6 + facCellPath 初始化、doNext 加 onTurnEnd hook、MEGA_SIM 同步 |
 | `VentureTown_GameDoc.md` | 惡魔表格更新 + 本 Session entry |
 | `VentureTown_實作對照表.xlsx` | **未同步**（需 PM 重新匯出） |
+
+---
+
+### Session 35（2026-04-26）— Session 34 後續 bug 排查與修復（5 項）
+
+對 Session 34 惡魔改版做交叉審查，發現 5 項真實 bug 並修復；另 1 項（pride.onTurnEnd 永遠 addLog）經重新檢視為非 bug（pride 自身計入 demonCount，+2 永遠對 onSettle 有效）。
+
+#### A. 嫉妒工廠 overlay 消滅不觸發遊戲結束（🔴 嚴重）
+
+##### A1. 問題
+Session 34 嫉妒負面「嫉妒工廠被消滅或賣出時遊戲結束」只檢查 base cell：
+- `destroyFacility` line 8218：`if(bId==='envy_factory' ...)` — `bId` 是 `G.grid[r][c]`（基底）
+- `yongqingSellCell` line 7968：同上
+- 第 8276–8291 行 overlay loop 只觸發 facility_destroyer / scrap_city / disaster_bureau，**未檢查 envy_factory**
+
+##### A2. 可重現情境
+玩家擁有「嫉妒 + 物流之王 / 倉儲女王」→ 把唯一一張 envy_factory 疊到物流中心上 → 物流中心被混沌建築師 / 爆破裝置 / 災害事件等消滅 → 整個 cell（含 envy overlay）被清，但 base 是 `logistics_*` 不是 `envy_factory`，遊戲不會結束。
+
+正常流程下玩家最多持有 1 張 envy_factory（`isPoolableBldg` / `COMPOUND_EXCLUDE` 都已排除），蕾雅同名疊加因手牌沒第二張無法觸發；但物流疊加可發生。
+
+##### A3. 修法
+新增共用 helper `_triggerEnvyGameOverIfPresent(r, c, reason)`（`index.html:8205`）：
+- 檢查 base 與 overlay 任一為 `envy_factory`
+- 內建傲慢豁免（`isDemonNegDisabled('envy')`，envy 有 `isDemon:true`）
+- 內建 `_envyGameOverFired` 防重複
+- 必須在 `clearKeyedData` 之前呼叫（否則 cellOverlay 已清空）
+
+兩處消滅入口統一呼叫：
+- `destroyFacility` (`index.html:8227`)：`_triggerEnvyGameOverIfPresent(r, c, '被消滅');`
+- `yongqingSellCell` (`index.html:7969`)：`_triggerEnvyGameOverIfPresent(r, c, '被賣出');`
+
+##### A4. 未動的路徑
+- `destroyFacility` 內的 dept_store 2×2 分支：dept_store 已 `indestructible`，第 8222 行就 return，永遠走不到
+- `yongqingSellCell` 的 dept_store 2×2 分支：envy_factory 不會 overlay 在 dept_store 上（蕾雅同名要同名、物流疊加只發生在物流中心、center_elec_net 要 center tag），且 helper 在 dept_store 處理之前呼叫已涵蓋 base
+
+#### B. 舊存檔 `_turnStartProfit` 未初始化（🟠 中度）
+
+##### B1. 問題
+Session 34 新增 `G._turnStartProfit`（startTurn 重置為當前 profit），供 greed.onTurnEnd / poverty.onTurnEnd 計算「本回合收益增量」。但 `deserializeGame` 沒有為缺失此欄位的舊存檔做 fallback：
+- `turnGain = (G.profit||0) - (G._turnStartProfit||0) = G.profit - 0 = G.profit`（變成「輪累積值」而非「回合增量」）
+- greed：`turnGain >= G.goal*0.5` 容易誤觸發 → 錯誤地給場上所有設施 +4 永久升級
+- poverty：`turnGain <= 0` 永不成立 → 應 +8 卻不發
+
+##### B2. 修法
+`deserializeGame` (`index.html:9554`) 補入：
+```js
+if(typeof data._turnStartProfit!=='number') data._turnStartProfit=data.profit||0;
+if(typeof data._firstFacInvestedThisTurn!=='boolean') data._firstFacInvestedThisTurn=false;
+```
+
+#### C. `_envyGameOverFired` 跨存檔殘留（🟡 輕度 / corner case）
+
+##### C1. 問題
+`destroyFacility` / `yongqingSellCell` 將 `G._envyGameOverFired = true` 之後永不重置。若玩家在嫉妒工廠被消滅、modal 顯示前的 300ms 內存檔（autoSave 觸發），讀檔後 flag 殘留 → 下次嫉妒消滅不再 trigger modal。
+
+##### C2. 修法
+`deserializeGame` (`index.html:9557`) 加 `delete data._envyGameOverFired;`
+
+#### D. 暴食 log 與實際扣減值不符（🟡 輕度）
+
+##### D1. 問題
+`gluttony.onTurnStart` (`index.html:1336`)：
+```js
+G.profit = Math.max(0, G.profit - 4);
+addLog(`收益-4`,'b');           // ← profit=2 時實際只扣 2 但 log 說 -4
+profitFlyFromPartner(this.id,-4); // ← 飛行動畫也誤顯示 -4
+```
+
+##### D2. 修法
+改用實際扣減值：
+```js
+const before=G.profit||0;
+G.profit=Math.max(0, before-4);
+const cut=before-G.profit;
+if(cut>0){
+  addLog(`...收益-${cut}`,'b');
+  setTimeout(()=>profitFlyFromPartner(this.id,-cut),100);
+}
+```
+扣 0 時不 log、不飛動畫。
+
+#### E. `G.inv.envyPen` 死碼移除（🟡 清潔）
+
+Session 34 移除嫉妒工廠舊 -50% 收益機制後，`envyPen` flag 完全沒讀取點，僅在 `sendEl` 第 4132 行初始化。移除該欄位。
+
+#### F. 跳過項目
+
+**pride.onTurnEnd 每回合 addLog**（原評估為 UX 問題）：
+重新檢視 onSettle (`index.html:1448`)：
+```js
+const demonCount = G.partners.filter(pid=>PARTNERS[pid]&&PARTNERS[pid].isDemon).length;
+```
+`pride` 自身有 `isDemon:true`，所以 `demonCount ≥ 1` 永遠成立（hook 會跑代表 pride 在 G.partners 裡）。每回合 +2 累積永遠對 onSettle 的 `demonCount * st.bonus` 有意義，addLog 不算 spam。
+
+#### G. 變更檔案（A–F 段）
+
+| 檔案 | 修改 |
+|---|---|
+| `index.html` | 新增 `_triggerEnvyGameOverIfPresent` helper + 兩處消滅入口統一呼叫；deserializeGame 補 3 個欄位 fallback / 清除；gluttony.onTurnStart 改用實扣值；sendEl 移除 envyPen 死碼 |
+| `VentureTown_GameDoc.md` | Session 索引補 35；本 Session entry |
+
+#### H. 7 個關鍵事件加音效與動畫（cell-only 路線）
+
+依使用者要求，為「進入商店、獲得卡牌、獲得合夥人、購買設施、賣出設施、消滅設施、爆破裝置爆炸」7 個事件補完音效與視覺反饋。視覺強度走 cell-only（不全屏震動，全屏只留給既有的 `hwBoom` 大熱波）。
+
+##### H1. 新增 4 個 SFX 函式（`SFX` IIFE module）
+
+| 函式 | 設計 | 用途 |
+|---|---|---|
+| `SFX.openShop()` | 上行四音琶音 C5→E5→G5→C6（triangle，每音 40ms 間隔） | 進入商店 / 行動 overlay |
+| `SFX.gainCard()` | G5 sine 主音 + B5 triangle 泛音（明亮「叮」） | 獲得卡牌（任何來源） |
+| `SFX.recruit()` | C5/E5/G5 大三和弦長音 + C3 低頻鋪底 | 招募合夥人（隆重） |
+| `SFX.destroy()` | sawtooth 110→40 Hz 衝擊 + white noise buffer 爆破 | 消滅設施 / 爆破裝置 / 賣出 |
+
+`SFX` 物件 return 值擴充：`{hit, convert, settle, place, placeOverlay, openShop, gainCard, recruit, destroy}`
+
+##### H2. 新增 5 個 CSS 動畫
+
+- `@keyframes overlayPopIn` — chooser 卡片 row 彈性入場（cubic-bezier .34, 1.56, .64, 1，含過衝）
+- `.card-fly` + transition — 通用卡牌從來源飛入手牌（縮小 0.55× + 透明度 → 0）
+- `@keyframes destroyBoom` — cell 紅閃震動 0.55s（rgba(217,72,40) 背景 + scale 1.18 + 微旋轉）
+- `@keyframes destroyShard` — 6 顆 emoji 碎片放射飛散（💥🔥⚙️💢🧱💨）
+- `@keyframes recruitPopIn` — 合夥人卡彈性出場（含 -12°→6° 旋轉過衝）
+
+##### H3. 新增 3 個 Helper 函式
+
+| 函式 | 位置 | 說明 |
+|---|---|---|
+| `flyCardToHand(bldgId, srcEl)` | profitFlyFromCell 附近 | 從 srcEl（或畫面中央 fallback）飛 76×96 卡片到 #hand-fan-area，內含 `SFX.gainCard()` |
+| `destroyEffect(r, c)` | placeEffect 後 | cell 套 .destroy-boom + 6 碎片（fixed 定位 append 到 body）+ `SFX.destroy()` |
+| `recruitEffect(pid)` | destroyEffect 後 | requestAnimationFrame 等 renderPartners 重建後，對 joker-card 套 .recruit-popin + `SFX.recruit()` |
+
+##### H4. 7 個事件的接入點
+
+| # | 事件 | 接入位置 | 觸發內容 |
+|---|---|---|---|
+| 1 | 進入商店 | `showCardChooser` | 對 #card-chooser-cards 套 .overlay-popin + `SFX.openShop()` |
+| 1 | 進入行動 overlay | `openActionOverlay` | 對 #action-cards 套 .overlay-popin + `SFX.openShop()` |
+| 2 | 事件補給卡牌獲得 | `evPick` | 移除舊 fromEl 飛入動畫（永遠 fromEl=null 的死碼），改 `flyCardToHand(id)` 統一處理 |
+| 2 | 合夥人 onTurnStart 贈卡 | 廢品戰士 / 訪問網路碼語者 / 電子精工師 / 雷電法王 / 激情惡魔（3 張 stagger 200ms） | `flyCardToHand(id, getPartnerCardEl(this.id))` |
+| 2 | 招募 envy 自動贈卡 | `recruitPartner / pickStarterPartner` 內 envy 分支 | `setTimeout(()=>flyCardToHand('envy_factory', getPartnerCardEl(pid)), 300)` |
+| 3 | 招募合夥人 | `recruitPartner / pickStarterPartner` | `recruitEffect(pid)`（兩處皆呼叫於 renderPartners 之後） |
+| 4 | 購買設施 | `doPermShop` 的 onclick callback | 在 `render()` 後追加 `flyCardToHand('${bid}')` |
+| 5 | 賣出設施 | `yongqingSellCell` | `destroyEffect(r,c)`；百貨公司 2×2 分支對其餘 3 格各觸發 |
+| 6 | 消滅設施 | `destroyFacility` | `destroyEffect(r,c)`（百貨公司分支內迴圈各別呼叫，避免單次 4 倍音效） |
+| 7 | 爆破裝置爆炸 | `startTurn` 的 bombs.forEach | 透過 `destroyFacility` 自動涵蓋（自爆 + 波及相鄰皆走 destroyFacility） |
+
+##### H5. 設計取捨
+
+- **碎片 fixed + body append**：因為 destroyFacility 後緊接 render() 會重建 #grid-area innerHTML，若把碎片掛在 cell.parentElement 會被清掉。改 fixed + body 不受影響。
+- **destroy-boom class 仍掛在 cell**：renderGrid 重建時 class 自然消失，動畫已播完不需 cleanup。
+- **flyCardToHand 預設從畫面中央**：chooser 關閉後沒有 srcEl 可用；chooser 原本在中央，從中央起飛視覺上合理。
+- **複合卡不飛**：`BLDG[compound_N]` 不存在，flyCardToHand 第一行 `if(!b) return` 自動 early return（safe）。
+- **激情 +3 張 stagger 200ms**：避免 3 張同時飛入造成視覺擠壓。
+- **重複 `SFX.openShop`**：每次 chooser/action overlay 開啟都響，符合「進入商店有音效」直覺；使用者後續若覺吵可加 throttle。
+
+##### H6. 變更檔案（H 段）
+
+| 檔案 | 修改 |
+|---|---|
+| `index.html` | SFX 4 函式 + CSS 5 keyframes + 3 helper（flyCardToHand / destroyEffect / recruitEffect）+ 接點：showCardChooser / openActionOverlay / evPick / doPermShop / recruitPartner / pickStarterPartner / yongqingSellCell / destroyFacility（含 dept_store 2×2 迴圈）/ ruin_warrior / cyber_coder / wrath / processCountTrigger（elec_artisan / thunder_king） |
+| `VentureTown_GameDoc.md` | 本段 H 補完 |
+
+#### I. 🔴 核心循環音效動畫（6 項）
+
+##### I1. 7 個新 SFX 函式
+| 函式 | 設計 | 用途 |
+|---|---|---|
+| `SFX.winFanfare()` | C5→E6 上行 5 音 + B6 高鈴 | 過關 modal |
+| `SFX.loseToll()` | A3→D3 下行三和弦 sine | 失敗 modal |
+| `SFX.roundStart()` | G4→C5→E5 + A6 鈴鐺 | 新輪開始 |
+| `SFX.turnTick()` | 1200Hz square 60ms | 回合推進 |
+| `SFX.eventTrigger(type)` | good 上行 / bad 下行 sawtooth / neutral 同音 | 事件觸發分類 |
+| `SFX.goalReached()` | C6→E6 雙鈴 | 目標達成瞬間 |
+| `SFX.countComplete()` | 660→1320Hz sweep + E6 鈴 | 計數達標 |
+
+##### I2. 6 個 CSS 動畫
+- `.modal-pop` / `modalPop` — modal 進場 scale + 旋轉過衝
+- `.round-banner` + `roundBannerIn` — 全屏中央「第 N 輪」64px 大字 1.6s
+- `.turn-pop` / `turnPop` — header 回合數字 scale 1.35× 短閃
+- `.ev-banner-slide-in` / `eventBannerSlideIn` — 事件 banner 從上方 -160% 滑入過衝
+- `.goal-flash` + `.goal-reached-chip` + `goalChipIn` — goal 數字綠光脈衝 + 「🎯 達成目標！」chip
+- `.count-complete` / `countCompleteGlow` — 合夥人卡金光 box-shadow 脈衝 0.9s × 2
+
+##### I3. 接入點
+| 事件 | 位置 | 行為 |
+|---|---|---|
+| 過關/失敗 modal | `showModal` | mbox `.modal-pop` + winFanfare/loseToll |
+| 新輪開始 | `startRound`（round > 1） | `showRoundBanner` + roundStart |
+| 回合推進 | `doNext` 的 G.turn++ | `r-turn` 套 .turn-pop + turnTick |
+| 事件 banner 出場 | `showEv` | banner `.ev-banner-slide-in`；eventTrigger 提到 `triggerEvent`/`doNext` 兩個 ev.show 之前 |
+| 目標達成（finish/doPermConvert 首次達標） | `showGoalReachedFx` | goal-flash + chip + goalReached |
+| 計數達標（5 位計數合夥人） | `processCountTrigger` 開頭統一 | `_countTriggerFx`：合夥人卡 .count-complete + countComplete |
+
+##### I4. 順帶重構
+`processCountTrigger` 5 個合夥人各自的 `if(st.count<3) return false;` 集中到開頭單一判定，消除 4 行重複，並確保所有達標都觸發 fx。
+
+##### I5. 事件分類映射 `EVENT_SFX_TYPE`
+19 個事件全涵蓋：
+- **good**：pick_fac / mat_boom / goods_up / tanya_gift / leya_gift / job_assist
+- **neutral**：skip / row_buff / col_buff / area_buff
+- **bad**：mat_crash / typhoon / rebellion / earthquake / hazardous_waste / transport_error / food_safety / labor_insurance / murphy
+
+##### I6. 審查發現的 6 個問題（全修）
+1. `doNext` 路徑事件音效類型錯誤：未設 `_currentEventId` → 補上
+2. `pick_fac` 等不走 showEv 的事件沒事件音 → 把 SFX.eventTrigger 從 showEv 抽到 `_playEventSfx(ev)` helper，在兩個 ev.show 之前統一播放；showCardChooser 加 `opts.silent` 讓 pick_fac 跳過 openShop 重複音
+3. `destroyEffect` 紅閃被 render 中斷 → 改為獨立 fixed 浮層 + body append
+4. `_countTriggerFx` 套 partner card 但 caller 後續 render 重建 DOM → 用 `requestAnimationFrame` 延後加 class
+5. `showStarterPartnerSelection` 跳過 popin/SFX → 補上 popin + openShop
+6. dept_store 2×2 連 4 次 SFX.destroy 太吵 → `destroyEffect` 加 `opts.silent`，第一格播音其餘只跑視覺
+
+#### J. 🟠 戰術反饋音效動畫（6 項）
+
+##### J1. 6 個新 SFX
+| 函式 | 設計 | 用途 |
+|---|---|---|
+| `SFX.partnerProc()` | G6 sine 60ms | 合夥人技能觸發 |
+| `SFX.upgrade()` | E5→A5 兩聲短上行 | 設施升級 |
+| `SFX.talentGain()` | C6→F6 sweep | 人材獲得 |
+| `SFX.talentLose()` | A3→A2 下行 sine | 人材失去 |
+| `SFX.invalid()` | 200Hz triangle 80ms「嗶」 | 無效操作 |
+| `SFX.cardChange()` | D5 sine 80ms「滴」 | 元素卡值變化 |
+
+##### J2. 6 個 CSS 動畫
+- `.partner-flash` / `partnerFlash` — 合夥人卡 0.4s 短閃白光
+- `.invalid-shake` + `.invalid-flash-layer` / `invalidShake` — 紅震 0.35s + 紅閃浮層
+- `.value-tween` / `valueTween` — 數字 scale 1.4× 金色（增加版）
+- `.value-tween-lose` / `valueTweenLose` — scale 1.3× 紅色（減少版）
+- `.upgrade-float` / `upgradeFloatAnim` — 金色「+N」浮現上飄
+- `.mover-convert` / `moverConvert` — emoji rotateY 翻轉 + scale 1.25× + box-shadow 金光
+
+##### J3. 接入點
+| 事件 | 位置 | 行為 |
+|---|---|---|
+| 合夥人技能觸發 | `profitFlyFromPartner` | partner-flash + SFX.partnerProc |
+| 設施升級（玩家用 ⬆） | `upgradeCell` | upgradeFx：金色 +1 浮動 + SFX.upgrade |
+| 人材變動 | `renderTalentPanel` 偵測 G.talentCards 差值 | 增 → SFX.talentGain + value-tween；減 → SFX.talentLose + value-tween-lose |
+| 拖曳錯誤 | `onCellDrop` 的 tryPlaceAtCell 失敗 | invalidPlaceFx 紅震 + SFX.invalid |
+| 資源轉換 | `updateMover` 內 typeChanged 時 | mover-convert（emoji 翻轉 + 金光） |
+| 元素卡值變化 | `updateCard` 偵測 G.card.value 差值 | SFX.cardChange + el-card-fan 套 value-tween |
+
+##### J4. 初始化陷阱修復
+`_lastTalentCount` / `_lastCardValue` / `_lastCardType` 是 module-level 變數，若不重置會在「載入存檔 / 失敗重開 / SM 切換」後第一次呼叫誤播音效。  
+**修法**：三個變數初始值設為 `null` sentinel；`renderTalentPanel` / `updateCard` 內判斷 `_lastXxx===null` 時 `delta=0` 不播音；`SM.goto` 在場景切換時主動重置三者為 `null`。
+
+#### K. 🟡 UI 互動音效動畫（6 項）
+
+##### K1. 2 個新 SFX
+- `SFX.select()` — A5→E6 sweep 50ms「啾」
+- `SFX.cardHover()` — A6 triangle 30ms 極輕音（150ms throttle）
+
+##### K2. 3 個 CSS 動畫
+- `.char-pop` / `charPop` — 立繪 scale 1.06 + Y -4px 短彈
+- `.acard-deny` / `acardDeny` — disabled 行動卡點擊紅震
+- `.select-chirp` / `selectChirp` — 格子被選中金光脈衝 0.35s
+
+##### K3. 接入點
+| 事件 | 位置 | 行為 |
+|---|---|---|
+| 存檔匯出 | `exportSave` | SFX.gainCard |
+| 存檔匯入 | `importSave` 成功分支 | SFX.openShop |
+| 開發者面板 | `DEV.open` / `close` | open: SFX.openShop；close: SFX.cardChange（panel 是 left:0 fixed 不套 popin 動畫避免錯位） |
+| 教學/事件台詞 | `DM.trigger` / `DM.onEvent` | charPopFx（立繪 pop，1.5s throttle） |
+| 格子被選中（移動模式） | `onCell` G.moveSrc 設定 | SFX.select + cell .select-chirp |
+| 手牌懸停 | `fanCardHover` | SFX.cardHover（150ms throttle） |
+| 行動費用無法負擔 | acard onclick=`actionDeny(this)` | acard-deny 紅震 + SFX.invalid |
+
+##### K4. 副作用
+- `.acard-disabled` 移除 `pointer-events:none`：原本完全擋下 hover/click，現在允許 hover 顯示說明 + click 觸發 actionDeny。`:not(.acard-disabled)` hover 樣式仍正確排除。
+- `charPopFx` 只在 `DM.trigger`/`onEvent` 觸發（重要時刻），hover 類台詞不觸發避免立繪反覆抖動。
+
+#### L. 🟢 微互動音效動畫（7 項，原計畫 8 項其中疊加輪播跳過）
+
+##### L1. 6 個新 SFX
+| 函式 | 設計 | 用途 |
+|---|---|---|
+| `SFX.rareDrop()` | B5+D6+F#6 三和弦長音 + B6 泛音 | SSR 招募/抽到 |
+| `SFX.compoundLink()` | A5/E6 兩段 square「叩叩」 | 複合鏈接 |
+| `SFX.swap()` | 440Hz square 30ms | 疊加切換（保留未接點） |
+| `SFX.expand()` | 40→100Hz sawtooth rumble + G4/C5/E5 喇叭 | 地圖擴張 |
+| `SFX.envyMatch()` | C6→G6 sweep 250ms | 嫉妒匹配 |
+| `SFX.rotateDir()` | 60ms white noise swish | 物流方向旋轉 |
+
+##### L2. 6 個 CSS 動畫
+- `.ssr-sparkle` / `ssrSparkleAnim` — 12 顆金 ✨ 放射飛散
+- `.envy-match-flash` / `envyMatchAnim` — 「+N！」綠+金光浮現
+- `.expand-overlay` + `.expand-banner` + `.expanding` — 全屏擴散圈 + 大字 banner + 主畫面震動（**破例全屏特效**）
+- `.dir-rotating` / `dirRotate` — emoji 360° 旋轉
+- `.compound-link-fx` / `compoundLinkAnim` — 中央 🔗 旋轉浮現
+
+##### L3. 接入點
+| 事件 | 位置 | 行為 |
+|---|---|---|
+| SSR 招募 | `recruitEffect` 內判定 PARTNER_RARITY[pid]==='SSR' | 100ms 後 showSsrSparkle 從 partner card 飛散 |
+| 複合設施生成 | `addHandMaybeCompound` 複合分支 | showCompoundLinkFx |
+| 譚雅交換稀有度音 | `tanyaDoSwap` | SSR→showSsrSparkle / SR→recruit / 其他→gainCard |
+| ~~疊加輪播音~~ | — | **跳過**（CSS 自動播放無 trigger 點 + spam 風險） |
+| 大地主/大財團/惡魔巨人擴大 | 三個 `onRecruit` | showExpandFx（破例全屏） |
+| 嫉妒工廠匹配 +8 | `finish` 嫉妒匹配分支 | showEnvyMatchFlash |
+| 匯率波動 ±2 浮字 | `floatAtCell` | SFX.partnerProc（80ms throttle）|
+| 物流中心方向旋轉 | redirect 的 perTurnRotate 分支 | SFX.rotateDir + .cemoji 套 .dir-rotating |
+
+##### L4. 衝突修復
+1. **tanyaDoSwap SSR 雙響 rareDrop**：原本外層呼叫 SFX.rareDrop + 100ms 後 showSsrSparkle 內又響一次。修法：移除外層，showSsrSparkle 自帶。
+2. **SSR 大型合夥人三音重疊**（landlord/big_corp/demon_giant 是 SSR 又觸發 showExpandFx）：expand+recruit+rareDrop 三個長音同時。修法：showSsrSparkle 加 `opts.silent`，recruitEffect 偵測擴張類合夥人時 sparkle 視覺保留但跳過 SFX.rareDrop。
+
+#### M. 全系統審查（H–L 跨組互動）
+
+##### M1. 累計新增資源
+| 組別 | SFX | CSS | Helper | 接點 |
+|---|---|---|---|---|
+| H | 4 | 5 | 3 | 7 |
+| I | 7 | 6 | 3 | 6 |
+| J | 6 | 6 | 4 | 6 |
+| K | 2 | 3 | 2 | 6 |
+| L | 6 | 6 | 4 | 7 |
+| **合計** | **25** | **26** | **16** | **32** |
+
+##### M2. 跨組別衝突檢查（已修復 / 已驗證）
+- ✅ tanyaDoSwap SSR 雙響 rareDrop（L 段內修）
+- ✅ SSR 大型合夥人三音重疊（L 段內修）
+- ✅ doNext 事件音效類型錯誤（I 段修）
+- ✅ pick_fac 跳過 showEv 沒事件音（I 段修）
+- ✅ destroyEffect 紅閃被 render 中斷（I/H 段交替修）
+- ✅ _countTriggerFx 被 render 中斷（I 段 rAF 修）
+- ✅ dept_store 2×2 連響 4 次 destroy（I 段 silent 修）
+- ✅ 初始化陷阱（J 段 sentinel + SM.goto 重置修）
+
+##### M3. 已驗證無問題的互動
+- 連續結算多輪過關時 SFX/banner 時序合理
+- 失敗重開（lose modal → 標題 → 新遊戲）SM.goto 重置 sentinel ✓
+- 教學期間 hookDoNext 攔截 → turnTick 不響；hookFinishPre 攔截 → goalReached 不誤響；教學中無合夥人 → hook 各 SFX 不跑
+- BATTLE / MEGA 模式 simFacilityPath 純模擬不呼叫 SFX；不觸發 destroyFacility/placeBldg
+- 連環爆破（炸彈客 6+ bomb 同時爆）每個 destroyFacility 在不同時序觸發，連響像「連環爆」效果可接受
+- z-index 層級設計合理（最高層 expand-banner 9310，hwBoom 全屏為 8000+，不衝突）
+- 13 個臨時 class 全部有 setTimeout 主動 remove 或由 render 重建自然消失
+
+##### M4. 已知小取捨（不修）
+1. 5 個 openShop caller 玩家連續操作可能聽到 3-4 連響（每次間隔 ≥500ms 玩家操作，不算 spam）
+2. 同回合多合夥人 onSettle 各響 SFX.partnerProc（setTimeout 100~150ms 延遲分散，「連珠叮叮」效果可接受）
+3. goal-reached-chip 與 win modal 部分時間重疊（chip top:25%、modal 居中，視覺位置不衝突）
+4. ssr-sparkle 對譚雅交換 SSR 從畫面中央飛散（無 srcEl，符合 cinematic 結束視覺）
+5. 沒有全域 SFX 音量控制（各 SFX gain.gain 已平衡 0.025~0.12 之間）
+
+##### M5. 變更檔案（H + I + J + K + L 段）
+| 檔案 | 修改 |
+|---|---|
+| `index.html` | SFX 25 個函式、CSS 26 個動畫 + class、helper 16 個函式、32 個事件接點；audio API 用 Web Audio 無外部檔案；所有動畫 cell-only（破例全屏：showExpandFx + showRoundBanner） |
+| `VentureTown_GameDoc.md` | 索引表更新；H–M 段補完 |
 
