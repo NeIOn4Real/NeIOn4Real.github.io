@@ -1102,14 +1102,20 @@ body { padding-bottom: 150px; }
 .joker-card.demon .jc-name { color:#c0392b; }
 
 /* ── 角色立繪（右下角） ── */
+/* z-index 50：低於 #hand-fan-area(60)，讓手牌過多時最右側的卡片能在視覺與點擊上蓋過立繪。 */
+/* hand-fan-area 是 pointer-events:none 的容器（只 .fan-card 收事件），立繪仍可被點擊（事件穿透）。 */
 #char-tray {
   position: fixed;
   bottom: -22%;
   right: -5px;
-  z-index: 98;
+  z-index: 50;
   pointer-events: none;
   width: clamp(276px, 27.6vw, 437px);
+  transition: opacity .2s ease;
 }
+/* 拖曳卡片時：立繪淡出且不接事件，避免遮擋投入箭頭與卡片互動 */
+body.card-dragging #char-tray { opacity: 0.2; }
+body.card-dragging #char-tray img { pointer-events: none !important; }
 
 /* ── 對話泡泡 ── */
 #char-bubble {
@@ -3836,7 +3842,7 @@ const CONTRACTS = {
     id:'union_pact_contract', name:'工會', emoji:'✊', pool:'r6', permanent:true,
     immediateText:'如果你沒有合夥人「工會主席」與「分身大師」，則立即獲得它們。',
     guaranteeText:'',
-    compensationText:'你的小鎮上的設施沒有被投入至少 6 人材時，不參與投入。',
+    compensationText:'你的小鎮上的設施沒有被投入至少 4 人材時，不參與投入。',
     onAccept(G, ac){
       _contractRecruitIfMissing('union_chief','工會');
       _contractRecruitIfMissing('clone_master','工會');
@@ -4022,7 +4028,7 @@ function _contractCellSkipReason(r, c, bId){
   }
   if(hasActiveContract('union_pact_contract')){
     const tcInv = (G.cellTalentInvested && G.cellTalentInvested[`${r},${c}`]) || 0;
-    if(tcInv < 6) return `（工會合約：投入人材 ${tcInv}/6）`;
+    if(tcInv < 4) return `（工會合約：投入人材 ${tcInv}/4）`;
   }
   return null;
 }
@@ -5674,6 +5680,16 @@ function findAny2x2(r,c){
   }
   return null;
 }
+// 純空格 2×2（無需大財團，不破壞任何設施）— 供 mega_elec_supply / giant_village / world_wonder 使用
+function findEmpty2x2(r,c){
+  const gn=GN();
+  for(let dr=0;dr>=-1;dr--) for(let dc=0;dc>=-1;dc--){
+    const tr=r+dr, tc=c+dc;
+    if(tr<0||tc<0||tr+1>=gn||tc+1>=gn) continue;
+    if(!G.grid[tr][tc]&&!G.grid[tr][tc+1]&&!G.grid[tr+1][tc]&&!G.grid[tr+1][tc+1]) return [tr,tc];
+  }
+  return null;
+}
 function placeDeptStore(r,c,anchor){
   const [tr,tc]=anchor;
   // 清除 4 格的舊資料
@@ -6080,7 +6096,11 @@ function tryPlaceAtCell(r,c,bldgId){
     // 先試專屬條件（百貨公司：2×2 商店；古代機械工廠：2×2 工廠）
     let anchor = isDept ? findShop2x2(r,c) : (isAncient ? findFactory2x2(r,c) : null);
     let useBigCorp = false;
-    // 大財團：若專屬條件失敗（或本來就不是 dept/ancient），嘗試任意 2×2 非大型區域
+    // 非 dept/ancient 的大型設施（mega_elec_supply / giant_village / world_wonder）：試純空格 2×2
+    if(!anchor && !isDept && !isAncient){
+      anchor = findEmpty2x2(r,c);
+    }
+    // 大財團：若上述都失敗，嘗試任意 2×2 非大型區域（含可破壞設施）
     if(!anchor && hasPartner('big_corp')){
       anchor = findAny2x2(r,c);
       if(anchor) useBigCorp = true;
@@ -6088,7 +6108,7 @@ function tryPlaceAtCell(r,c,bldgId){
     if(!anchor){
       if(isDept) addLog('🏬 百貨公司需要 2×2 的一般商店區域（不含已有的百貨公司）','b');
       else if(isAncient) addLog('🏛 古代機械工廠需要 2×2 的工廠區域（factory/adv_factory）','b');
-      else addLog(`🚫 ${BLDG[bldgId].name}需要 2×2 空間（大財團可取代非大型區域）`,'b');
+      else addLog(`🚫 ${BLDG[bldgId].name}需要 2×2 空格（大財團可取代非大型區域）`,'b');
       return false;
     }
     if(!handItem||handItem.count<=0) return false;

@@ -28,6 +28,7 @@
 | 35 | Session 34 後續 bug 修復 + 音效動畫系統（5 組 32 接點） | A–G: bug 修復 5 項；H: 7 個關鍵事件音效動畫；I: 🔴 過關/失敗/輪/事件/達標/計數達標 6 項；J: 🟠 合夥人/升級/人材/拖曳錯誤/資源轉換/卡值變化 6 項；K: 🟡 存讀檔/開發者/教學/格選/卡懸停/無法負擔 6 項；L: 🟢 SSR/複合/譚雅稀有/擴大地圖/嫉妒匹配/匯率/物流方向 7 項 |
 | 36 | 設施互動審查 + 多項機制修正 | A: cellBonus orphan / pride 上限 / 事件 banner 靠左；B: 臨時加成格子高亮 + BGM；C: 轉運中心複合卡修；D: 古代機械工廠「視為 4 工廠」計數規則；E: 6 個商店 special FX 跳過 shop_owner 系統性修復；F: 中央監督局嚴格按 facPath；G: 環境感應站每格只算一次；H: 人力派遣 fx.hit；I: 強化增幅裝置改被動心願 |
 | 37 | 合約系統實作（Phase A→D）+ 數個既有 bug 修補 | A: CONTRACTS / CONTRACT_POOLS / runContractHook / 合約面板 UI 框架；B: R2 池 12 張完整實作；C: 暗叫合約（卡背手牌 + 配對消除 +30）；D: R4 池 12 張（含 6 dupes + 板塊/擴展/電極等永久效果）+ R6 池 9 張（大群/地產/產線/巨人/終點/姊妹/惡魔/工會/暗叫）；附帶修：複合卡 蕾雅疊加 / 大型設施排除複合 / 多輪過關連跳合約補發 / 商業集中追蹤漏算（基礎設施路徑漏 _trackContractHits）/ 收益顯示 +-N / 合約按鈕 UI 移位 + 加大 / 卡背 inspector 洩露 / 暗叫複合卡 emoji 可見 / dept_store_part 配對繞 indestructible |
+| 38 | Session 37 合約系統審查後續 + 平衡與 UI 修補 | A: 合約 chooser 模組變數 deserializeGame 不重置，mid-modal 匯入存檔會卡死後續所有合約 chooser；B: 工會合約門檻 6→4 人材；C: mega_elec_supply / giant_village / world_wonder 在無大財團時也能放置（新 findEmpty2x2 helper）；D: 角色立繪 z-index 98→50，拖曳卡片時淡出，避免遮擋手牌與投入箭頭 |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -4481,4 +4482,85 @@ desc：「周圍 4 格每有 1 個**設施** +2」（per-cell），但 `countAdj
 - **chooser 卡背**：`showCardChooser` 自動為「無 pid 且 extraClass 不含 contract-card」的卡套卡背
 - **配對消除**：`_handleHiddenCallPair(r,c)` + onCell 攔截（在「正常放置模式」之前）；`G._hiddenCallPickedCell` 跨 startRound 重置；render cell 加 `hidden-pair-selected` / `hidden-pair-target` highlight class
 - **CSS**：`.fan-card.card-back-fac` 深紫漸層 + 中央 🃏；`.cell.hidden-pair-selected` 橘脈動 / `.cell.hidden-pair-target` 綠虛線
+
+## Session 38（2026-04-27）— Session 37 合約系統審查後續 + 平衡與 UI 修補
+
+### A. 合約 chooser 模組變數在 deserializeGame 後不重置（critical，commit 1275b98）
+
+**問題**：`_contractChooserQueue` / `_contractChooserActive`（index.html:4109-4110）為 module-level `let`，`autoLoad` 與 `importSave` 兩個進入點都會呼叫 `deserializeGame`，但**不重置這兩個變數**。觸發情境（皆不需重新整理頁面）：
+
+1. 玩家進到第 2 輪、合約 chooser modal 跳出，`_contractChooserActive=true`
+2. 玩家此時匯入舊存檔（或失敗後 newGame）→ modal DOM 被收掉，但 `_contractChooserActive` 殘留 true
+3. 之後到新存檔的第 2/4/6 輪：`_kickContractChooser()` 第一行 `if(_contractChooserActive) return;` → **chooser 永遠不開**，startRound 已 queue 進去但靜默卡死
+
+**修法**（index.html:12560-12562，2 行）：在 deserializeGame 合約欄位補填區後加重置：
+```js
+_contractChooserQueue = [];
+_contractChooserActive = false;
+```
+
+### B. 工會合約：6 人材 → 4 人材
+
+**改動**：
+- `union_pact_contract.compensationText`：「至少 6 人材」→「至少 4 人材」（index.html:3839）
+- `_contractCellSkipReason` 工會分支：`tcInv < 6` → `tcInv < 4`（index.html:4028），UI 顯示分母 `${tcInv}/6` → `${tcInv}/4`
+
+**理由**：原 6 人材門檻在實際遊玩中過高（每格 6 次 talent drop），玩家難以達到，導致工會合約幾乎是純 debuff 缺乏正向誘因。降到 4 後仍有挑戰但可達。
+
+### C. mega_elec_supply / giant_village / world_wonder 即使周圍 4 格全空也無法放置
+
+**問題**：這三個設施都是 `needs2x2:true, isLarge:true` 但**沒有專屬條件**（不像 dept_store 要 2×2 商店、ancient_factory 要 2×2 工廠）。`tryPlaceAtCell` 的 2×2 放置分支（index.html:6097）：
+
+```js
+let anchor = isDept ? findShop2x2(r,c) : (isAncient ? findFactory2x2(r,c) : null);
+if(!anchor && hasPartner('big_corp')){ anchor = findAny2x2(r,c); ... }
+```
+
+非 dept/ancient 的大型設施 anchor 直接是 `null`；只有持有大財團合夥人才會走 fallback。**沒有大財團時，4 格全空也無路徑可放**，玩家拿到牌但永遠放不下去。
+
+**修法**：
+1. 新增 `findEmpty2x2(r,c)` helper（index.html:5683-5691），純空格 2×2 偵測，不破壞任何設施：
+   ```js
+   function findEmpty2x2(r,c){
+     const gn=GN();
+     for(let dr=0;dr>=-1;dr--) for(let dc=0;dc>=-1;dc--){
+       const tr=r+dr, tc=c+dc;
+       if(tr<0||tc<0||tr+1>=gn||tc+1>=gn) continue;
+       if(!G.grid[tr][tc]&&!G.grid[tr][tc+1]&&!G.grid[tr+1][tc]&&!G.grid[tr+1][tc+1]) return [tr,tc];
+     }
+     return null;
+   }
+   ```
+2. 插入專屬條件失敗後、大財團 fallback 之前（index.html:6099-6101）：
+   ```js
+   if(!anchor && !isDept && !isAncient){
+     anchor = findEmpty2x2(r,c);
+   }
+   ```
+
+**保留**：實際放置仍是「單格行為」（line 6118-6120 `G.grid[r][c]=bldgId`，其餘 3 格保持空），與現有實作一致；UI 預覽也只顯示 1 格，與此一致。`needs2x2` 純粹作為「需要 2×2 空間」的閘門。
+
+### D. 角色立繪遮擋手牌互動
+
+**問題**：
+- `#char-tray` z-index **98**（index.html:1109），`#hand-fan-area` z-index **60**（index.html:908） → 立繪疊在手牌之上
+- `#char-tray img` `pointer-events: auto`（index.html:1161） → 攔截點擊
+- 結果：手牌過多時最右側卡片被立繪覆蓋且無法點擊／拖曳，玩家無法投入資源
+
+**修法**（index.html:1104-1124）：
+
+1. `#char-tray` z-index **98 → 50**（< hand-fan 60），讓手牌視覺與互動都優先
+2. 立繪仍可被點擊：`#hand-fan-area` 容器是 `pointer-events: none`（只 `.fan-card` 收事件），未被卡片覆蓋的立繪部分可由事件穿透收到 click → `charClick()` 仍可正常觸發
+3. 拖曳卡片時加強：`body.card-dragging #char-tray { opacity: 0.2 }` + `img { pointer-events: none !important }`，立繪幾乎消失避免擋投入箭頭
+
+**z-index 重排對照**：
+
+| 元素 | 舊 | 新 |
+|---|---|---|
+| #char-tray 角色立繪 | 98 | **50** |
+| #hand-fan-area 手牌容器 | 60 | 60（不變）|
+| .dbtn 投入箭頭（拖曳時）| 70 | 70（不變）|
+| #char-bubble 對話泡泡 | 99 | 99（不變，仍最上層）|
+
+**未做**：當手牌很多時主動偏移立繪位置（如 translate-x），目前以淡出 + 點擊穿透解決即可，視覺保留立繪上半部仍可見。
 
