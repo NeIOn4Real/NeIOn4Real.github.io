@@ -12557,6 +12557,9 @@ function deserializeGame(save){
   ['roundShopCellsHit','roundFactoryCellsHit','roundMatFactoryCellsHit'].forEach(k=>{
     if(!(data.contractCounters[k] instanceof Set)) data.contractCounters[k]=new Set();
   });
+  // 合約 chooser 模組變數重置：避免 mid-modal 匯入存檔或失敗重開後 _kickContractChooser 卡死
+  _contractChooserQueue = [];
+  _contractChooserActive = false;
   // 舊存檔遷移：logistics_vault_v2 已併入 logistics_vault；trade_hub/tech_lab 改為 center_trade/center_tech
   const gn=data.gridSize||4;
   for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
