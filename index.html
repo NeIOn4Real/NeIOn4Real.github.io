@@ -1414,7 +1414,7 @@ body.card-dragging #char-tray img { pointer-events: none !important; }
   </div>
   <button id="btn-contract" onclick="openContractPanel()" title="查看合約" style="display:none;">📜</button>
   <div style="display:flex;gap:4px;margin-left:6px;">
-    <button id="btn-bgm" class="chip" onclick="toggleBgm()" title="開啟背景音樂" style="cursor:pointer;padding:4px 8px;">🔇</button>
+    <button id="btn-bgm" class="chip" onclick="toggleBgm()" title="關閉背景音樂" style="cursor:pointer;padding:4px 8px;">🎵</button>
     <button id="btn-export" class="chip" onclick="exportSave()" title="匯出存檔" style="cursor:pointer;padding:4px 8px;">💾</button>
     <button id="btn-import" class="chip" onclick="triggerImport()" title="匯入存檔" style="cursor:pointer;padding:4px 8px;">📂</button>
   </div>
@@ -2152,7 +2152,11 @@ const BGM=(()=>{
   }
   function isActive(){ return active; }
   function preferOn(){
-    try{ return localStorage.getItem('vt_bgm_on')==='1'; }catch(e){ return false; }
+    // 預設開啟：未設定（首次進站 / 已清除 localStorage）回傳 true，僅當顯式設為 '0' 才關閉
+    try{
+      const v=localStorage.getItem('vt_bgm_on');
+      return v===null?true:v==='1';
+    }catch(e){ return true; }
   }
   // 切換到當前輪數對應的 BGM；非 active 時不自動啟動
   function syncToRound(){
@@ -14418,8 +14422,12 @@ G=newGame();
 SM.goto('title');
 // BGM 偏好恢復：瀏覽器 autoplay policy 要求 user gesture，等首次點擊再啟動
 (function bgmAutoStart(){
-  if(!BGM.preferOn()) return;
   const btn=document.getElementById('btn-bgm');
+  if(!BGM.preferOn()){
+    // 用戶顯式關閉過 → 同步按鈕視覺成 🔇
+    if(btn){ btn.textContent='🔇'; btn.title='開啟背景音樂'; }
+    return;
+  }
   if(btn){ btn.textContent='🎵'; btn.title='關閉背景音樂'; }
   const onFirstGesture=()=>{
     if(!BGM.isActive()) BGM.start();
