@@ -9117,33 +9117,39 @@ function isPermShopFree(){
 function doPermShop(){
   if(G.phase!=='place'&&G.phase!=='done') return;
   if(G._permShopUsed) return;
-  const _shopTc=getPlayerTagCounts();
-  // 基礎設施池 + 商店限定工具池 + 1 隨機物流方向
-  let pool=[...BASIC_FACILITIES, ...SHOP_ONLY_FACILITIES];
-  pool.push(LOGISTICS_DIRS[Math.floor(Math.random()*LOGISTICS_DIRS.length)]);
-  // 35% 機率額外出現一個非基礎設施
-  if(Math.random()<0.35){
-    const nonBasic=Object.keys(BLDG).filter(id=>
-      isPoolableBldg(id)&&!BASIC_FACILITIES.includes(id)
-    );
-    if(nonBasic.length) pool.push(weightedPickN(nonBasic,1,_shopTc)[0]);
+  // 本回合 offer 快取：每回合首次開啟生成，之後（取消重開）沿用，避免反覆 roll 刷內容
+  let offer = G._permShopOffer;
+  if(!offer || offer.turn !== G.turn || offer.round !== G.round){
+    const _shopTc=getPlayerTagCounts();
+    // 基礎設施池 + 商店限定工具池 + 1 隨機物流方向
+    let pool=[...BASIC_FACILITIES, ...SHOP_ONLY_FACILITIES];
+    pool.push(LOGISTICS_DIRS[Math.floor(Math.random()*LOGISTICS_DIRS.length)]);
+    // 35% 機率額外出現一個非基礎設施
+    if(Math.random()<0.35){
+      const nonBasic=Object.keys(BLDG).filter(id=>
+        isPoolableBldg(id)&&!BASIC_FACILITIES.includes(id)
+      );
+      if(nonBasic.length) pool.push(weightedPickN(nonBasic,1,_shopTc)[0]);
+    }
+    // 荒蕪合約：下次商店出 5 張全免費（首次生成時消耗 flag）
+    const barrenBoost = !!G._contractBarrenNextShopFiveFree;
+    const numCards = barrenBoost ? 5 : 3;
+    const shuffled=weightedPickN([...new Set(pool)],numCards,_shopTc);
+    const hasFree = barrenBoost || isPermShopFree();
+    const freeIdx=(hasFree && !barrenBoost) ? Math.floor(Math.random()*shuffled.length) : -1;
+    if(barrenBoost){
+      G._contractBarrenNextShopFiveFree = false; // 一次性消耗（生成時）
+      addLog('📜 荒蕪：商店出現 5 張免費設施','g');
+    }
+    offer = { ids:shuffled, freeIdx, hasFree, barrenBoost, turn:G.turn, round:G.round };
+    G._permShopOffer = offer;
   }
-  // 荒蕪合約：下次商店出 5 張全免費
-  const barrenBoost = !!G._contractBarrenNextShopFiveFree;
-  const numCards = barrenBoost ? 5 : 3;
-  const shuffled=weightedPickN([...new Set(pool)],numCards,_shopTc);
-  const hasFree = barrenBoost || isPermShopFree();
-  const freeIdx=(hasFree && !barrenBoost) ? Math.floor(Math.random()*shuffled.length) : -1;
   const cost=getPermShopCost();
   const prevPhase=G.phase;
-  if(barrenBoost){
-    G._contractBarrenNextShopFiveFree = false; // 一次性消耗
-    addLog('📜 荒蕪：商店出現 5 張免費設施','g');
-  }
   showCardChooser(
-    `🏗 商店${barrenBoost?' （荒蕪：5 張免費）':(hasFree?' （含免費）':'')}`,
-    shuffled.map((bid,i)=>{
-      const isFree = barrenBoost || (i===freeIdx);
+    `🏗 商店${offer.barrenBoost?' （荒蕪：5 張免費）':(offer.hasFree?' （含免費）':'')}`,
+    offer.ids.map((bid,i)=>{
+      const isFree = offer.barrenBoost || (i===offer.freeIdx);
       const c=isFree?0:cost;
       const afford=G.profit>=c;
       return {
@@ -9151,14 +9157,14 @@ function doPermShop(){
         desc:BLDG[bid].desc+(isFree?'':(afford?'':'\n⚠ 收益不足')),
         pos:isFree?'免費':'-'+c+' 收益', neg:'',
         extraClass:isFree?'free-card':'',
-        onclick:afford?`cardChooserPick(()=>{G.profit-=${c};G._permShopUsed=true;addHandMaybeCompound('${bid}');addLog('🏗 購買了 ${BLDG[bid].emoji}${BLDG[bid].name}${isFree?" （免費）":""}','g');G.phase='${prevPhase}';render();flyCardToHand('${bid}');})`:'',
+        onclick:afford?`cardChooserPick(()=>{G.profit-=${c};G._permShopUsed=true;G._permShopOffer=null;addHandMaybeCompound('${bid}');addLog('🏗 購買了 ${BLDG[bid].emoji}${BLDG[bid].name}${isFree?" （免費）":""}','g');G.phase='${prevPhase}';render();flyCardToHand('${bid}');})`:'',
       };
     }),
-    ()=>{ G.phase=prevPhase; render(); } // 取消
+    ()=>{ G.phase=prevPhase; render(); } // 取消（不清除 offer，下次開仍是同一批）
   );
   G.phase='event'; render();
   // 含免費設施時，額外播一段 SSR 級提示音 + 金粉
-  if(hasFree){
+  if(offer.hasFree){
     setTimeout(()=>{
       SFX.rareDrop();
       const cardsRow=document.getElementById('card-chooser-cards');
