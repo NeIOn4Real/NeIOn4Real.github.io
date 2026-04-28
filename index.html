@@ -4183,6 +4183,18 @@ function isContractTriggerRound(round){
   if(CONTRACT_TRIGGER_ROUNDS.indexOf(round) >= 0) return true;
   return round > 6 && round % 2 === 0;
 }
+// 合約前置詞條：合約出現條件 — 玩家須擁有指定詞條的設施/合夥人；無項目代表通用
+const CONTRACT_REQUIRES_TAG = {
+  shop_invested:'shop', shop_distinct:'shop', commerce_focus:'shop',
+  factory_invested:'production', factory_distinct:'production', industry_focus:'production',
+  matfac_invested:'production', matfac_distinct:'production', farm_focus:'production',
+  transport_contract:'logistics', terminal_contract:'logistics', production_contract:'logistics',
+  tectonic_contract:'demolish', barren_contract:'demolish', real_estate_contract:'demolish',
+  employee_contract:'hr', union_pact_contract:'hr',
+  electrode_contract:'electronic',
+  giant_contract:'large',
+  demon_pact_contract:'demon'
+};
 function pickContractCandidates(round){
   let pool;
   if(round <= 6){
@@ -4197,7 +4209,17 @@ function pickContractCandidates(round){
   }
   if(pool.length === 0) return [];
   const ownedIds = new Set((G.activeContracts||[]).map(c=>c.id));
-  const available = pool.filter(id=>!ownedIds.has(id) && CONTRACTS[id]);
+  let available = pool.filter(id=>!ownedIds.has(id) && CONTRACTS[id]);
+  // 過濾：玩家不具備所需詞條的合約不出現
+  const tc = (typeof getPlayerTagCounts==='function') ? getPlayerTagCounts() : {};
+  const filtered = available.filter(id=>{
+    const req = CONTRACT_REQUIRES_TAG[id];
+    if(!req) return true;
+    return (tc[req]||0) > 0;
+  });
+  if(filtered.length > 0) available = filtered;
+  // 若全部被過濾掉（例如玩家流派極窄），保留通用合約做 fallback
+  else available = available.filter(id=>!CONTRACT_REQUIRES_TAG[id]);
   if(available.length <= 2) return available;
   // Fisher-Yates 部分洗牌取前 2
   for(let i=0; i<2; i++){
@@ -5004,7 +5026,8 @@ const TAGS={
   human_demon:['hr','demon'], clone_master:['hr','unique'],
   goods_buyer:['trade'],
 };
-const TAG_WEIGHT=0.12; // 每個匹配詞條加 12% 權重
+const TAG_WEIGHT=0.4; // 每個匹配詞條加 40% 權重（強化既有流派的傾向）
+const TAG_MULTI_MATCH_BOOST=1.5; // 多詞條同時命中時額外乘數
 
 // 計算玩家當前擁有的詞條計數
 function getPlayerTagCounts(){
@@ -5026,11 +5049,42 @@ function getPlayerTagCounts(){
   return tc;
 }
 
+// 流派鎖池：當玩家擁有 2 個以上「鎖定詞條」（流派）時，候選池只保留：
+//   基礎(basic) / 惡魔(demon) / 無詞條 / 玩家已擁有的詞條；
+//   大型例外：必須有任一非 large 詞條對應玩家擁有（基礎與惡魔免限）。
+// basic / demon / production / large 不計入鎖定觸發（basic factories 自帶 production）。
+const TAG_LOCK_IGNORE=new Set(['basic','demon','production','large']);
+function shouldRestrictByOwnedTags(tagCounts){
+  const tc=tagCounts||getPlayerTagCounts();
+  let n=0;
+  for(const t in tc){ if(tc[t]>0&&!TAG_LOCK_IGNORE.has(t)) n++; }
+  return n>=2;
+}
+function filterByOwnedTags(pool, tagCounts){
+  const tc=tagCounts||getPlayerTagCounts();
+  if(!shouldRestrictByOwnedTags(tc)) return pool;
+  return pool.filter(id=>{
+    const tags=TAGS[id];
+    if(!tags||tags.length===0) return true; // 無詞條
+    if(tags.indexOf('demon')>=0) return true; // 惡魔免限
+    const isLarge=tags.indexOf('large')>=0;
+    if(isLarge){
+      const others=tags.filter(t=>t!=='large'&&t!=='basic'&&t!=='demon');
+      if(others.length===0) return false; // 純 large（如世界奇觀）：玩家未持對應詞條 → 不出
+      return others.some(t=>tc[t]>0);
+    }
+    if(tags.indexOf('basic')>=0) return true; // 基礎免限
+    return tags.every(t=>t==='large'||tc[t]>0);
+  });
+}
+
 // 根據詞條 + 稀有度×輪數 計算候選項權重
 function tagWeightFor(id, tagCounts){
   const tags=TAGS[id];
   let w=1;
-  if(tags) tags.forEach(t=>{ if(tagCounts[t]) w+=tagCounts[t]*TAG_WEIGHT; });
+  let matched=0;
+  if(tags) tags.forEach(t=>{ if(tagCounts[t]){ w+=tagCounts[t]*TAG_WEIGHT; matched++; } });
+  if(matched>=2) w*=TAG_MULTI_MATCH_BOOST; // 多詞條同時命中：再加成
   // 稀有度×輪數權重乘數
   const rarity=getItemRarity(id);
   const round=G&&G.round||1;
@@ -5041,7 +5095,10 @@ function tagWeightFor(id, tagCounts){
 // 加權隨機抽取 n 個不重複項目
 function weightedPickN(pool, n, tagCounts){
   if(!tagCounts) tagCounts=getPlayerTagCounts();
-  const items=pool.map(id=>({id, w:tagWeightFor(id, tagCounts)}));
+  // 流派鎖池：濾掉非玩家擁有詞條的項目（基礎 / 惡魔 / 無詞條 不受限）
+  let filtered=filterByOwnedTags(pool, tagCounts);
+  if(filtered.length===0) filtered=pool; // 安全防呆
+  const items=filtered.map(id=>({id, w:tagWeightFor(id, tagCounts)}));
   const result=[];
   while(result.length<n&&items.length>0){
     const total=items.reduce((s,x)=>s+x.w,0);
