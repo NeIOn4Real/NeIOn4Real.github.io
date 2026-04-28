@@ -29,6 +29,7 @@
 | 36 | 設施互動審查 + 多項機制修正 | A: cellBonus orphan / pride 上限 / 事件 banner 靠左；B: 臨時加成格子高亮 + BGM；C: 轉運中心複合卡修；D: 古代機械工廠「視為 4 工廠」計數規則；E: 6 個商店 special FX 跳過 shop_owner 系統性修復；F: 中央監督局嚴格按 facPath；G: 環境感應站每格只算一次；H: 人力派遣 fx.hit；I: 強化增幅裝置改被動心願 |
 | 37 | 合約系統實作（Phase A→D）+ 數個既有 bug 修補 | A: CONTRACTS / CONTRACT_POOLS / runContractHook / 合約面板 UI 框架；B: R2 池 12 張完整實作；C: 暗叫合約（卡背手牌 + 配對消除 +30）；D: R4 池 12 張（含 6 dupes + 板塊/擴展/電極等永久效果）+ R6 池 9 張（大群/地產/產線/巨人/終點/姊妹/惡魔/工會/暗叫）；附帶修：複合卡 蕾雅疊加 / 大型設施排除複合 / 多輪過關連跳合約補發 / 商業集中追蹤漏算（基礎設施路徑漏 _trackContractHits）/ 收益顯示 +-N / 合約按鈕 UI 移位 + 加大 / 卡背 inspector 洩露 / 暗叫複合卡 emoji 可見 / dept_store_part 配對繞 indestructible |
 | 38 | Session 37 合約系統審查後續 + 平衡與 UI 修補 | A: 合約 chooser 模組變數 deserializeGame 不重置，mid-modal 匯入存檔會卡死後續所有合約 chooser；B: 工會合約門檻 6→4 人材；C: mega_elec_supply / giant_village / world_wonder 在無大財團時也能放置（新 findEmpty2x2 helper）；D: 角色立繪 z-index 98→50，拖曳卡片時淡出，避免遮擋手牌與投入箭頭 |
+| 39 | 移動 session 統一化（mobile_city 剝削修補）+ 取消還原 + 多項既有 bug | A: 移動都市內反覆 swap 無限觸發 demolish_bureau / dynamic_amp / trade_zone；B: 新增 `_isInMoveSession` / `_flushMoveSession` helper，freeRearrange 與 _mobileCityMode 統一視為移動 session，per-session 1 trigger；C: mobile_city 加 saveGridSnapshot/restoreGridSnapshot，「取消」真的還原 swap（與 cancelRearrange 一致）；D: dynamic_amp / demolish_bureau desc 補上「自由排列／移動都市整段視為 1 次」；E: ancient_factory_part 漏排 isPoolableBldg / dev panel 排除清單，被當 N 級設施抽進手牌；F: adv_booster 作為複合 overlay 不掃 + 複合 'placed' 分支不觸發 recomputeBoosterAura；G: 「積累」合約 達到 20 → 增加 200（新 counter `roundMaxResourceIncrease`，per-send delta 追蹤） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -4563,4 +4564,141 @@ if(!anchor && hasPartner('big_corp')){ anchor = findAny2x2(r,c); ... }
 | #char-bubble 對話泡泡 | 99 | 99（不變，仍最上層）|
 
 **未做**：當手牌很多時主動偏移立繪位置（如 translate-x），目前以淡出 + 點擊穿透解決即可，視覺保留立繪上半部仍可見。
+
+---
+
+## Session 39（2026-04-28）— 移動 session 統一化（mobile_city 剝削修補）+ 取消還原
+
+### A. 移動都市內反覆 swap 無限觸發拆遷補償局/動態加強器/貿易特區（critical）
+
+**問題**：`mobile_city` 啟動後，玩家可在 8 鄰格內反覆執行 A↔B↔A↔B 交換。每次 swap 都會觸發 `onFacilityMoved`（index.html:6350-6351 共兩呼叫，雙端各一），其內部三項「移動觸發」效果**對 freeRearrange 有 gating，對 mobile_city 沒有**：
+
+| 觸發效果 | 修補前 mobile_city 行為 | 暴利 |
+|---|---|---|
+| 拆遷補償局 +4 | 每 swap 觸發一次 → +4 × bureauCount | swap N 次 → +4N × bureauCount |
+| 動態加強器計數 | 每 swap 雙端各 +1 → cell 計數 +2 | swap N 次 → 計數 +2N，FX 每次 ×4 累加 |
+| 貿易特區 +2 永久 | 商店穿越鄰接邊界每次 +2 | 來回 swap 灌爆 |
+
+`onFacilityMoved` 第 11461 行原本只 gate `G.freeRearrange`，未涵蓋 `G._mobileCityMode`；`_maybeAddTradeZoneBonus` 9937 同樣只看 freeRearrange；dynamic_amp 計數 11478-11491 完全沒 gate。
+
+### B. 統一 helper：`_isInMoveSession` / `_flushMoveSession`
+
+新增於 index.html:11444-11485：
+
+```js
+function _isInMoveSession(){ return !!(G.freeRearrange || G._mobileCityMode); }
+function _flushMoveSession(){
+  // 拆遷補償局：每補償局 +4
+  if(G._demolishBureauPending){ ...findCells(demolish_bureau)...G.profit+=N*4; }
+  // 貿易特區累積 +2 加成
+  if(G._tradeZonePending&&G._tradeZonePending.length>0){ ...forEach _addTradeZoneBonus... }
+  // 動態加強器：每個被移動過的 dynamic_amp cell 計 1 次
+  if(G._dynamicAmpPending&&G._dynamicAmpPending.size>0){ ...forEach G.dynamicAmpMoves[k]++... }
+}
+```
+
+修法擴及四處：
+1. `onFacilityMoved` 11491：拆遷補償局 gate 改 `_isInMoveSession()`
+2. `onFacilityMoved` 11513-11527：dynamic_amp 計數 session 內改寫入 `G._dynamicAmpPending`（Set，dedup）；非 session 維持原邏輯
+3. `_maybeAddTradeZoneBonus` 9924：`G.freeRearrange` → `_isInMoveSession()`
+4. `confirmRearrange` 8644：取代 22 行內聯邏輯 → 單行 `_flushMoveSession()`
+
+新欄位 `G._dynamicAmpPending`（Set<key>）：
+- 進入點防禦清空（move_fac 8453、demolition 拆遷隊 10885）
+- cancelRearrange 8632 也清（snapshot revert 不該保留 pending）
+- deserializeGame 12703 與 `_demolishBureauPending` 同行 delete（mid-session 存檔重載自動清）
+- Set 透過既有 `serializeGame`（12539 `v instanceof Set?{_s:[...v]}:v`）與 `reviveSets`（12550-12567）正常 round-trip
+
+### C. mobile_city 加 saveGridSnapshot / restoreGridSnapshot
+
+**動機**：原本 mobile_city「取消」按鈕只清模式而**不還原 swap**（與 cancelRearrange 行為不一致），且不消耗 `_mobileCityUsedThisTurn`，玩家可 啟動→swap→取消→啟動→swap→取消 鏈式繞過 slot。即使 B 已修「per-session 1 trigger」，N 次 cancel = N 次 trigger 仍可累積。
+
+**修法**：新增 `startMobileCityMode()` / `endMobileCityMode(committed)`（index.html:11472-11502），啟動時 `saveGridSnapshot()`，commit 時 `deleteGridSnapshot()` + flush，cancel 時 `restoreGridSnapshot()` + 丟棄 pending。snapshot 涵蓋 grid / 13 個 KEYED_DATA_FIELDS / ruinCells / envy.cellBonus，保證 cancel 完全還原。
+
+按鈕 onclick 改為單一函式呼叫（index.html:9821-9822、9826）：
+- `startMobileCityMode()`
+- `endMobileCityMode(true)` / `endMobileCityMode(false)`
+
+| 操作 | 修補前 | 修補後 |
+|---|---|---|
+| 啟動 | 直接設 mode=true，無 snapshot | `saveGridSnapshot()` + 清 pending + 設 mode=true |
+| 完成 | 設 used=true（slot 消耗），無 flush，per-swap bonus 已給 | flush bonuses（per-session 1 次）+ deleteSnapshot + used=true |
+| 取消 | 清 mode 但保留 swap，per-swap bonus 已給 | restoreSnapshot（grid 還原）+ 丟棄 pending；不消耗 slot（可重新啟動） |
+
+cancel 還原後不消耗 slot 是合理的（玩家明確表達「不要這次操作」），且配合 snapshot 還原無 swap 也無 bonus，無剝削風險。
+
+### D. desc 文字補強
+
+| 設施 | 修補前 desc | 修補後 desc |
+|---|---|---|
+| 拆遷補償局（demolish_bureau）| 「排列模式整段視為 1 次」 | 「**自由排列／移動都市**整段視為 1 次」 |
+| 動態加強器（dynamic_amp）| 「每次使這個設施額外獲得 +4」 | 「每次使這個設施額外獲得 +4（**自由排列／移動都市整段視為 1 次**）」 |
+
+### 行為差異對照（修補前後）
+
+| 場景 | 修補前 | 修補後 |
+|---|---|---|
+| mobile_city swap 5 次（dynamic_amp 是其中之一）| demolish_bureau +4×5×N、dyn_amp 計數 +2×5=10 | demolish_bureau +4×N×1、dyn_amp 計數 +1（unique cell） |
+| freeRearrange 拖曳同 dynamic_amp 多次 | dyn_amp 計數每拖一次 +1 | dyn_amp 計數整段 +1 |
+| trade_zone 邊界商店反覆穿越 | 每穿越 +2 永久 | session 結束 1 次 +2 |
+| mobile_city 取消 | swap 保留、bonus 已給、slot 不消耗 → 可串接剝削 | grid 還原、無 bonus、slot 不消耗（單純放棄） |
+| mid-session 存檔重載 | _dynamicAmpPending 殘留可能誤觸發 | 12703 deserialize 一律 delete |
+
+### 影響的 desc / 數值平衡考量
+
+- dynamic_amp 在 mobile_city 內的數值大幅下降（×N → ×1），原本是 bug 級暴利，修補後恢復為設計預期值。
+- 其他「需判斷設施是否被移動過」的合夥人/設施目前審計未見漏網（地皮炒家在 onFacilityMoved 內判定來源格變空，與 swap 次數無關，未受影響）。
+
+### E. ancient_factory_part 被當作 N 級設施抽進玩家手牌
+
+**問題**：`ancient_factory_part` 是古代機械工廠 2×2 的占位格（line 2299），不應出現在玩家手牌中。但：
+1. `isPoolableBldg`（index.html:4515）僅排除 `dept_store_part`，**漏排** `ancient_factory_part`
+2. `BLDG_RARITY` 沒定義 `ancient_factory_part`，`getBldgRarity` fallback 為 `'N'`（line 4588）
+3. N pool 過濾條件 `isPoolableBldg(id)&&getBldgRarity(id)==='N'`（lines 2409 / 2771 / 4928 等）→ 占位格被當 N 級基礎設施抽中
+4. Dev panel exclude（line 14156）也漏排，dev 模式下顯示為 N
+
+**修法**：兩處加入排除（與 dept_store_part 對稱）：
+- index.html:4516 `isPoolableBldg`：加 `||id==='ancient_factory_part'`
+- index.html:14156 dev panel：加 `||id==='ancient_factory_part'`
+
+### F. 強化增幅裝置（adv_booster）作為複合設施 overlay 時光環不立即生效
+
+**問題**（兩個獨立子問題）：
+1. `recomputeBoosterAura`（4865-4877）只用 `findCells((r,c,b)=>b==='adv_booster')` 掃 base 層，**完全不檢查 overlay 層**。adv_booster 作為複合卡 overlay 在 `G.cellOverlay[k]`，光環函式看不到 → 周圍格永遠拿不到 +2
+2. 複合卡放置流程（6028-6047）後**沒呼叫** `recomputeBoosterAura`。複合卡的 `_placeCompoundPart` 在「empty cell → 'placed'」分支不會走 `placeEffect`/`onFacilityPlaced` 鏈（line 5810-5811 直接 return），於是即使 adv_booster 在 base 層，empty cell placement 也不觸發 aura recompute
+
+**修法**：
+1. `recomputeBoosterAura`（4865-4880）改為雙層掃描：
+```js
+for(let br=0;br<gn;br++) for(let bc=0;bc<gn;bc++){
+  const isBase=G.grid[br][bc]==='adv_booster';
+  const isOv=getOverlays(br,bc).includes('adv_booster');
+  if(!isBase&&!isOv) continue;
+  // ... 對周圍 4 格 +2
+}
+```
+2. 複合卡放置末段（line 6052）：`if(part1==='adv_booster'||part2==='adv_booster') recomputeBoosterAura();`
+   - leya / logistics_king/queen / center_elec_net 等既有 overlay 路徑透過 `placeEffect → onFacilityPlaced → recomputeBoosterAura` 鏈已能觸發，本次無需修改
+   - 'placed'（empty cell）/ 'placedOnRuin' 兩個分支不走鏈，新增的呼叫覆蓋這兩個情境
+
+**遺留**（未在本次處理）：複合卡 'placed' 分支整體不走 `onFacilityPlaced`，意味著 elec_factory（場上電子設施計數）/ trade_zone（鄰接商店設置 +2）等 onPlaced hook 在 empty cell 複合放置時也不觸發。屬更廣泛的 hook 漏發 pattern，影響面與重要性需要單獨評估。
+
+### G. 「積累」合約：達到 20 → **增加 200**（語意改變）
+
+**設計變更**（PM 指定）：合約「積累」的 guarantee 由「本輪任意資源**達到** 20 或以上」改為「本輪任意資源**增加** 200 或以上」。
+
+舊語意只追蹤 `value` 的最大值（`roundMaxResourceValue`，依 hand card 觀察值取 max），新語意需追蹤 **單次送入過程中的成長 delta**（current value − send 起始值）的本輪最大值。
+
+**實作**：
+1. 新欄位 `G.contractCounters.roundMaxResourceIncrease`（_resetContractRoundCounters 重置為 0，line 4345）
+2. `sendEl`（index.html:6699）在送入起始時記錄 `G._sendBaselineValue=startVal`（怠惰惡魔 -6 已先處理過）
+3. `updateCard`（index.html:6613-6618）：每次值變化時計算 `delta = newVal − _sendBaselineValue`，若大於現有最大則更新
+4. accumulate.checkProgress（3500-3508）改讀 `roundMaxResourceIncrease`、`max:200`、label 改「本輪資源最大增加值」
+5. accumulate.guaranteeText 改寫，加註「（單次送入過程中的最大成長值）」釐清
+6. deserializeGame 12738 加 `delete data._sendBaselineValue`（transient state 不跨存檔）
+7. 既有 `roundMaxResourceValue` 與 `_trackContractMaxResource` 保留未動（可能供未來合約使用，移除為無謂改動）
+
+**重要差異**：
+- 舊「達到 20」：cards 進場 v=1，跑到 20 即達成。第一輪可能就完成
+- 新「增加 200」：單次送入需從 baseline 成長 +200。需要設施鏈條足夠長 + 倍率夠高（典型需中後期才可能達成）。難度顯著提高，符合「積累」名稱
 

@@ -2106,86 +2106,44 @@ const SFX=(()=>{
 })();
 
 // ══════════════════════════════════════
-// 背景音樂（程序化 ambient pad + 五聲音階琶音）
+// 背景音樂（外部 mp3，依輪數切換）
+// 1-4 輪 → bgm_1 / 5-8 輪 → bgm_2 / 9+ 輪 → bgm_3
 // ══════════════════════════════════════
 const BGM=(()=>{
-  let ctx=null, master=null;
   let active=false;
-  let nodes=[];        // 持續性 oscillator/lfo
-  let arpTimer=null;
-  let arpIdx=0;
-  // C 大調五聲音階琶音（2 八度上下行，鬆散感）
-  const ARP=[261.63,329.63,392.00,440.00,523.25,440.00,392.00,329.63];
-  const ARP_MS=620;
-  // 鋪底和弦：C2 + G2 + E3（C 大三和弦低八度根音）
-  const PAD=[65.41,98.00,164.81];
-  const MASTER_GAIN=0.020;
+  let audio=null;
+  let currentIdx=0;
+  const VOLUME=0.18;
 
-  function ensureCtx(){
-    if(!ctx) ctx=new(window.AudioContext||window.webkitAudioContext)();
-    if(ctx.state==='suspended') ctx.resume();
+  function pickIdxForRound(round){
+    const r=round||1;
+    if(r<=4) return 1;
+    if(r<=8) return 2;
+    return 3;
+  }
+  function ensureAudio(idx){
+    if(audio&&currentIdx===idx) return audio;
+    if(audio){ try{ audio.pause(); }catch(e){} audio=null; }
+    audio=new Audio(`bgm/bgm_${idx}.mp3`);
+    audio.loop=true;
+    audio.volume=VOLUME;
+    currentIdx=idx;
+    return audio;
   }
   function start(){
     if(active) return;
     try{
-      ensureCtx();
-      master=ctx.createGain();
-      master.gain.setValueAtTime(0,ctx.currentTime);
-      master.gain.linearRampToValueAtTime(MASTER_GAIN,ctx.currentTime+1.6);
-      // 低通暖化
-      const lp=ctx.createBiquadFilter();
-      lp.type='lowpass'; lp.frequency.value=1400; lp.Q.value=0.7;
-      master.connect(lp); lp.connect(ctx.destination);
-      // 鋪底：每個音 + 慢 LFO 微震顫
-      PAD.forEach((freq,i)=>{
-        const osc=ctx.createOscillator();
-        osc.type=i===2?'triangle':'sine';
-        osc.frequency.value=freq;
-        const lfo=ctx.createOscillator();
-        const lfoGain=ctx.createGain();
-        lfo.frequency.value=0.08+i*0.04;
-        lfoGain.gain.value=1.2+i*0.3;
-        lfo.connect(lfoGain); lfoGain.connect(osc.frequency);
-        const og=ctx.createGain();
-        og.gain.value=0.45-i*0.10;
-        osc.connect(og); og.connect(master);
-        osc.start(); lfo.start();
-        nodes.push(osc,lfo);
-      });
-      // 琶音排程
-      arpIdx=0;
-      const arpStep=()=>{
-        if(!active||!ctx) return;
-        const f=ARP[arpIdx]; arpIdx=(arpIdx+1)%ARP.length;
-        const o=ctx.createOscillator();
-        o.type='triangle'; o.frequency.value=f;
-        const g=ctx.createGain();
-        g.gain.setValueAtTime(0,ctx.currentTime);
-        g.gain.linearRampToValueAtTime(0.10,ctx.currentTime+0.04);
-        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.85);
-        o.connect(g); g.connect(master);
-        o.start(); o.stop(ctx.currentTime+0.9);
-        arpTimer=setTimeout(arpStep,ARP_MS);
-      };
-      arpStep();
+      const idx=pickIdxForRound(typeof G!=='undefined'&&G?G.round:1);
+      const a=ensureAudio(idx);
+      const p=a.play();
+      if(p&&p.catch) p.catch(()=>{ active=false; });
       active=true;
     }catch(e){ active=false; }
   }
   function stop(){
     if(!active) return;
     active=false;
-    if(arpTimer){ clearTimeout(arpTimer); arpTimer=null; }
-    if(master&&ctx){
-      const t=ctx.currentTime;
-      master.gain.cancelScheduledValues(t);
-      master.gain.setValueAtTime(master.gain.value,t);
-      master.gain.linearRampToValueAtTime(0,t+0.6);
-    }
-    setTimeout(()=>{
-      nodes.forEach(n=>{ try{ n.stop(); n.disconnect(); }catch(e){} });
-      nodes=[];
-      if(master){ try{ master.disconnect(); }catch(e){} master=null; }
-    },800);
+    if(audio){ try{ audio.pause(); }catch(e){} }
   }
   function toggle(){
     if(active) stop(); else start();
@@ -2196,7 +2154,17 @@ const BGM=(()=>{
   function preferOn(){
     try{ return localStorage.getItem('vt_bgm_on')==='1'; }catch(e){ return false; }
   }
-  return { start, stop, toggle, isActive, preferOn };
+  // 切換到當前輪數對應的 BGM；非 active 時不自動啟動
+  function syncToRound(){
+    if(!active) return;
+    const idx=pickIdxForRound(typeof G!=='undefined'&&G?G.round:1);
+    if(idx!==currentIdx){
+      ensureAudio(idx);
+      const p=audio.play();
+      if(p&&p.catch) p.catch(()=>{});
+    }
+  }
+  return { start, stop, toggle, isActive, preferOn, syncToRound };
 })();
 function toggleBgm(){
   const on=BGM.toggle();
@@ -2255,8 +2223,8 @@ const BLDG = {
   temp_shed:      { name:'臨時工棚',     emoji:'🛖', desc:'回合結束時，自動賣出自己獲得+2收益；若場上有廢墟，隨機賣出一個廢墟並獲得+2收益。', req:'any', out:null, fn:v=>v, special:'temp_shed' },
   magnet_plate:   { name:'磁力板',       emoji:'🧲', desc:'每回合開始與相鄰隨機設施交換位置，並使其永久獲得+2。', req:'any', out:null, fn:v=>v, special:'magnet_plate' },
   ruin_monument:  { name:'廢墟紀念碑',   emoji:'🗿', desc:'只能設置在廢墟上，資源通過時，小鎮每有一個廢墟，這個設施獲得收益+4。這個設施消滅時，不會設置廢墟。', req:'any', out:null, fn:v=>v, special:'ruin_monument', ruinOnly:true },
-  demolish_bureau:{ name:'拆遷補償局',   emoji:'🏢', desc:'此回合，每次設施更動位置（排列模式整段視為 1 次），或者被消滅時，都會獲得收益 +4。', req:'any', out:null, fn:v=>v, special:'demolish_bureau' },
-  dynamic_amp:    { name:'動態加強器',   emoji:'🔋', desc:'任意→金錢 +4。此回合這個設施更動位置時，每次使這個設施額外獲得 +4。', req:'any', out:'money', fn:v=>v+4, special:'dynamic_amp' },
+  demolish_bureau:{ name:'拆遷補償局',   emoji:'🏢', desc:'此回合，每次設施更動位置（自由排列／移動都市整段視為 1 次），或者被消滅時，都會獲得收益 +4。', req:'any', out:null, fn:v=>v, special:'demolish_bureau' },
+  dynamic_amp:    { name:'動態加強器',   emoji:'🔋', desc:'任意→金錢 +4。此回合這個設施更動位置時，每次使這個設施額外獲得 +4（自由排列／移動都市整段視為 1 次）。', req:'any', out:'money', fn:v=>v+4, special:'dynamic_amp' },
   unstable_base:  { name:'地基不穩定站', emoji:'⚠️', desc:'使周圍4格的設施隨機交換位置，此回合使其獲得 +2。', req:'any', out:null, fn:v=>v, special:'unstable_base' },
 
   ruin:         { name:'廢墟', emoji:'🏚️', desc:'被消滅的設施殘骸', req:null, out:null, fn:v=>v, isRuin:true },
@@ -3489,7 +3457,7 @@ const CONTRACTS = {
   accumulate: {
     id:'accumulate', name:'積累', emoji:'💎', pool:'r2', durationOffset:0,
     immediateText:'立即獲得收益 +10。',
-    guaranteeText:'本輪結算前，你的任意資源至少達到 20 或以上。',
+    guaranteeText:'本輪結算前，你的任意資源至少增加 200 或以上（單次送入過程中的最大成長值）。',
     compensationText:'你的手牌資源數值變為 1。',
     onAccept(G, ac){
       G.profit += 10;
@@ -3498,12 +3466,12 @@ const CONTRACTS = {
       if(btn && typeof profitFlyFrom==='function') profitFlyFrom(btn, 10);
     },
     checkProgress(G, ac){
-      const v = (G.contractCounters && G.contractCounters.roundMaxResourceValue) || 0;
+      const v = (G.contractCounters && G.contractCounters.roundMaxResourceIncrease) || 0;
       return {
-        label:'本輪資源最大值',
+        label:'本輪資源最大增加值',
         progress: v,
-        max: 20,
-        done: v >= 20
+        max: 200,
+        done: v >= 200
       };
     },
     onFail(G, ac){
@@ -4342,6 +4310,7 @@ function _resetContractRoundCounters(){
   cc.roundFactoryCellsHit = new Set();
   cc.roundMatFactoryCellsHit = new Set();
   cc.roundMaxResourceValue = 0;
+  cc.roundMaxResourceIncrease = 0; // 「積累」合約：本輪單次送入的最大成長值（current - sendBaseline）
   cc.roundMaxSingleSendProfit = 0;
   cc.roundRedirectHits = 0;       // 交通合約：本輪轉向次數
   cc.roundMaxTalent = G.talentCards || 0; // 員工合約：本輪人材歷史最高（從輪首人材數起算）
@@ -4513,7 +4482,7 @@ const LOGISTICS_DIRS=['logistics_up','logistics_down','logistics_left','logistic
 
 // 可進入一般池的設施過濾（排除特殊/大型/中央限定/物流方向）
 function isPoolableBldg(id){
-  if(id==='envy_factory'||id==='ruin'||id==='dept_store_part') return false;
+  if(id==='envy_factory'||id==='ruin'||id==='dept_store_part'||id==='ancient_factory_part') return false;
   const b=BLDG[id]; if(!b) return false;
   if(b.centerOnly||b.needs2x2||b.ruinOnly) return false;
   if(LOGISTICS_DIRS.includes(id)) return false;
@@ -4866,14 +4835,18 @@ function recomputeBoosterAura(){
   if(!G||!G.grid) return;
   G.boosterAura={};
   const gn=GN();
-  findCells((r,c,b)=>b==='adv_booster').forEach(([br,bc])=>{
+  // booster 來源 = base 是 adv_booster 或 overlay 包含 adv_booster（複合設施情境）
+  for(let br=0;br<gn;br++) for(let bc=0;bc<gn;bc++){
+    const isBase=G.grid[br][bc]==='adv_booster';
+    const isOv=getOverlays(br,bc).includes('adv_booster');
+    if(!isBase&&!isOv) continue;
     [[br-1,bc],[br+1,bc],[br,bc-1],[br,bc+1]].forEach(([ar,ac])=>{
       if(ar<0||ar>=gn||ac<0||ac>=gn) return;
       if(!isFacility(G.grid[ar][ac])) return;
       const k=`${ar},${ac}`;
       G.boosterAura[k]=(G.boosterAura[k]||0)+2;
     });
-  });
+  }
 }
 function findFacilityCells(){ return findCells((r,c,b)=>isFacility(b)); }
 function cellQ(r,c){ return document.querySelector(`[data-r="${r}"][data-c="${c}"]`); }
@@ -5468,6 +5441,8 @@ function startRound(){
   }
   // 統一在 banner 顯示 800ms 後啟動隊列（即使本輪非觸發輪，仍要消化跳過輪次的 pending）
   setTimeout(_kickContractChooser, 800);
+  // BGM 依輪數切歌（1-4 → bgm_1, 5-8 → bgm_2, 9+ → bgm_3）
+  if(typeof BGM!=='undefined') BGM.syncToRound();
 }
 // 新輪 banner：「第 N 輪」大字浮現 1.6 秒，自動移除
 function showRoundBanner(round){
@@ -6044,6 +6019,8 @@ function tryPlaceAtCell(r,c,bldgId){
     addLog(`🔗 放置複合：${BLDG[part1].emoji}${BLDG[part1].name} (${r+1},${c+1}) + ${BLDG[part2].emoji}${BLDG[part2].name} (${r2+1},${c2+1})`,'g');
     overlayLog(r,c,result1,part1);
     overlayLog(r2,c2,result2,part2);
+    // 複合設施可能含 adv_booster，需即時重算光環（base/overlay 任一為 booster 都計入）
+    if(part1==='adv_booster'||part2==='adv_booster') recomputeBoosterAura();
     pulse(r,c); pulse(r2,c2); render();
     // 複合卡若含轉運中心/物流轉運中心，依序顯示方向 picker
     const _isTransferP=id=>id==='transfer_hub'||id==='logistics_hub';
@@ -6602,6 +6579,14 @@ function updateCard(el){
   const typeChanged = newType !== _lastCardType && _lastCardType !== null;
   G.card=el;
   if(typeof newVal==='number') _trackContractMaxResource(newVal);
+  // 「積累」合約：追蹤本送入過程中的成長 delta（current - sendBaseline）
+  if(typeof newVal==='number' && typeof G._sendBaselineValue==='number'){
+    if(!G.contractCounters) G.contractCounters={};
+    const _delta = newVal - G._sendBaselineValue;
+    if(_delta > (G.contractCounters.roundMaxResourceIncrease||0)){
+      G.contractCounters.roundMaxResourceIncrease = _delta;
+    }
+  }
   if(typeof renderFanHand==='function') renderFanHand();
   if(typeof renderTalentPanel==='function') renderTalentPanel();
   // 變化動畫 + 細微音效（首次設定不播；只在 value/type 變動時觸發）
@@ -6681,6 +6666,7 @@ function sendEl(dir,idx){
     _envyOut:null, _envyCell:null};
   const startVal=startCard.value;
   const startType=startCard.type;
+  G._sendBaselineValue=startVal; // 「積累」合約用：本送入的資源起始值
   let el={value:startVal,type:startType};
   const dname={left:'左側',right:'右側',top:'上方',bottom:'下方'}[dir];
   addLog(`▶ 送入 ${TLABEL[startType]} ${startVal}`,'h');
@@ -8450,7 +8436,7 @@ function doAction(id){
     // 進入自由排列模式（無論是否有拆遷隊都一樣）
     saveGridSnapshot();
     G.freeRearrange=true; G.moveMode=false; G.moveSrc=null;
-    G._demolishBureauPending=false; G._tradeZonePending=null;
+    G._demolishBureauPending=false; G._tradeZonePending=null; G._dynamicAmpPending=null;
     addLog('🔧 自由排列模式：拖曳設施到想要的位置，完成後點「確認排列」');
     G.phase='place'; render(); return;
   }
@@ -8629,6 +8615,7 @@ function cancelRearrange(){
   G._demolitionRearrange=false;
   G._demolishBureauPending=false;
   G._tradeZonePending=null;
+  G._dynamicAmpPending=null;
   addLog('↩ 取消排列，設施已還原');
   render();
 }
@@ -8639,22 +8626,8 @@ function confirmRearrange(){
     addLog(`🔨 拆遷隊使用 1 次，剩餘 ${G.demolitionCharges} 次`,'g');
   }
   G._demolitionRearrange = false;
-  // 拆遷補償局：確定排列後結算一次（整段排列只視為 1 次移動，每個補償局 +4）
-  if(G._demolishBureauPending){
-    const bureaus=findCells((r,c,b)=>b==='demolish_bureau');
-    if(bureaus.length>0){
-      const bonus=bureaus.length*4;
-      G.profit+=bonus;
-      addLog(`🏢 拆遷補償局：排列確定 1次移動 × ${bureaus.length}個補償局，+${bonus}收益`,'g');
-      bureaus.forEach(([br,bc])=>profitFlyFromCell(br,bc,4));
-    }
-    G._demolishBureauPending=false;
-  }
-  // 貿易特區：排列期間累積的 +2 加成此時結算
-  if(G._tradeZonePending&&G._tradeZonePending.length>0){
-    G._tradeZonePending.forEach(p=>_addTradeZoneBonus(p.zr,p.zc,p.reason));
-    G._tradeZonePending=null;
-  }
+  // 排列確定 / 移動 session 結束：統一 flush 拆遷補償局 / 貿易特區 / 動態加強器累積效果
+  _flushMoveSession();
   // 莫菲定律：重排後重置未移動計數
   if(G._murphyTrack) G._murphyTrack.noMove=0;
   deleteGridSnapshot();
@@ -9831,12 +9804,12 @@ function renderGrid(){
       if(G._mobileCityMode){
         const _mcCnt=G._mobileCityMoveCount||0;
         h+=`<div style="display:flex;gap:6px;margin-top:6px;">
-          <button class="abtn" style="flex:1;text-align:center;" onclick="G._mobileCityMode=false;G._mobileCitySrc=null;G._mobileCityUsedThisTurn=true;addLog('🏙 完成移動都市操作（共移動 ${_mcCnt} 次）','g');render();">✅ 完成移動 (${_mcCnt})</button>
-          <button class="abtn" style="flex:1;text-align:center;" onclick="G._mobileCityMode=false;G._mobileCitySrc=null;G._mobileCityMoveCount=0;addLog('🏙 取消移動都市操作');render();">🏙 取消</button>
+          <button class="abtn" style="flex:1;text-align:center;" onclick="endMobileCityMode(true)">✅ 完成移動 (${_mcCnt})</button>
+          <button class="abtn" style="flex:1;text-align:center;" onclick="endMobileCityMode(false)">🏙 取消</button>
         </div>`;
       } else if(!G._mobileCityUsedThisTurn){
         h+=`<div style="display:flex;gap:6px;margin-top:6px;">
-          <button class="abtn btn-glow" style="flex:1;text-align:center;" onclick="G._mobileCityMode=true;G._mobileCitySrc=null;G._mobileCityMoveCount=0;addLog('🏙 移動都市：點擊周圍 8 格內要交換的兩格設施，可多次交換，完成後按「完成移動」');render();">🏙 啟動移動都市</button>
+          <button class="abtn btn-glow" style="flex:1;text-align:center;" onclick="startMobileCityMode()">🏙 啟動移動都市</button>
         </div>`;
       }
     }
@@ -9934,7 +9907,7 @@ function _addTradeZoneBonus(zr,zc,reason){
   requestAnimationFrame(()=>{ const el=cellQ(zr,zc); if(el){ el.classList.remove('transform-flash'); void el.offsetWidth; el.classList.add('transform-flash'); setTimeout(()=>el.classList.remove('transform-flash'),500); } });
 }
 function _maybeAddTradeZoneBonus(zr,zc,reason){
-  if(G.freeRearrange){
+  if(_isInMoveSession()){
     if(!G._tradeZonePending) G._tradeZonePending=[];
     G._tradeZonePending.push({zr,zc,reason});
   } else {
@@ -10895,7 +10868,7 @@ function useDemolition(){
   if(G.freeRearrange){ addLog('🔨 已在排列模式中','b'); return; }
   saveGridSnapshot();
   G.freeRearrange=true; G.moveMode=false; G.moveSrc=null;
-  G._demolishBureauPending=false; G._tradeZonePending=null;
+  G._demolishBureauPending=false; G._tradeZonePending=null; G._dynamicAmpPending=null;
   G._demolitionRearrange = true; // 標記為拆遷隊啟動的重排
   addLog('🔨 拆遷隊啟動！拖曳設施到想要的位置，完成後點「確認排列」');
   render();
@@ -11454,11 +11427,73 @@ function hasAdjacentShop(r,c){
   });
 }
 
+// ── 移動 session 共用判斷與 flush ──
+// freeRearrange（拆遷隊/自由排列）與 _mobileCityMode（移動都市）皆視為移動 session。
+// session 內，「設施被移動」相關的觸發效果延後到 session 結束才結算，整段視為 1 次移動，
+// 避免在 session 內反覆 swap A↔B 無限觸發 demolish_bureau / dynamic_amp / trade_zone。
+function _isInMoveSession(){ return !!(G.freeRearrange || G._mobileCityMode); }
+function _flushMoveSession(){
+  if(G._demolishBureauPending){
+    const bureaus=findCells((r,c,b)=>b==='demolish_bureau');
+    if(bureaus.length>0){
+      const bonus=bureaus.length*4;
+      G.profit+=bonus;
+      addLog(`🏢 拆遷補償局：移動結束 1次移動 × ${bureaus.length}個補償局，+${bonus}收益`,'g');
+      bureaus.forEach(([br,bc])=>profitFlyFromCell(br,bc,4));
+    }
+    G._demolishBureauPending=false;
+  }
+  if(G._tradeZonePending&&G._tradeZonePending.length>0){
+    G._tradeZonePending.forEach(p=>_addTradeZoneBonus(p.zr,p.zc,p.reason));
+    G._tradeZonePending=null;
+  }
+  if(G._dynamicAmpPending&&G._dynamicAmpPending.size>0){
+    if(!G.dynamicAmpMoves) G.dynamicAmpMoves={};
+    G._dynamicAmpPending.forEach(k=>{
+      G.dynamicAmpMoves[k]=(G.dynamicAmpMoves[k]||0)+1;
+    });
+    G._dynamicAmpPending=null;
+  }
+}
+function startMobileCityMode(){
+  saveGridSnapshot();
+  G._mobileCityMode=true;
+  G._mobileCitySrc=null;
+  G._mobileCityMoveCount=0;
+  G._demolishBureauPending=false;
+  G._tradeZonePending=null;
+  G._dynamicAmpPending=null;
+  addLog('🏙 移動都市：點擊周圍 8 格內要交換的兩格設施，可多次交換，完成後按「完成移動」');
+  render();
+}
+function endMobileCityMode(committed){
+  if(committed){
+    _flushMoveSession();
+    deleteGridSnapshot();
+    const cnt=G._mobileCityMoveCount||0;
+    G._mobileCityMode=false;
+    G._mobileCitySrc=null;
+    G._mobileCityUsedThisTurn=true;
+    addLog(`🏙 完成移動都市操作（共移動 ${cnt} 次）`,'g');
+  } else {
+    // 取消：還原 grid + 丟棄 pending（與 cancelRearrange 一致；不消耗本回合 slot）
+    restoreGridSnapshot();
+    G._mobileCityMode=false;
+    G._mobileCitySrc=null;
+    G._mobileCityMoveCount=0;
+    G._demolishBureauPending=false;
+    G._tradeZonePending=null;
+    G._dynamicAmpPending=null;
+    addLog('🏙 取消移動都市操作（設施已還原）');
+  }
+  render();
+}
+
 // ── 交換後附帶效果（拆遷補償局/地皮炒家） ──
 function onFacilityMoved(r,c,sr,sc){
   G.turnFacMoved=(G.turnFacMoved||0)+1;
-  // 拆遷補償局：排列模式期間（拆遷隊/自由排列）延遲到 confirmRearrange 才結算，整段只視為 1 次移動
-  if(G.freeRearrange){
+  // 拆遷補償局：移動 session 內延後到 session 結束才結算，整段只視為 1 次移動
+  if(_isInMoveSession()){
     G._demolishBureauPending=true;
   } else {
     const bureaus=findCells((r,c,b)=>b==='demolish_bureau');
@@ -11475,18 +11510,26 @@ function onFacilityMoved(r,c,sr,sc){
     }
   }
   // 動態加強器：若被移動的設施是 dynamic_amp 本身（兩端任一），per-cell 計數 +1
+  // 移動 session 內延後計數，session 結束時每個被移動過的 dynamic_amp 只算 1 次（避免反覆 swap 灌水）
   if(sr!==undefined){
     const _dstId=G.grid[r]&&G.grid[r][c];
     const _srcId=G.grid[sr]&&G.grid[sr][sc];
-    if(_dstId==='dynamic_amp'){
-      if(!G.dynamicAmpMoves) G.dynamicAmpMoves={};
-      const dk=`${r},${c}`;
-      G.dynamicAmpMoves[dk]=(G.dynamicAmpMoves[dk]||0)+1;
-    }
-    if(_srcId==='dynamic_amp'){
-      if(!G.dynamicAmpMoves) G.dynamicAmpMoves={};
-      const dk=`${sr},${sc}`;
-      G.dynamicAmpMoves[dk]=(G.dynamicAmpMoves[dk]||0)+1;
+    if(_dstId==='dynamic_amp'||_srcId==='dynamic_amp'){
+      if(_isInMoveSession()){
+        if(!G._dynamicAmpPending) G._dynamicAmpPending=new Set();
+        if(_dstId==='dynamic_amp') G._dynamicAmpPending.add(`${r},${c}`);
+        if(_srcId==='dynamic_amp') G._dynamicAmpPending.add(`${sr},${sc}`);
+      } else {
+        if(!G.dynamicAmpMoves) G.dynamicAmpMoves={};
+        if(_dstId==='dynamic_amp'){
+          const dk=`${r},${c}`;
+          G.dynamicAmpMoves[dk]=(G.dynamicAmpMoves[dk]||0)+1;
+        }
+        if(_srcId==='dynamic_amp'){
+          const dk=`${sr},${sc}`;
+          G.dynamicAmpMoves[dk]=(G.dynamicAmpMoves[dk]||0)+1;
+        }
+      }
     }
   }
   // 貿易特區：商店被移動到 trade_zone 周圍時 +2（僅當「從非鄰接移入鄰接」才觸發）
@@ -12662,7 +12705,7 @@ function deserializeGame(save){
   if(data.phase!=='done') delete data._turnInvested;
   delete data._demoExpertMode; delete data._yongqingSellMode; delete data._yongqingSellUsed;
   delete data._demolitionRearrange; delete data._laborMinisterUsed; delete data._hrTalentUsedCount;
-  delete data._currentEventId; delete data._demolishBureauPending;
+  delete data._currentEventId; delete data._demolishBureauPending; delete data._dynamicAmpPending; delete data._sendBaselineValue;
   delete data._tradeZonePending;
   delete data._gridSnapshot; delete data._keyedSnapshot; delete data._ruinCellsSnapshot;
   delete data._talentUsedOnElement; delete data._hrUsedThisTurn;
@@ -12682,6 +12725,8 @@ function deserializeGame(save){
   // 強化增幅裝置光環：derived 欄位，依 grid 重建
   if(!G.boosterAura) G.boosterAura={};
   recomputeBoosterAura();
+  // BGM：載入後依新存檔的輪數切歌（active 才生效）
+  if(typeof BGM!=='undefined') BGM.syncToRound();
   return true;
 }
 function autoSave(){
@@ -14096,7 +14141,7 @@ const DEV={
     h+=`<div style="display:flex;flex-wrap:wrap;">`;
     const _bf=DEV._bldgFilter;
     for(const[id,b] of Object.entries(BLDG)){
-      if(id==='envy_factory'||id==='ruin'||id==='dept_store_part') continue;
+      if(id==='envy_factory'||id==='ruin'||id==='dept_store_part'||id==='ancient_factory_part') continue;
       const rarity=getBldgRarity(id);
       if(_bf&&rarity!==_bf) continue;
       const rarityColor={N:'#aaa',R:'#5bc',SR:'#c8a',SSR:'#fc5'}[rarity]||'#aaa';
