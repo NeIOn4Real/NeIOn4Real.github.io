@@ -31,6 +31,7 @@
 | 38 | Session 37 合約系統審查後續 + 平衡與 UI 修補 | A: 合約 chooser 模組變數 deserializeGame 不重置，mid-modal 匯入存檔會卡死後續所有合約 chooser；B: 工會合約門檻 6→4 人材；C: mega_elec_supply / giant_village / world_wonder 在無大財團時也能放置（新 findEmpty2x2 helper）；D: 角色立繪 z-index 98→50，拖曳卡片時淡出，避免遮擋手牌與投入箭頭 |
 | 39 | 移動 session 統一化（mobile_city 剝削修補）+ 取消還原 + 多項既有 bug | A: 移動都市內反覆 swap 無限觸發 demolish_bureau / dynamic_amp / trade_zone；B: 新增 `_isInMoveSession` / `_flushMoveSession` helper，freeRearrange 與 _mobileCityMode 統一視為移動 session，per-session 1 trigger；C: mobile_city 加 saveGridSnapshot/restoreGridSnapshot，「取消」真的還原 swap（與 cancelRearrange 一致）；D: dynamic_amp / demolish_bureau desc 補上「自由排列／移動都市整段視為 1 次」；E: ancient_factory_part 漏排 isPoolableBldg / dev panel 排除清單，被當 N 級設施抽進手牌；F: adv_booster 作為複合 overlay 不掃 + 複合 'placed' 分支不觸發 recomputeBoosterAura；G: 「積累」合約 達到 20 → 增加 200（新 counter `roundMaxResourceIncrease`，per-send delta 追蹤）；H: BGM 程序化合成 → 外部 mp3，依 `G.round` 切歌（1-4 / 5-8 / 9+） |
 | 40 | Post-Session-39 微調批次（系統擴展、平衡、UX、DEV 工具） | A: BGM 預設開啟 + bgm_4 標題畫面音樂 + SM 場景切歌 (`setScene`)；B: 擴展合約平衡（商店費用 ×5→×3、空格懲罰 −10/格 → −5%/格 比例式）；C: 3 個商店限定 N 工具設施（貨櫃屋 / 勞工兄弟屋 / 紅綠燈）+ 物流轉運中心 desc 修正（變物流中心而非物流站，攜帶起始方向）；D: 商店 offer 每回合鎖定（避免取消重開無限刷新，跨存檔同 turn/round 沿用）；E: 物流站 cellRedirectDir 防禦（runtime `isPerTurnRot===true` 嚴格化）+ sell-shake CSS 特異度修正（被 `cell.temp-buff/event-preview` 覆蓋）+ 立繪不裁切（移除 opacity/pointer-events override）；F: 人材批量投入 UI（×1/×2/×5/全部 按鈕條，per-投入完整副作用）+ 第 6 輪後每 2 輪合約 chooser（使用 r2+r4+r6 合併池）；G: DEV 合約面板加「點擊獲得指定合約」grid（池篩選 + 已接受灰階）|
+| 42 | 耐用值 UI 血條化 + 詞條權重/鎖池/合約過濾 + 4 處後續修復 | A: 耐用值 UI 從文字徽章改分段血條，N/R/SR/SSR 上限 3/5/7 → 5/7/9/11；B: TAG_WEIGHT 0.12→0.3、多詞條同時命中 ×1.5 boost；C: 流派鎖池 `filterByOwnedTags`：玩家有 ≥2 非中性詞條時，候選池只保留 basic/demon/無詞條/已擁有詞條（大型例外要求對應詞條）；D: 合約前置 `CONTRACT_REQUIRES_TAG` 過濾，玩家未具前置詞條的合約不出現；E: 後續修復 — `TAG_LOCK_IGNORE` 加入 boost/unique（避免 starter 第 1 回合就鎖）、filter 嚴格檢查改用 `lockTags`（避免 mayor/big_corp 自身 unique catch-22）、移除 `electrode_contract`/`giant_contract` 循環前置 |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -5033,5 +5034,133 @@ if((!bId||bId==='ruin'||_durBrokenHere)&&G.inv.speedAct) G.inv.speedAct=false;
 - **設計取捨**：投入預覽精度為「估算」非精準（FACILITY_FX 等未模擬），以「估算」徽章 + `~` 前綴向玩家明示
 - **耐用值對策略影響**：玩家不能無腦同方向 spam；中後期 SSR 設施有 7 點 buffer，較有彈性
 - **三輪審查**：`_turnDurHitSet` 顯式初始化、通盤 walk-through 確認所有 hook 點與設計權衡
+
+---
+
+## Session 42（2026-04-28）— 耐用值 UI 血條化 + 詞條權重/鎖池/合約過濾
+
+承 Session 41 的耐用值系統，改進視覺呈現並調整稀有度上限；同時在「詞條（Tag）系統」上加入流派鎖池與合約前置詞條過濾；最後針對自身審查發現的 4 處問題逐一修復。
+
+### A. 耐用值 UI 改為分段血條 + 上限調整
+
+**動機**：Session 41 採用左上角「當前/最大」文字徽章，視覺上不夠直觀，玩家需讀數字判斷剩餘耐用值；同時平衡上希望給玩家更多操作空間。
+
+**UI 改造**（CSS index.html:468–516、render index.html:10379–10391、即時更新 `_flashDurabilityPip` index.html:4807–4842）：
+- `.dur-pip` 從 padding rounded badge 改為頂端橫條容器（`top:3px;left:3px;right:3px;height:5px`）
+- 容器內含 N 個 `.dur-seg` 區段（flex:1 平均分配寬度），每段 = 1 點耐用值
+- 已填段：綠色漸層（`#7adf83→#3fa44e`）+ 內陰影；消耗段：淺灰底
+- 狀態色覆寫：`dur-low`（=1）橘黃、`dur-zero`（=0）整條暗紅 + 紅邊、`dur-recover` 綠色亮度脈動 1.4s
+- `dur-shake`/`dur-bloom` 動畫從 `scale` 改 `scaleY`，符合條狀視覺
+- 渲染端：依 `_maxDur` 產生 N 個 `<span class="dur-seg [filled]">`
+- 即時更新：`_flashDurabilityPip` 對 segment 切換 `.filled`，max 改變時重建（換稀有度時保險）
+
+**數值平衡**（index.html:4732–4742）：
+| 稀有度 | 舊 | 新 |
+|---|---|---|
+| N | 3 | **5** |
+| R | 3 | **7** |
+| SR | 5 | **9** |
+| SSR | 7 | **11** |
+
+舊版只有 3 階（N/R 共用 3）；新版分 4 階拉開 R 與 N 的差異。每階 +2 給玩家更多 buffer 應對連續 spam。
+
+### B. 詞條（Tag）權重強化
+
+**動機**：Session 41 之前的 `TAG_WEIGHT=0.12`（每個匹配詞條加 12% 權重）效果太隱晦，玩家難以察覺加權；想讓「擁有越多某流派 → 抽到該流派物件機率越高」更醒目。
+
+**改動**（index.html:5029–5030、tagWeightFor 5083–5093）：
+- `TAG_WEIGHT` 0.12 → **0.3**（每個匹配詞條 +30%；5 件命中：1.6x → 2.5x）
+- 新增 `TAG_MULTI_MATCH_BOOST=1.5`：物件本身有 2 個以上詞條同時命中玩家詞條時 ×1.5
+- 公式：`w = (1 + Σ(tagCounts[t] × 0.3)) × (matched≥2 ? 1.5 : 1) × rarityWeightByRound(round, rarity)`
+- 0.3（非 0.4）以避免早輪過度壓過稀有度曲線（SR/SSR 早輪 weight 約 0.3–0.5）
+
+### C. 流派鎖池（filterByOwnedTags）
+
+**動機**：玩家擁有 2 個以上流派詞條後，仍會抽到第三流派的物件，模糊了「focused build」感受。希望提供「自然鎖定」機制：一旦選定 2 個流派，不再混入其他流派。
+
+**規則**（index.html:5050–5077）：
+- 觸發條件：`shouldRestrictByOwnedTags()` 計數玩家擁有的「非中性詞條」≥ 2 即啟動
+- 中性詞條（`TAG_LOCK_IGNORE`）：`basic` `demon` `production` `large` `boost` `unique`
+  - basic / demon：永遠免限的兩類
+  - production：基礎廠都自帶（mat_factory/factory），不算流派選擇
+  - large / boost / unique：結構/輔助標籤，避免 starter（皆帶 unique）+ booster（帶 boost）讓 lock 第 1 回合就觸發
+- 過濾邏輯（鎖啟動後）：
+  | 物件特徵 | 處理 |
+  |---|---|
+  | 無詞條 | 通行 |
+  | 含 demon | 通行（惡魔免限） |
+  | 含 large（非 demon）| 必須有任一非 large/basic/demon 詞條被擁有；純 large（如世界奇觀）→ 不出 |
+  | 含 basic（非 large/demon）| 通行（基礎免限） |
+  | 其他 | 過濾出非 IGNORE 的「鎖定詞條」，必須全部為玩家已擁有 |
+
+**整合到 `weightedPickN`**（index.html:5096–5108）：
+- 在 weighted 取樣前先 `filterByOwnedTags(pool)` 過濾候選
+- 防呆：`filtered.length===0` 時退回原 pool（避免空池抽不到）
+
+**生效範圍**（共 9 個呼叫點）：
+- 設施補給事件（5251）、安全網路徑（5248）、買設施 action（9038）、招募合夥人 action（9078）、商店主池（9667）+ 商店 35% 非基礎（9662）、複合卡 partner（5905）、譚雅交換（12721）、`_contractGiveRandomByRarity`（4014）、DEV testRarityDraw（15134）
+
+### D. 合約前置詞條過濾（CONTRACT_REQUIRES_TAG）
+
+**動機**：玩家為純人力流時，若被丟出「電極合約」（要求電子流）只能違約承擔賠償，但他們從未選擇過電子流派。希望合約 chooser 自動排除玩家無法執行的合約。
+
+**設定表**（index.html:4187–4196）：
+| 合約 | 前置詞條 | 設計理由 |
+|---|---|---|
+| shop_invested / shop_distinct / commerce_focus | `shop` | 條件涉及商店投入 |
+| factory_invested/distinct / industry_focus / matfac_invested/distinct / farm_focus | `production` | 涉及工廠/原料廠投入（基礎廠都帶 production，幾乎不過濾） |
+| transport_contract / terminal_contract / production_contract | `logistics` | 涉及轉向次數、終點站、單次跨格數 |
+| tectonic_contract / barren_contract / real_estate_contract | `demolish` | 涉及廢墟、設施破壞、賣設施 |
+| employee_contract / union_pact_contract | `hr` | 涉及人材累積、人材投入 |
+| demon_pact_contract | `demon` | 永久 debuff 每回合失去合夥人，僅惡魔玩家有意義 |
+| accumulate / burst / evolve / expand_contract / crowd_contract / sisters_contract / hidden_call / electrode_contract / giant_contract | （無）| 通用或「為新流派開頭」的入坑合約 |
+
+**整合到 `pickContractCandidates`**（index.html:4209–4225）：
+- 過濾 `CONTRACT_REQUIRES_TAG[id]` 對應詞條 `tc[req] > 0` 通過
+- 若全部被過濾掉（玩家流派極窄）→ fallback 留通用合約（無前置）
+
+**例外保留** — `electrode_contract` 與 `giant_contract` 移除前置：本意即「為新流派開頭」（給電子精工師、給惡魔巨人 + 4 大型設施），不該被該流派擋在外。
+
+### E. 後續審查 4 處修復（內部審查發現的 catch-22 與循環）
+
+承 D 之後做了一次自我審查，發現以下問題並逐一修復：
+
+**E.1 Lock 觸發過早（嚴重）**：
+- `unique` 不在 `TAG_LOCK_IGNORE` 內 → 三選一起始合夥人（demolition/tanya/leya）皆帶 unique，加上初始手牌的 shop 詞條 → 第 1 回合 non-IGNORE = 2 → LOCK
+- `boost` 不在 IGNORE → booster（基礎設施）也帶 boost，買 1 個就觸發
+- 修法：兩者加入 `TAG_LOCK_IGNORE`（index.html:5052）
+
+**E.2 filter 嚴格檢查 catch-22（中度）**：
+- 舊邏輯 `tags.every(t=>'large'||tc[t]>0)` 要求所有非 large 詞條都被擁有
+- mayor `['unique']` 玩家無 unique → 排除（catch-22：mayor 是給 unique 的）
+- big_corp `['large','unique']` 大型分支 others=[unique] 同樣 catch-22
+- dynamic_amp `['demolish','boost']`、logistics_amp `['logistics','boost']` 玩家無 boost 物件時排除
+- 修法：filter 嚴格檢查改用 `lockTags = tags.filter(t=>!TAG_LOCK_IGNORE.has(t))`，輔助詞條（boost/unique/production）通行（index.html:5072–5074）
+
+**E.3 合約循環依賴（輕度）**：
+- `electrode_contract` 給電子精工師，要求 electronic → 玩家無電子永遠看不到
+- `giant_contract` 給惡魔巨人 + 4 大型，要求 large → 同上
+- 修法：兩者從 `CONTRACT_REQUIRES_TAG` 移除（index.html:4187–4196）
+- 保留 `demon_pact_contract` / `terminal_contract`：debuff 太重（每回合失合夥人 / 起終點必為終點站），需玩家熟稔該流派才有意義
+
+**E.4 TAG_WEIGHT 過高（輕度）**：
+- 0.4 在早輪（rarityWeightByRound 對 SR/SSR ≈ 0.3–0.5）會壓過稀有度曲線，5 件 hr 命中 hr SR 物件 weight 1.2 vs N 物件 1.0
+- 修法：0.4 → 0.3（index.html:5029）
+
+### 整體影響
+
+- **新功能**：耐用值血條 UI、詞條鎖池系統、合約前置過濾
+- **平衡調整**：耐用值上限 3/3/5/7 → 5/7/9/11（每階 +2，拉開 R 與 N）；TAG_WEIGHT 0.12 → 0.3（傾向更醒目）
+- **設計取捨**：
+  - 流派鎖池在 ≥2 流派詞條時啟動，basic/demon/無詞條/已擁有詞條通行；大型須對應詞條，純 large 不出
+  - 合約過濾僅針對「條件涉及該流派操作」的合約；通用與「入坑」合約不限
+  - `TAG_LOCK_IGNORE` 排除 starter/基礎自帶的詞條（unique/boost/production）避免提前鎖死
+- **未動**：`venture-town.html` 副本（4/20 舊版本）、`shop` 仍視為一個流派選擇詞條（雖然初始有 2 張基礎商店）
+
+### 已知 fallback 行為
+
+- `weightedPickN`：filtered=0 退回原 pool（lock 精神被打破，但避免抽不到）
+- `pickContractCandidates`：filtered=0 退回通用合約池；若完全空 chooser 不出（log「合約池為空」）
+- 兩者皆為防呆設計，預期極少觸發
 
 
