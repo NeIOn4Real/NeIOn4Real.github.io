@@ -599,6 +599,21 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 }
 .talent-glow{ animation:talentGlow 1.5s ease-in-out 3; }
 
+/* 人材批量投入選擇器 */
+.talent-bulk-selector{display:inline-flex;gap:1px;align-items:center;margin-left:auto;}
+.talent-bulk-selector .bs{
+  font-size:9px;padding:2px 5px;
+  border:1px solid var(--br2);background:var(--sur);color:var(--mu);
+  border-radius:4px;cursor:pointer;font-weight:700;
+  font-family:'DM Mono','Noto Sans TC',monospace;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.talent-bulk-selector .bs.sel{
+  background:var(--money);color:#fff;border-color:var(--money);
+  box-shadow:0 0 6px rgba(176,96,0,.4);
+}
+.talent-bulk-selector .bs:hover:not(.sel){background:rgba(176,96,0,.12);color:var(--money);}
+
 /* ── 格子閃光 ── */
 .cell.active-path{
   background:rgba(179,58,0,.08);
@@ -4060,9 +4075,24 @@ function runContractHook(name, ...args){
     }
   });
 }
+// 觸發輪：第 2/4/6 輪固定，第 6 輪後每 2 輪一次（8/10/12...）
+function isContractTriggerRound(round){
+  if(typeof round!=='number') return false;
+  if(CONTRACT_TRIGGER_ROUNDS.indexOf(round) >= 0) return true;
+  return round > 6 && round % 2 === 0;
+}
 function pickContractCandidates(round){
-  const key = 'r' + round;
-  const pool = (CONTRACT_POOLS[key] || []).slice();
+  let pool;
+  if(round <= 6){
+    pool = (CONTRACT_POOLS['r' + round] || []).slice();
+  } else {
+    // 第 6 輪後：合併所有池（r2 + r4 + r6）供再抽
+    pool = [].concat(
+      CONTRACT_POOLS.r2 || [],
+      CONTRACT_POOLS.r4 || [],
+      CONTRACT_POOLS.r6 || []
+    );
+  }
   if(pool.length === 0) return [];
   const ownedIds = new Set((G.activeContracts||[]).map(c=>c.id));
   const available = pool.filter(id=>!ownedIds.has(id) && CONTRACTS[id]);
@@ -5465,8 +5495,9 @@ function startRound(){
   if(G.round>1) showRoundBanner(G.round);
   // 第一回合的 onTurnStart/場風/UI 統一由 startTurn() 處理（避免重複觸發）
   startTurn();
-  // 合約系統：第 2/4/6 輪起始時必選 1 張合約（含 performWinSettlement 補發的跳過輪次）
-  if(CONTRACT_TRIGGER_ROUNDS.indexOf(G.round) >= 0){
+  // 合約系統：第 2/4/6 輪、以及第 6 輪後每 2 輪起始必選 1 張合約
+  // （含 performWinSettlement 補發的跳過輪次）
+  if(isContractTriggerRound(G.round)){
     queueContractChooser(G.round);
   }
   // 統一在 banner 顯示 800ms 後啟動隊列（即使本輪非觸發輪，仍要消化跳過輪次的 pending）
@@ -8328,12 +8359,12 @@ function performWinSettlement(turnsUsed){
   if(passedGoals.length > 0){
     const startingRound = passedGoals[0].round;
     const finalRound = G.round; // 即將進入此輪（startRound 會處理）
-    CONTRACT_TRIGGER_ROUNDS.forEach(tr=>{
-      if(tr > startingRound && tr < finalRound){
+    for(let tr=startingRound+1; tr<finalRound; tr++){
+      if(isContractTriggerRound(tr)){
         queueContractChooser(tr);
         addLog(`📜 第 ${tr} 輪合約被多輪過關跳過，將補發選擇`,'w');
       }
-    });
+    }
   }
   if(passedGoals.length===0) return; // 保險：理論不會發生
   // 連續結算後一次性評估難度（依累積後完整 roundHistory）
@@ -11193,33 +11224,34 @@ function onTalentDrop(e) {
 }
 
 // 人材拖到設施格子上：本回合暫時 +1
-function onTalentDropCell(e, r, c) {
-  e.preventDefault();
-  const cellEl = cellQ(r,c);
-  if(cellEl){ cellEl.style.outline=''; cellEl.style.boxShadow=''; }
-  if(!talentDragging) return;
-  if(!G.grid[r][c]){ addLog('🧑‍💼 沒有設施可以強化','b'); return; }
-  if((G.talentCards||0) <= 0) return;
-  talentDragging = false;
+// 設定批量投入大小（1/2/5/'all'），由 talent-panel 按鈕呼叫
+function setTalentBulkSize(n){
+  G._talentBulkSize = n;
+  renderTalentPanel();
+}
+
+// 內部：執行一次「人材→設施格」投入的所有副作用（不含 final render）
+// silent=true 時抑制 per-投入 log（批量模式由外層產生總結 log）
+function _runTalentInvestSideEffects(r, c, silent){
   const talentBefore = G.talentCards||0;
   G.talentCards--;
   G._hrTalentUsedCount=(G._hrTalentUsedCount||0)+1;
   // 工會主席：持有8+人材時，額外投入+2人材到設施（以投入前的人材數判定）
   if(hasPartner('union_chief')&&talentBefore>=8){
     G.cellMods[`${r},${c}`]=(G.cellMods[`${r},${c}`]||0)+2;
-    addLog(`✊ 工會主席：8+人材，額外+2！`,'g');
+    if(!silent) addLog(`✊ 工會主席：8+人材，額外+2！`,'g');
     SFX.partnerProc();
   }
   // 人類惡魔：投入人材時+2永久
   if(hasPartner('human_demon')){
     const hk=`${r},${c}`;
     G.bldgUpgrades[hk]=(G.bldgUpgrades[hk]||0)+2;
-    addLog(`😈 人類惡魔：投入人材，${BLDG[G.grid[r][c]]?.name||'設施'}永久+2`,'g');
+    if(!silent) addLog(`😈 人類惡魔：投入人材，${BLDG[G.grid[r][c]]?.name||'設施'}永久+2`,'g');
   }
   // 北漂者：人材投入非中央設施-2
   if(hasPartner('northbound')&&!isCenterCell(r,c)&&!(G.buff&&G.buff._allCenter)){
     G.cellMods[`${r},${c}`]=(G.cellMods[`${r},${c}`]||0)-2;
-    addLog(`🧳 北漂者：非中央設施，本回合-2`,'b');
+    if(!silent) addLog(`🧳 北漂者：非中央設施，本回合-2`,'b');
   }
   // 人力銀行：每投入 2 人材到此設施，預約下回合 +4 人材（per-cell 累計）
   if(G.grid[r][c]==='talent_bank'){
@@ -11230,7 +11262,7 @@ function onTalentDropCell(e, r, c) {
       G.talentBankCount[k]-=2;
       G._talentBankPending=(G._talentBankPending||0)+4;
       addLog(`🏧 人力銀行 (${r+1},${c+1})：投入第 2 人材，下回合 +4 人材（累計預約 ${G._talentBankPending}）`,'g');
-    } else {
+    } else if(!silent) {
       addLog(`🏧 人力銀行 (${r+1},${c+1})：投入第 1 人材，再投入 1 個觸發效果`,'b');
     }
   }
@@ -11248,7 +11280,7 @@ function onTalentDropCell(e, r, c) {
       const [tr,tc]=adj[Math.floor(Math.random()*adj.length)];
       G.cellMods[`${tr},${tc}`]=(G.cellMods[`${tr},${tc}`]||0)+2;
       const tb=BLDG[G.grid[tr][tc]];
-      addLog(`👥 分身大師：${tb.emoji}${tb.name} (${tr+1},${tc+1}) 本回合額外+2`,'g');
+      if(!silent) addLog(`👥 分身大師：${tb.emoji}${tb.name} (${tr+1},${tc+1}) 本回合額外+2`,'g');
       const tEl=cellQ(tr,tc);
       if(tEl){
         tEl.style.outline='3px solid #a8f';
@@ -11263,10 +11295,35 @@ function onTalentDropCell(e, r, c) {
   // 工會合約：累計每格人材投入次數（永久）
   G.cellTalentInvested = G.cellTalentInvested || {};
   G.cellTalentInvested[key] = (G.cellTalentInvested[key]||0) + 1;
-  const b = BLDG[G.grid[r][c]];
-  addLog(`🧑‍💼 人材強化 ${b.emoji}${b.name}！本回合 +1`,'g');
-  SFX.upgrade();
-  // Visual flash on cell
+  if(!silent){
+    const b = BLDG[G.grid[r][c]];
+    addLog(`🧑‍💼 人材強化 ${b.emoji}${b.name}！本回合 +1`,'g');
+    SFX.upgrade();
+  }
+}
+
+function onTalentDropCell(e, r, c) {
+  e.preventDefault();
+  const cellEl = cellQ(r,c);
+  if(cellEl){ cellEl.style.outline=''; cellEl.style.boxShadow=''; }
+  if(!talentDragging) return;
+  if(!G.grid[r][c]){ addLog('🧑‍💼 沒有設施可以強化','b'); return; }
+  if((G.talentCards||0) <= 0) return;
+  talentDragging = false;
+  // 批量投入：min(設定量, 現有人材數)
+  const bulkSize = (G._talentBulkSize==='all') ? (G.talentCards||0) : (Number(G._talentBulkSize)||1);
+  const total = Math.max(1, Math.min(bulkSize, G.talentCards||0));
+  const bIdNow = G.grid[r][c];
+  for(let i=0; i<total; i++){
+    if((G.talentCards||0) <= 0) break;
+    if(!isFacility(G.grid[r][c])) break;
+    _runTalentInvestSideEffects(r, c, total>1);
+  }
+  if(total > 1){
+    const b = BLDG[bIdNow];
+    addLog(`🧑‍💼 批量投入 ×${total}：${b?.emoji||''}${b?.name||'設施'}（本回合 +${total}）`,'g');
+    SFX.upgrade();
+  }
   if(cellEl){
     cellEl.style.outline = '3px solid var(--money)';
     cellEl.style.boxShadow = '0 0 14px rgba(176,96,0,.5)';
@@ -11735,18 +11792,30 @@ function renderTalentPanel(){
   if(n===0){
     panel.innerHTML='<div style="font-size:9px;color:var(--hi);padding:4px 0;">尚無人材</div>';
   } else {
-    panel.innerHTML=`<div class="talent-token" title="人材：拖到元素卡多投入一次，或拖到設施格+1"
+    // 批量投入量設定（拖到設施格時生效）
+    const _bulk = (G._talentBulkSize==='all')?'all':(Number(G._talentBulkSize)||1);
+    const _bulkLabel = _bulk==='all' ? `全部(${n})` : `×${_bulk}`;
+    const _btn=(v,label)=>{
+      const sel=(_bulk===v||(_bulk==='all'&&v==='all'))?' sel':'';
+      const arg=typeof v==='number'?v:`'${v}'`;
+      return `<button class="bs${sel}" onclick="setTalentBulkSize(${arg})">${label}</button>`;
+    };
+    panel.innerHTML=`<div class="talent-token" title="人材：拖到元素卡多投入一次，或拖到設施格 +${_bulk==='all'?'全部':_bulk}"
       draggable="true"
       ondragstart="onTalentDragStart(event,0)"
       ondragend="onTalentDragEnd(event)"
       style="width:32px;height:42px;background:linear-gradient(145deg,#fff9ee,#fff3d4);
         border:1.5px solid var(--money);border-radius:6px;
         display:flex;flex-direction:column;align-items:center;justify-content:center;
-        cursor:grab;font-size:16px;box-shadow:0 2px 6px rgba(42,26,8,.12);">
+        cursor:grab;font-size:16px;box-shadow:0 2px 6px rgba(42,26,8,.12);position:relative;">
       <div>🧑‍💼</div>
+      ${_bulk!==1?`<div style="position:absolute;top:-4px;right:-6px;font-size:8px;font-weight:900;color:#fff;background:var(--money);border-radius:99px;padding:1px 4px;line-height:1.2;border:1px solid #fff;">${_bulkLabel}</div>`:''}
     </div>
     <div id="talent-count" style="font-size:11px;font-weight:900;color:var(--money);
-      display:flex;align-items:center;padding-left:4px;">×${n}</div>`;
+      display:flex;align-items:center;padding-left:4px;">×${n}</div>
+    <div class="talent-bulk-selector" title="批量投入：選擇後一次拖曳投入 N 次（含所有副作用：工會/惡魔/分身/銀行）">
+      ${_btn(1,'×1')}${_btn(2,'×2')}${_btn(5,'×5')}${_btn('all','全部')}
+    </div>`;
   }
   // 變化動畫 + 音效（首次呼叫 delta=0 自然不觸發）
   if(delta!==0){
