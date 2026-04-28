@@ -465,6 +465,19 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 /* 耐用值耗盡：整格暗化提示玩家無法投入 */
 .cell.dur-broken{filter:grayscale(.85) brightness(.55);opacity:.62;}
 .cell.dur-broken::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(60,40,20,.18) 6px,rgba(60,40,20,.18) 10px);pointer-events:none;border-radius:inherit;}
+/* 耐用值徽章（base 設施左上角；當前/最大）*/
+.cell .dur-pip{
+  position:absolute;top:2px;left:2px;
+  font-size:8px;font-weight:900;color:#fff;
+  background:rgba(60,60,60,.78);
+  border-radius:99px;padding:1px 5px;line-height:1.2;
+  font-family:'DM Mono',monospace;letter-spacing:.3px;
+  pointer-events:none;z-index:4;
+}
+.cell .dur-pip.dur-low{background:rgba(204,127,0,.92);}
+.cell .dur-pip.dur-zero{background:rgba(204,40,40,.95);}
+.cell .dur-pip.dur-recover{background:rgba(60,160,80,.92);}
+.cell .dur-pip.dur-full{opacity:.55;}
 .cell.drag-target{background:rgba(179,58,0,.1);border-color:var(--acc);border-style:dashed;}
 .cell.drag-over-cell{background:rgba(42,122,58,.12);border:2px solid var(--green);}
 
@@ -3391,14 +3404,16 @@ const CONTRACTS = {
       if(btn && typeof profitFlyFrom==='function') profitFlyFrom(btn, 10);
     },
     checkProgress(G, ac){
-      const cells = _findContractFacilityCells(_isShopForContract);
-      const set = (G.contractCounters && G.contractCounters.roundShopCellsHit) || new Set();
-      const invested = cells.filter(([r,c])=>set.has(`${r},${c}`)).length;
+      // 蕾雅疊加多個商店在同格時，仍視為不同商店實例
+      const keys = _listContractFacilityInstanceKeys(_isShopForContract);
+      const total = keys.length;
+      const set = (G.contractCounters && G.contractCounters.roundShopInstancesHit) || new Set();
+      const invested = keys.filter(k=>set.has(k)).length;
       return {
         label:'已投入商店',
         progress: invested,
-        max: Math.max(3, cells.length),
-        done: cells.length >= 3 && invested >= cells.length
+        max: Math.max(3, total),
+        done: total >= 3 && invested >= total
       };
     },
     onFail(G, ac){
@@ -3443,14 +3458,16 @@ const CONTRACTS = {
       if(btn && typeof profitFlyFrom==='function') profitFlyFrom(btn, 10);
     },
     checkProgress(G, ac){
-      const cells = _findContractFacilityCells(_isFactoryForContract);
-      const set = (G.contractCounters && G.contractCounters.roundFactoryCellsHit) || new Set();
-      const invested = cells.filter(([r,c])=>set.has(`${r},${c}`)).length;
+      // 蕾雅疊加多個工廠在同格時，仍視為不同工廠實例
+      const keys = _listContractFacilityInstanceKeys(_isFactoryForContract);
+      const total = keys.length;
+      const set = (G.contractCounters && G.contractCounters.roundFactoryInstancesHit) || new Set();
+      const invested = keys.filter(k=>set.has(k)).length;
       return {
         label:'已投入工廠',
         progress: invested,
-        max: Math.max(3, cells.length),
-        done: cells.length >= 3 && invested >= cells.length
+        max: Math.max(3, total),
+        done: total >= 3 && invested >= total
       };
     },
     onFail(G, ac){
@@ -3495,14 +3512,16 @@ const CONTRACTS = {
       if(btn && typeof profitFlyFrom==='function') profitFlyFrom(btn, 10);
     },
     checkProgress(G, ac){
-      const cells = _findContractFacilityCells(_isMatFactoryForContract);
-      const set = (G.contractCounters && G.contractCounters.roundMatFactoryCellsHit) || new Set();
-      const invested = cells.filter(([r,c])=>set.has(`${r},${c}`)).length;
+      // 蕾雅疊加多個原料廠在同格時，仍視為不同原料廠實例
+      const keys = _listContractFacilityInstanceKeys(_isMatFactoryForContract);
+      const total = keys.length;
+      const set = (G.contractCounters && G.contractCounters.roundMatFactoryInstancesHit) || new Set();
+      const invested = keys.filter(k=>set.has(k)).length;
       return {
         label:'已投入原料廠',
         progress: invested,
-        max: Math.max(3, cells.length),
-        done: cells.length >= 3 && invested >= cells.length
+        max: Math.max(3, total),
+        done: total >= 3 && invested >= total
       };
     },
     onFail(G, ac){
@@ -4356,6 +4375,27 @@ function _findContractFacilityCells(predicate){
   }
   return cells;
 }
+// 計算小鎮上「X 設施」的實例總數（base + 每個 overlay 各自計算；蕾雅疊加 3 工廠視為 3）
+function _countContractFacilityInstances(predicate){
+  let n = 0;
+  if(!G||!G.grid) return n;
+  for(let r=0;r<GN();r++) for(let c=0;c<GN();c++){
+    if(predicate(G.grid[r][c])) n++;
+    if(typeof getOverlays==='function') getOverlays(r,c).forEach(ov=>{ if(predicate(ov)) n++; });
+  }
+  return n;
+}
+// 列出每個 X 設施實例的 key（"r,c|bldgId"），用於和 roundXxxInstancesHit 比對
+function _listContractFacilityInstanceKeys(predicate){
+  const keys = [];
+  if(!G||!G.grid) return keys;
+  for(let r=0;r<GN();r++) for(let c=0;c<GN();c++){
+    const b = G.grid[r][c];
+    if(predicate(b)) keys.push(`${r},${c}|${b}`);
+    if(typeof getOverlays==='function') getOverlays(r,c).forEach(ov=>{ if(predicate(ov)) keys.push(`${r},${c}|${ov}`); });
+  }
+  return keys;
+}
 // 設施被投入時更新合約計數（base + 所有 overlay）。從 _hit() 內呼叫。
 function _trackContractHits(r, c, bId){
   if(!G.contractCounters) return;
@@ -4364,20 +4404,27 @@ function _trackContractHits(r, c, bId){
   const ids = [bId];
   if(typeof getOverlays==='function') getOverlays(r,c).forEach(ov=>ids.push(ov));
   ids.forEach(id=>{
+    const instKey = `${k}|${id}`;
     if(_isShopForContract(id)){
       cc.roundShopHits = (cc.roundShopHits||0) + 1;
       if(!cc.roundShopCellsHit) cc.roundShopCellsHit = new Set();
       cc.roundShopCellsHit.add(k);
+      if(!cc.roundShopInstancesHit) cc.roundShopInstancesHit = new Set();
+      cc.roundShopInstancesHit.add(instKey);
     }
     if(_isFactoryForContract(id)){
       cc.roundFactoryHits = (cc.roundFactoryHits||0) + 1;
       if(!cc.roundFactoryCellsHit) cc.roundFactoryCellsHit = new Set();
       cc.roundFactoryCellsHit.add(k);
+      if(!cc.roundFactoryInstancesHit) cc.roundFactoryInstancesHit = new Set();
+      cc.roundFactoryInstancesHit.add(instKey);
     }
     if(_isMatFactoryForContract(id)){
       cc.roundMatFactoryHits = (cc.roundMatFactoryHits||0) + 1;
       if(!cc.roundMatFactoryCellsHit) cc.roundMatFactoryCellsHit = new Set();
       cc.roundMatFactoryCellsHit.add(k);
+      if(!cc.roundMatFactoryInstancesHit) cc.roundMatFactoryInstancesHit = new Set();
+      cc.roundMatFactoryInstancesHit.add(instKey);
     }
   });
 }
@@ -4405,6 +4452,9 @@ function _resetContractRoundCounters(){
   cc.roundShopCellsHit = new Set();
   cc.roundFactoryCellsHit = new Set();
   cc.roundMatFactoryCellsHit = new Set();
+  cc.roundShopInstancesHit = new Set();
+  cc.roundFactoryInstancesHit = new Set();
+  cc.roundMatFactoryInstancesHit = new Set();
   cc.roundMaxResourceValue = 0;
   cc.roundMaxResourceIncrease = 0; // 「積累」合約：本輪單次送入的最大成長值（current - sendBaseline）
   cc.roundMaxSingleSendProfit = 0;
@@ -10235,6 +10285,18 @@ function renderGrid(){
       if(modVal!==0) h+=`<div class="${modVal>0?'cell-mod-pos':'cell-mod-neg'}">${modVal>0?'+':''}${modVal}</div>`;
       if(pctVal!==0) h+=`<div class="${pctVal>0?'cell-mod-pos':'cell-mod-neg'}" style="bottom:${modVal!==0?'12px':'2px'}">${pctVal>0?'+':''}${pctVal}%</div>`;
     }
+    // 耐用值徽章：左上角顯示「當前/最大」，依稀有度 N/R=3、SR=5、SSR=7
+    if(b&&!isRuin&&typeof isDurabilityTracked==='function'&&isDurabilityTracked(bId)){
+      const _curDur=getDurability(r,c,bId);
+      const _maxDur=getDurabilityMax(bId);
+      const _isRec=!!(G.facilityRecovering&&G.facilityRecovering[`${r},${c}`]&&G.facilityRecovering[`${r},${c}`][bId]);
+      let _durCls='';
+      if(_curDur===0) _durCls=' dur-zero';
+      else if(_isRec) _durCls=' dur-recover';
+      else if(_curDur===1) _durCls=' dur-low';
+      else if(_curDur>=_maxDur) _durCls=' dur-full';
+      h+=`<div class="dur-pip${_durCls}" title="耐用值 ${_curDur}/${_maxDur}${_isRec?'（恢復中）':''}">${_curDur}/${_maxDur}</div>`;
+    }
     h+=`</div>`;
   }
   h+=`</div>`;
@@ -13130,7 +13192,8 @@ function deserializeGame(save){
   }
   if(!Array.isArray(data.contractHistory)) data.contractHistory=[];
   // contractCounters 中 Set 欄位若舊存檔沒有，補上空 Set（reviveSets 對 _s 已處理過存在的）
-  ['roundShopCellsHit','roundFactoryCellsHit','roundMatFactoryCellsHit'].forEach(k=>{
+  ['roundShopCellsHit','roundFactoryCellsHit','roundMatFactoryCellsHit',
+   'roundShopInstancesHit','roundFactoryInstancesHit','roundMatFactoryInstancesHit'].forEach(k=>{
     if(!(data.contractCounters[k] instanceof Set)) data.contractCounters[k]=new Set();
   });
   // 合約 chooser 模組變數重置：避免 mid-modal 匯入存檔或失敗重開後 _kickContractChooser 卡死
