@@ -589,8 +589,10 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   60%{transform:translate(-1px,2px) rotate(-0.5deg);}
   80%{transform:translate(1px,-1px) rotate(0.5deg);}
 }
-.sell-shake{animation:sellShake .4s ease-in-out infinite;cursor:pointer !important;}
-.sell-shake:hover{outline:2px solid var(--red);box-shadow:0 0 10px rgba(200,0,0,.3);}
+/* 特異度提升至 .cell.sell-shake 才能覆蓋 .cell.temp-buff / .cell.event-preview / .cell.temp-debuff
+   等同特異度（2 classes）的 animation 宣告；較晚宣告者勝出 */
+.cell.sell-shake{animation:sellShake .4s ease-in-out infinite;cursor:pointer !important;}
+.cell.sell-shake:hover{outline:2px solid var(--red);box-shadow:0 0 10px rgba(200,0,0,.3);}
 @keyframes talentGlow{
   0%,100%{box-shadow:0 0 4px rgba(176,96,0,.2);}
   50%{box-shadow:0 0 14px rgba(176,96,0,.6),0 0 24px rgba(176,96,0,.3);}
@@ -1104,6 +1106,7 @@ body { padding-bottom: 150px; }
 /* ── 角色立繪（右下角） ── */
 /* z-index 50：低於 #hand-fan-area(60)，讓手牌過多時最右側的卡片能在視覺與點擊上蓋過立繪。 */
 /* hand-fan-area 是 pointer-events:none 的容器（只 .fan-card 收事件），立繪仍可被點擊（事件穿透）。 */
+/* 拖曳卡片時不裁切/淡出立繪，僅靠 z-index 分層讓手牌與投入箭頭(.dbtn z70)位於立繪上方。 */
 #char-tray {
   position: fixed;
   bottom: -22%;
@@ -1111,11 +1114,7 @@ body { padding-bottom: 150px; }
   z-index: 50;
   pointer-events: none;
   width: clamp(276px, 27.6vw, 437px);
-  transition: opacity .2s ease;
 }
-/* 拖曳卡片時：立繪淡出且不接事件，避免遮擋投入箭頭與卡片互動 */
-body.card-dragging #char-tray { opacity: 0.2; }
-body.card-dragging #char-tray img { pointer-events: none !important; }
 
 /* ── 對話泡泡 ── */
 #char-bubble {
@@ -7725,8 +7724,9 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       setTimeout(()=>cellEl?.classList.remove('transform-flash'),400);
 
       // 物流中心：當前方向存於 cellRedirectDir，覆蓋 BLDG.dir
-      const isPerTurnRot=b.perTurnRotate;
-      const cellDir=(G.cellRedirectDir&&G.cellRedirectDir[cellKey])||b.dir;
+      // 物流站（logistics_up/down/left/right、transfer_hub）只用 b.dir，避免 stale cellRedirectDir 被誤套用
+      const isPerTurnRot=b.perTurnRotate===true;
+      const cellDir=isPerTurnRot ? ((G.cellRedirectDir&&G.cellRedirectDir[cellKey])||b.dir) : b.dir;
       // upgrade bonus (有 overlay 時升級屬於 overlay 設施，redirect 不重複計算)
       const _hasOverlay=G.cellOverlay&&G.cellOverlay[`${r},${c}`];
       const upgradeBonus=_hasOverlay?0:(G.bldgUpgrades?.[`${r},${c}`]||0);
