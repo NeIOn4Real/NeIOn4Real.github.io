@@ -29,7 +29,8 @@
 | 36 | 設施互動審查 + 多項機制修正 | A: cellBonus orphan / pride 上限 / 事件 banner 靠左；B: 臨時加成格子高亮 + BGM；C: 轉運中心複合卡修；D: 古代機械工廠「視為 4 工廠」計數規則；E: 6 個商店 special FX 跳過 shop_owner 系統性修復；F: 中央監督局嚴格按 facPath；G: 環境感應站每格只算一次；H: 人力派遣 fx.hit；I: 強化增幅裝置改被動心願 |
 | 37 | 合約系統實作（Phase A→D）+ 數個既有 bug 修補 | A: CONTRACTS / CONTRACT_POOLS / runContractHook / 合約面板 UI 框架；B: R2 池 12 張完整實作；C: 暗叫合約（卡背手牌 + 配對消除 +30）；D: R4 池 12 張（含 6 dupes + 板塊/擴展/電極等永久效果）+ R6 池 9 張（大群/地產/產線/巨人/終點/姊妹/惡魔/工會/暗叫）；附帶修：複合卡 蕾雅疊加 / 大型設施排除複合 / 多輪過關連跳合約補發 / 商業集中追蹤漏算（基礎設施路徑漏 _trackContractHits）/ 收益顯示 +-N / 合約按鈕 UI 移位 + 加大 / 卡背 inspector 洩露 / 暗叫複合卡 emoji 可見 / dept_store_part 配對繞 indestructible |
 | 38 | Session 37 合約系統審查後續 + 平衡與 UI 修補 | A: 合約 chooser 模組變數 deserializeGame 不重置，mid-modal 匯入存檔會卡死後續所有合約 chooser；B: 工會合約門檻 6→4 人材；C: mega_elec_supply / giant_village / world_wonder 在無大財團時也能放置（新 findEmpty2x2 helper）；D: 角色立繪 z-index 98→50，拖曳卡片時淡出，避免遮擋手牌與投入箭頭 |
-| 39 | 移動 session 統一化（mobile_city 剝削修補）+ 取消還原 + 多項既有 bug | A: 移動都市內反覆 swap 無限觸發 demolish_bureau / dynamic_amp / trade_zone；B: 新增 `_isInMoveSession` / `_flushMoveSession` helper，freeRearrange 與 _mobileCityMode 統一視為移動 session，per-session 1 trigger；C: mobile_city 加 saveGridSnapshot/restoreGridSnapshot，「取消」真的還原 swap（與 cancelRearrange 一致）；D: dynamic_amp / demolish_bureau desc 補上「自由排列／移動都市整段視為 1 次」；E: ancient_factory_part 漏排 isPoolableBldg / dev panel 排除清單，被當 N 級設施抽進手牌；F: adv_booster 作為複合 overlay 不掃 + 複合 'placed' 分支不觸發 recomputeBoosterAura；G: 「積累」合約 達到 20 → 增加 200（新 counter `roundMaxResourceIncrease`，per-send delta 追蹤） |
+| 39 | 移動 session 統一化（mobile_city 剝削修補）+ 取消還原 + 多項既有 bug | A: 移動都市內反覆 swap 無限觸發 demolish_bureau / dynamic_amp / trade_zone；B: 新增 `_isInMoveSession` / `_flushMoveSession` helper，freeRearrange 與 _mobileCityMode 統一視為移動 session，per-session 1 trigger；C: mobile_city 加 saveGridSnapshot/restoreGridSnapshot，「取消」真的還原 swap（與 cancelRearrange 一致）；D: dynamic_amp / demolish_bureau desc 補上「自由排列／移動都市整段視為 1 次」；E: ancient_factory_part 漏排 isPoolableBldg / dev panel 排除清單，被當 N 級設施抽進手牌；F: adv_booster 作為複合 overlay 不掃 + 複合 'placed' 分支不觸發 recomputeBoosterAura；G: 「積累」合約 達到 20 → 增加 200（新 counter `roundMaxResourceIncrease`，per-send delta 追蹤）；H: BGM 程序化合成 → 外部 mp3，依 `G.round` 切歌（1-4 / 5-8 / 9+） |
+| 40 | Post-Session-39 微調批次（系統擴展、平衡、UX、DEV 工具） | A: BGM 預設開啟 + bgm_4 標題畫面音樂 + SM 場景切歌 (`setScene`)；B: 擴展合約平衡（商店費用 ×5→×3、空格懲罰 −10/格 → −5%/格 比例式）；C: 3 個商店限定 N 工具設施（貨櫃屋 / 勞工兄弟屋 / 紅綠燈）+ 物流轉運中心 desc 修正（變物流中心而非物流站，攜帶起始方向）；D: 商店 offer 每回合鎖定（避免取消重開無限刷新，跨存檔同 turn/round 沿用）；E: 物流站 cellRedirectDir 防禦（runtime `isPerTurnRot===true` 嚴格化）+ sell-shake CSS 特異度修正（被 `cell.temp-buff/event-preview` 覆蓋）+ 立繪不裁切（移除 opacity/pointer-events override）；F: 人材批量投入 UI（×1/×2/×5/全部 按鈕條，per-投入完整副作用）+ 第 6 輪後每 2 輪合約 chooser（使用 r2+r4+r6 合併池）；G: DEV 合約面板加「點擊獲得指定合約」grid（池篩選 + 已接受灰階）|
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -4701,4 +4702,167 @@ for(let br=0;br<gn;br++) for(let bc=0;bc<gn;bc++){
 **重要差異**：
 - 舊「達到 20」：cards 進場 v=1，跑到 20 即達成。第一輪可能就完成
 - 新「增加 200」：單次送入需從 baseline 成長 +200。需要設施鏈條足夠長 + 倍率夠高（典型需中後期才可能達成）。難度顯著提高，符合「積累」名稱
+
+### H. BGM 程序化合成 → 外部 mp3，依輪數切歌
+
+**問題**：原 BGM 模組為 Web Audio 程序化合成，主音量 `MASTER_GAIN=0.020`（≈ -34dB）實質聽不見。改為外部 mp3 播放並依輪數切歌：
+
+| 輪數 | 檔案 |
+|---|---|
+| 1–4 | `bgm/bgm_1.mp3` |
+| 5–8 | `bgm/bgm_2.mp3` |
+| 9+ | `bgm/bgm_3.mp3` |
+
+**實作**（index.html:2108-2168）：BGM 模組重寫，使用 `HTMLAudioElement` + `loop:true`，音量 `0.18`：
+- `pickIdxForRound(round)`：依輪數對應檔
+- `ensureAudio(idx)`：延遲建立 / 切換 audio 物件
+- `start / stop / toggle / preferOn`：API 保持不變
+- 新 `syncToRound()`：輪數變動時切歌（active 才生效）
+
+**hookpoints**：
+- `startRound()` 末尾呼叫 `BGM.syncToRound()`（每輪開始）
+- `deserializeGame()` 末尾呼叫 `BGM.syncToRound()`（載入存檔後依新輪數切歌）
+
+**自動播放限制**：仍受瀏覽器 autoplay policy 限制，等首次 user gesture 後才能播放（既有 `bgmAutoStart` 機制接住）。
+
+---
+
+## Session 40（2026-04-28）— Post-Session-39 微調批次
+
+Session 39 之後同日累積的多項擴展、平衡、UX、DEV 工具改動。
+
+### A. BGM 預設開啟 + 標題畫面專屬 BGM
+
+**A1. 預設開啟**：原本 `BGM.preferOn()` 只在 `localStorage['vt_bgm_on']==='1'` 時為 true，首次進站不會自動啟動。修法：
+```js
+function preferOn(){
+  const v=localStorage.getItem('vt_bgm_on');
+  return v===null?true:v==='1'; // 未設定預設 true，僅顯式 '0' 關閉
+}
+```
+按鈕初始 icon 改為 🎵；`bgmAutoStart` 在 `preferOn=false` 時同步按鈕成 🔇。
+
+**A2. 標題畫面 bgm_4**：BGM 模組加 `_scene` 狀態（'title' / 'gameplay'）與 `setScene(name)` API：
+- `pickIdx()`：title → bgm_4 / gameplay → 依 `G.round`（1-4/5-8/9+）
+- `_switchToCurrentIdx()`：統一切歌動作，`syncToRound` 與 `setScene` 共用
+- `SM.goto(name)` 在 `enter()` 之前呼叫 `BGM.setScene(name)`，確保 enter 內 `autoLoad → deserializeGame → syncToRound` 已基於正確 scene 計算
+
+### B. 擴展合約平衡
+
+**動機**：原 `expand_contract`（永久效果）的負面平衡過重：商店費用 ×5、空格懲罰固定 −10/格。降低數值並改為比例式罰則：
+
+| 項目 | 修補前 | 修補後 |
+|---|---|---|
+| 商店費用倍率 | ×5 | **×3** |
+| 空格懲罰 | `empties × 10`（固定）| `min(1, empties × 0.05) × G.profit`（比例，clamp 到 profitAtStart）|
+| compensationText | 「5 倍 / 每缺少一個 −10」 | 「3 倍 / 每缺少一個 −5%」 |
+
+比例式收益越高、空格越多時罰得越重，比固定 −10/格更具壓力曲線。
+
+### C. 3 個商店限定 N 設施 + 物流轉運中心 desc 修正
+
+**新 N 設施**（依 `超賺.xlsx` 合夥人設施對照表）：
+
+| 設施 | Emoji | 行為 |
+|---|---|---|
+| 貨櫃屋 | 🚛 | 重疊已有設施 → 該格 base + overlay 全部回手牌，每張 -2 收益 |
+| 勞工兄弟屋 | 🏘 | 一般設施 passthrough；回合結束時自動清除 + 人材 +2 |
+| 紅綠燈 | 🚦 | 只能蓋在 logistics_up/down/left/right；開方向 picker；未選退還 |
+
+**機制接點**：
+- 新常數 `SHOP_ONLY_FACILITIES`（index.html:4584）
+- `isPoolableBldg` 排除（不會在事件 / 合約 / Tanya 等隨機池出現）
+- `COMPOUND_EXCLUDE` 排除（不會在複合卡）
+- `doPermShop` 池手動注入（`pool=[...BASIC, ...SHOP_ONLY]`）
+- `tryPlaceAtCell` 早期分支處理 container_house / traffic_light 的特殊放置邏輯
+- worker_brother_house 在 `finish()` 末段（temp_shed 旁）加 turn-end 清除 + 人材 +2
+
+**物流 desc 修正**：
+
+| 設施 | 舊 desc | 新 desc | 行為變化 |
+|---|---|---|---|
+| 轉運中心（transfer_hub）| 變成物流（→↓←↑）| 變成**物流站**（→↓←↑）| 文字釐清，無實際變化 |
+| 物流轉運中心（logistics_hub）| 變成物流（→↓←↑）| 變成**物流中心**，可決定起始方向 | 放置後變成 `logistics_center`（會 perTurnRotate），玩家選擇的方向寫入 `G.cellRedirectDir[k]` |
+
+**picker 統一化**：`showTransferHubDirPicker` 改成依當前 cell 內容決定行為：
+- `transfer_hub` → 變 logistics_X（無 cellRedirectDir）
+- `logistics_hub` → 變 logistics_center + 起始方向
+- `logistics_X`（紅綠燈情境）→ 改向（不消耗 cellRedirectDir）
+
+picker 加 `onCancel` callback，紅綠燈未選方向時退還手牌。
+
+### D. 商店 offer 每回合鎖定
+
+**問題**：`doPermShop` 每次呼叫都重 roll 池與抽取，玩家可開→取消→重開無限刷新內容，繞過設計上「每回合一次商店」的隨機性。
+
+**修法**（index.html:9117-9168）：將本回合 offer 快取於 `G._permShopOffer = { ids, freeIdx, hasFree, barrenBoost, turn, round }`：
+- 進入 doPermShop 時若 turn/round 仍相符則沿用快取，否則重 roll
+- 荒蕪 boost 在首次生成時消耗（一次性語意保留）
+- 購買時清除 offer（`_permShopUsed=true` 也擋下次開啟，雙保險）
+- 取消不清除 offer（同回合再開仍是同一批）
+- 跨存檔：offer 隨 G 序列化，載入後 turn/round 仍相符會沿用 → 阻擋 save-scum re-roll
+
+### E. 物流站防禦 + sell-shake 特異度 + 立繪不裁切
+
+**E1. 物流站 cellRedirectDir 防禦**：原本 `cellDir = (G.cellRedirectDir && G.cellRedirectDir[k]) || b.dir`，若 logistics_X 的 cell key 曾誤吃到 stale `cellRedirectDir`（例如過去是 logistics_center 後被覆蓋），會被錯誤覆蓋方向。
+
+修法（index.html:7728-7729）改嚴格：
+```js
+const isPerTurnRot = b.perTurnRotate === true;
+const cellDir = isPerTurnRot ? ((G.cellRedirectDir && G.cellRedirectDir[k]) || b.dir) : b.dir;
+```
+非 perTurnRotate 設施（logistics_up/down/left/right、transfer_hub）一律用 `b.dir`，**完全忽略** cellRedirectDir。
+
+**E2. sell-shake CSS 特異度**：擁慶記房屋賣出模式下，已有 `.cell.temp-buff` / `.cell.event-preview` / `.cell.temp-debuff` 等 mask 的格子不會發抖。
+
+根因：`.sell-shake` 特異度只有 1 class，被 `.cell.xxx`（2 classes）的 `animation:` 宣告覆蓋。
+
+修法（line 592）：改為 `.cell.sell-shake`（同特異度，宣告較晚勝出）。
+
+**E3. 立繪不裁切**：移除 `body.card-dragging #char-tray { opacity:0.2 }` 與 `img { pointer-events:none !important }`。z-index 50 已讓手牌（60）與投入箭頭（70）覆蓋立繪，符合「只要層級在上即可，不需切割立繪」的指示。
+
+### F. 人材批量投入 UI + 合約輪次擴展
+
+**F1. 批量投入 UI**（renderTalentPanel + onTalentDropCell）：
+
+talent panel 新加按鈕條：
+
+```
+[🧑‍💼] ×8  ┃  ×1  ×2  ×5  全部
+            ▔▔▔ (selected)
+```
+
+- `G._talentBulkSize`（值：1 / 2 / 5 / 'all'，預設 1，跨存檔保留）
+- 選擇後拖一次人材到設施格 → 投入 `min(設定, 現有人材)` 次
+- 每次投入仍觸發完整副作用：工會主席 +2 / 人類惡魔永久 +2 / 北漂者 -2 / 人力銀行計數 / 分身大師隨機格 +2 / cellMods+1 / cellTalentInvested+1 / `_hrTalentUsedCount`++
+- 批量模式抑制 per-投入 log 避免刷屏，由總結 log 取代；人力銀行「+4 預約」trigger log 仍照發
+- 重構 `_runTalentInvestSideEffects` 為純副作用 helper（不含 render）
+
+**F2. 第 6 輪後每 2 輪合約 chooser**：
+
+- 新增 `isContractTriggerRound(round)` helper：固定 `[2,4,6]` 與 `(round>6 && round%2===0)` 的聯集
+- `pickContractCandidates(round)` 在 round>6 時合併 r2+r4+r6 池供再抽（已接受合約透過 ownedIds 過濾）
+- `startRound` 與 `performWinSettlement` 多輪連跳補發改用迭代式檢查（取代原本只迭代固定 [2,4,6]）
+
+| 輪數 | 合約池 |
+|---|---|
+| 2 / 4 / 6 | r2 / r4 / r6（既有）|
+| 8 / 10 / 12... | **r2+r4+r6 合併**（新）|
+
+### G. DEV 合約面板加「點擊獲得指定合約」grid
+
+**新功能**（DEV._contractFilter）：
+- 池篩選按鈕（全部 / R2 / R4 / R6）與設施/合夥人區一致
+- 卡片 grid：每張合約 emoji + 名稱（依池上色 R2 藍 / R4 紫 / R6 金）
+- hover tooltip 顯示完整資訊（池 / 持續輪數 / 立即 / 擔保 / 賠償文字）
+- 點擊直接 `acceptContract(id)`；已接受合約灰階 + pointer-events:none
+- 額外加「觸發第 8 輪 chooser（合併池）」按鈕測試 F2 邏輯
+- 保留既有功能：force resolve / clear / open panel / chooser 觸發
+
+### 整體影響
+
+- **修補問題**：商店 reroll 剝削、移動 session 統計入侵、ancient_factory_part 入手牌、booster 複合 overlay 不亮、yongqing sell mask 衝突、物流站方向誤套、立繪遮擋手牌
+- **新功能**：BGM mp3 + 場景切歌、3 個商店工具設施、人材批量、合約輪次擴展、DEV 合約 grid
+- **平衡調整**：擴展合約、積累合約（Session 39 G）
+
 
