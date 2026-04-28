@@ -478,6 +478,21 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 .cell .dur-pip.dur-zero{background:rgba(204,40,40,.95);}
 .cell .dur-pip.dur-recover{background:rgba(60,160,80,.92);}
 .cell .dur-pip.dur-full{opacity:.55;}
+/* 耐用值動畫：投入時下降（紅色搖晃），回合開始恢復時（綠色脈動展開） */
+.cell .dur-pip.dur-shake{animation:durShake .55s cubic-bezier(.36,.07,.19,.97) both;}
+.cell .dur-pip.dur-bloom{animation:durBloom .65s ease-out both;}
+@keyframes durShake{
+  0%,100%{transform:translateX(0) scale(1);box-shadow:none;}
+  10%,30%,50%,70%{transform:translateX(-2px) scale(1.15);box-shadow:0 0 8px rgba(220,40,40,.8);}
+  20%,40%,60%,80%{transform:translateX(2px) scale(1.15);box-shadow:0 0 8px rgba(220,40,40,.8);}
+  90%{transform:translateX(0) scale(1.08);}
+}
+@keyframes durBloom{
+  0%{transform:scale(1);box-shadow:0 0 0 rgba(60,200,90,0);}
+  35%{transform:scale(1.55);box-shadow:0 0 14px rgba(80,210,110,.85);}
+  70%{transform:scale(1.15);box-shadow:0 0 8px rgba(80,210,110,.5);}
+  100%{transform:scale(1);box-shadow:0 0 0 rgba(60,200,90,0);}
+}
 .cell.drag-target{background:rgba(179,58,0,.1);border-color:var(--acc);border-style:dashed;}
 .cell.drag-over-cell{background:rgba(42,122,58,.12);border:2px solid var(--green);}
 
@@ -1171,7 +1186,7 @@ body { padding-bottom: 150px; }
 /* 拖曳卡片時不裁切/淡出立繪，僅靠 z-index 分層讓手牌與投入箭頭(.dbtn z70)位於立繪上方。 */
 #char-tray {
   position: fixed;
-  bottom: -22%;
+  bottom: 0;
   right: -5px;
   z-index: 50;
   pointer-events: none;
@@ -1182,7 +1197,7 @@ body { padding-bottom: 150px; }
 #char-bubble {
   position: fixed;
   right: 6px;
-  bottom: calc(clamp(276px, 27.6vw, 437px) * 1.2);
+  bottom: calc(clamp(276px, 27.6vw, 437px) * 1.5);
   max-width: 240px;
   background: #fff;
   border: 2px solid var(--br2);
@@ -4761,10 +4776,33 @@ function consumeDurability(r,c,bldgId){
   // 標記本回合命中（跨 send 累積，startTurn 時用於決定能否恢復）
   if(!G._turnDurHitSet) G._turnDurHitSet={};
   G._turnDurHitSet[`${k}|${bldgId}`]=true;
+  // 視覺：badge 即時更新數字並紅色搖晃（base 設施才有 UI；overlay 沒有 badge → no-op）
+  if(G.grid[r]&&G.grid[r][c]===bldgId) _flashDurabilityPip(r,c,bldgId,'down');
   if(next===0){
     const b=BLDG[bldgId];
     addLog(`  💔 ${b.emoji}${b.name} 耐用耗盡 → 暫時無法投入`,'b');
   }
+}
+// 直接更新 cell 內 .dur-pip 的文字 + class + 觸發動畫，避免等到下一次 render() 才反映
+function _flashDurabilityPip(r,c,bldgId,dir){
+  if(typeof cellQ!=='function') return;
+  const cellEl=cellQ(r,c);
+  if(!cellEl) return;
+  const pip=cellEl.querySelector('.dur-pip');
+  if(!pip) return;
+  const cur=getDurability(r,c,bldgId);
+  const max=getDurabilityMax(bldgId);
+  pip.textContent=`${cur}/${max}`;
+  pip.classList.remove('dur-zero','dur-low','dur-recover','dur-full');
+  const isRec=!!(G.facilityRecovering&&G.facilityRecovering[`${r},${c}`]&&G.facilityRecovering[`${r},${c}`][bldgId]);
+  if(cur===0) pip.classList.add('dur-zero');
+  else if(isRec) pip.classList.add('dur-recover');
+  else if(cur===1) pip.classList.add('dur-low');
+  else if(cur>=max) pip.classList.add('dur-full');
+  pip.title=`耐用值 ${cur}/${max}${isRec?'（恢復中）':''}`;
+  const cls=dir==='down'?'dur-shake':'dur-bloom';
+  pip.classList.remove('dur-shake','dur-bloom'); void pip.offsetWidth; pip.classList.add(cls);
+  setTimeout(()=>{ if(pip&&pip.classList) pip.classList.remove(cls); },700);
 }
 // 回合結束時：對所有「破損(=0)或恢復中」設施，若本回合未被命中則 +1，回滿時離開恢復狀態。
 function _processDurabilityRecovery(){
@@ -4794,6 +4832,12 @@ function _processDurabilityRecovery(){
       if(next>=max&&G.facilityRecovering&&G.facilityRecovering[k]){
         delete G.facilityRecovering[k][bId];
         if(Object.keys(G.facilityRecovering[k]).length===0) delete G.facilityRecovering[k];
+      }
+      // 視覺：badge 即時更新 + 綠色脈動（多格同回合恢復時，錯峰避免一齊抖）
+      const [_rr,_cc]=k.split(',').map(Number);
+      if(G.grid[_rr]&&G.grid[_rr][_cc]===bId){
+        const _delay=Math.floor(Math.random()*200);
+        setTimeout(()=>_flashDurabilityPip(_rr,_cc,bId,'up'), _delay);
       }
     });
   });
