@@ -6938,7 +6938,13 @@ function _insertBldgPreview(cellEl, bId){
   const div=document.createElement('div');
   div.className='bldg-drag-preview';
   div.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;opacity:.55;z-index:2;';
-  div.innerHTML=`<div class="cemoji">${b.emoji}</div><div class="cname">${b.name}</div>`;
+  // 暗叫合約：拖曳預覽也走卡背遮罩，不洩漏正在放置的設施身份
+  const _hcMask = (typeof hasActiveContract==='function') && hasActiveContract('hidden_call');
+  if(_hcMask){
+    div.innerHTML=`<div class="cemoji">❓</div><div class="cname" style="opacity:.7;">？？？</div>`;
+  } else {
+    div.innerHTML=`<div class="cemoji">${b.emoji}</div><div class="cname">${b.name}</div>`;
+  }
   cellEl.appendChild(div);
 }
 function onBldgDragEnd(e){
@@ -10984,10 +10990,12 @@ function showCompoundPreview(el, card){
   const reversed=h.dirLabel==='↑'||h.dirLabel==='←';
   const first=reversed?b2:b1, second=reversed?b1:b2;
   const dirSymbol=h.dirLabel;
+  // 暗叫合約：複合卡 preview 不洩漏 emoji / 名稱 / 描述，只保留排列形狀
+  const _hcMask = (typeof hasActiveContract==='function') && hasActiveContract('hidden_call');
   const makeCard=b=>`<div class="cpf-card">
-    <div class="cpf-emoji">${b.emoji}</div>
-    <div class="cpf-name">${b.name}</div>
-    <div class="cpf-desc">${b.desc}</div>
+    <div class="cpf-emoji">${_hcMask?'❓':b.emoji}</div>
+    <div class="cpf-name">${_hcMask?'？？？':b.name}</div>
+    <div class="cpf-desc">${_hcMask?'<span style="opacity:.6">（暗叫：未揭曉）</span>':b.desc}</div>
   </div>`;
   cpf.style.flexDirection=isVert?'column':'row';
   cpf.style.alignItems='center';
