@@ -2106,13 +2106,14 @@ const SFX=(()=>{
 })();
 
 // ══════════════════════════════════════
-// 背景音樂（外部 mp3，依輪數切換）
-// 1-4 輪 → bgm_1 / 5-8 輪 → bgm_2 / 9+ 輪 → bgm_3
+// 背景音樂（外部 mp3，依場景與輪數切換）
+// title → bgm_4 / 1-4 輪 → bgm_1 / 5-8 輪 → bgm_2 / 9+ 輪 → bgm_3
 // ══════════════════════════════════════
 const BGM=(()=>{
   let active=false;
   let audio=null;
   let currentIdx=0;
+  let _scene='title'; // 'title' | 'gameplay'，由 SM.goto 同步
   const VOLUME=0.18;
 
   function pickIdxForRound(round){
@@ -2120,6 +2121,10 @@ const BGM=(()=>{
     if(r<=4) return 1;
     if(r<=8) return 2;
     return 3;
+  }
+  function pickIdx(){
+    if(_scene==='title') return 4;
+    return pickIdxForRound(typeof G!=='undefined'&&G?G.round:1);
   }
   function ensureAudio(idx){
     if(audio&&currentIdx===idx) return audio;
@@ -2130,10 +2135,19 @@ const BGM=(()=>{
     currentIdx=idx;
     return audio;
   }
+  function _switchToCurrentIdx(){
+    const idx=pickIdx();
+    if(idx===currentIdx&&audio) return;
+    ensureAudio(idx);
+    if(active){
+      const p=audio.play();
+      if(p&&p.catch) p.catch(()=>{});
+    }
+  }
   function start(){
     if(active) return;
     try{
-      const idx=pickIdxForRound(typeof G!=='undefined'&&G?G.round:1);
+      const idx=pickIdx();
       const a=ensureAudio(idx);
       const p=a.play();
       if(p&&p.catch) p.catch(()=>{ active=false; });
@@ -2161,14 +2175,15 @@ const BGM=(()=>{
   // 切換到當前輪數對應的 BGM；非 active 時不自動啟動
   function syncToRound(){
     if(!active) return;
-    const idx=pickIdxForRound(typeof G!=='undefined'&&G?G.round:1);
-    if(idx!==currentIdx){
-      ensureAudio(idx);
-      const p=audio.play();
-      if(p&&p.catch) p.catch(()=>{});
-    }
+    _switchToCurrentIdx();
   }
-  return { start, stop, toggle, isActive, preferOn, syncToRound };
+  // 切換場景（'title' / 'gameplay'）。active 時即時切歌，非 active 時僅記錄 scene
+  function setScene(name){
+    if(_scene===name) return;
+    _scene=name;
+    _switchToCurrentIdx();
+  }
+  return { start, stop, toggle, isActive, preferOn, syncToRound, setScene };
 })();
 function toggleBgm(){
   const on=BGM.toggle();
@@ -13987,6 +14002,8 @@ const SM={
     _lastTalentCount=null;
     _lastCardValue=null;
     _lastCardType=null;
+    // BGM 場景切換（title → bgm_4 / gameplay → 依輪數）
+    if(typeof BGM!=='undefined'&&BGM.setScene) BGM.setScene(name);
     if(this.defs[name]&&this.defs[name].enter) this.defs[name].enter(opts||{});
   }
 };
