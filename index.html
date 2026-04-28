@@ -465,33 +465,58 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 /* 耐用值耗盡：整格暗化提示玩家無法投入 */
 .cell.dur-broken{filter:grayscale(.85) brightness(.55);opacity:.62;}
 .cell.dur-broken::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(60,40,20,.18) 6px,rgba(60,40,20,.18) 10px);pointer-events:none;border-radius:inherit;}
-/* 耐用值徽章（base 設施左上角；當前/最大）*/
+/* 耐用值血條（base 設施頂端；分段，每段=1 點耐用值） */
 .cell .dur-pip{
-  position:absolute;top:2px;left:2px;
-  font-size:8px;font-weight:900;color:#fff;
-  background:rgba(60,60,60,.78);
-  border-radius:99px;padding:1px 5px;line-height:1.2;
-  font-family:'DM Mono',monospace;letter-spacing:.3px;
+  position:absolute;top:3px;left:3px;right:3px;
+  height:5px;
+  display:flex;gap:1.5px;
+  background:rgba(0,0,0,.45);
+  border:1px solid rgba(0,0,0,.5);
+  border-radius:3px;
+  padding:1px;box-sizing:border-box;
   pointer-events:none;z-index:4;
 }
-.cell .dur-pip.dur-low{background:rgba(204,127,0,.92);}
-.cell .dur-pip.dur-zero{background:rgba(204,40,40,.95);}
-.cell .dur-pip.dur-recover{background:rgba(60,160,80,.92);}
-.cell .dur-pip.dur-full{opacity:.55;}
+.cell .dur-pip .dur-seg{
+  flex:1;height:100%;
+  border-radius:1.5px;
+  background:rgba(255,255,255,.08);
+  transition:background .25s ease, box-shadow .25s ease;
+}
+.cell .dur-pip .dur-seg.filled{
+  background:linear-gradient(180deg,#7adf83 0%,#3fa44e 100%);
+  box-shadow:0 0 2px rgba(80,210,110,.55) inset;
+}
+.cell .dur-pip.dur-low .dur-seg.filled{
+  background:linear-gradient(180deg,#f4c66e 0%,#cc7f00 100%);
+  box-shadow:0 0 3px rgba(240,160,40,.6) inset;
+}
+.cell .dur-pip.dur-zero{
+  border-color:rgba(180,40,40,.7);
+  background:rgba(120,30,30,.55);
+}
+.cell .dur-pip.dur-recover .dur-seg.filled{
+  background:linear-gradient(180deg,#a8eaa6 0%,#3fa44e 100%);
+  animation:durRecPulse 1.4s ease-in-out infinite;
+}
+.cell .dur-pip.dur-full{opacity:.78;}
+@keyframes durRecPulse{
+  0%,100%{filter:brightness(1);box-shadow:0 0 2px rgba(80,210,110,.55) inset;}
+  50%{filter:brightness(1.35);box-shadow:0 0 6px rgba(120,240,140,.85) inset;}
+}
 /* 耐用值動畫：投入時下降（紅色搖晃），回合開始恢復時（綠色脈動展開） */
 .cell .dur-pip.dur-shake{animation:durShake .55s cubic-bezier(.36,.07,.19,.97) both;}
 .cell .dur-pip.dur-bloom{animation:durBloom .65s ease-out both;}
 @keyframes durShake{
-  0%,100%{transform:translateX(0) scale(1);box-shadow:none;}
-  10%,30%,50%,70%{transform:translateX(-2px) scale(1.15);box-shadow:0 0 8px rgba(220,40,40,.8);}
-  20%,40%,60%,80%{transform:translateX(2px) scale(1.15);box-shadow:0 0 8px rgba(220,40,40,.8);}
-  90%{transform:translateX(0) scale(1.08);}
+  0%,100%{transform:translateX(0) scaleY(1);box-shadow:none;}
+  10%,30%,50%,70%{transform:translateX(-2px) scaleY(1.4);box-shadow:0 0 8px rgba(220,40,40,.8);}
+  20%,40%,60%,80%{transform:translateX(2px) scaleY(1.4);box-shadow:0 0 8px rgba(220,40,40,.8);}
+  90%{transform:translateX(0) scaleY(1.15);}
 }
 @keyframes durBloom{
-  0%{transform:scale(1);box-shadow:0 0 0 rgba(60,200,90,0);}
-  35%{transform:scale(1.55);box-shadow:0 0 14px rgba(80,210,110,.85);}
-  70%{transform:scale(1.15);box-shadow:0 0 8px rgba(80,210,110,.5);}
-  100%{transform:scale(1);box-shadow:0 0 0 rgba(60,200,90,0);}
+  0%{transform:scaleY(1);box-shadow:0 0 0 rgba(60,200,90,0);}
+  35%{transform:scaleY(1.8);box-shadow:0 0 14px rgba(80,210,110,.85);}
+  70%{transform:scaleY(1.25);box-shadow:0 0 8px rgba(80,210,110,.5);}
+  100%{transform:scaleY(1);box-shadow:0 0 0 rgba(60,200,90,0);}
 }
 .cell.drag-target{background:rgba(179,58,0,.1);border-color:var(--acc);border-style:dashed;}
 .cell.drag-over-cell{background:rgba(42,122,58,.12);border:2px solid var(--green);}
@@ -4726,13 +4751,14 @@ function getItemRarity(id){ return BLDG_RARITY[id]||PARTNER_RARITY[id]||'N'; }
 function getNextRarity(r){ const i=RARITY_ORDER.indexOf(r); return i<RARITY_ORDER.length-1?RARITY_ORDER[i+1]:r; }
 
 // ── 設施耐用值系統 ──
-// N/R=3、SR=5、SSR=7；大型設施與 part 視覺佔位不適用。
+// N=3、R=5、SR=7、SSR=9；大型設施與 part 視覺佔位不適用。
 // 耐用值在被命中時 −1；恢復條件：曾經歸 0、且該回合沒被命中 → +1，回滿時離開恢復狀態。
 // recovering 狀態下若再被命中 → 中斷恢復（清旗標、設施仍參與投入）。
 function getDurabilityMax(bldgId){
   const r=getBldgRarity(bldgId);
-  if(r==='SSR') return 7;
-  if(r==='SR') return 5;
+  if(r==='SSR') return 9;
+  if(r==='SR') return 7;
+  if(r==='R') return 5;
   return 3;
 }
 function isDurabilityTracked(bldgId){
@@ -4783,7 +4809,7 @@ function consumeDurability(r,c,bldgId){
     addLog(`  💔 ${b.emoji}${b.name} 耐用耗盡 → 暫時無法投入`,'b');
   }
 }
-// 直接更新 cell 內 .dur-pip 的文字 + class + 觸發動畫，避免等到下一次 render() 才反映
+// 直接更新 cell 內 .dur-pip 的區段填滿 + class + 觸發動畫，避免等到下一次 render() 才反映
 function _flashDurabilityPip(r,c,bldgId,dir){
   if(typeof cellQ!=='function') return;
   const cellEl=cellQ(r,c);
@@ -4792,7 +4818,18 @@ function _flashDurabilityPip(r,c,bldgId,dir){
   if(!pip) return;
   const cur=getDurability(r,c,bldgId);
   const max=getDurabilityMax(bldgId);
-  pip.textContent=`${cur}/${max}`;
+  // 同步區段：若數量不一致則重建，否則只切換 filled
+  let segs=pip.querySelectorAll('.dur-seg');
+  if(segs.length!==max){
+    pip.innerHTML='';
+    for(let i=0;i<max;i++){
+      const sp=document.createElement('span');
+      sp.className='dur-seg'+(i<cur?' filled':'');
+      pip.appendChild(sp);
+    }
+  } else {
+    segs.forEach((sp,i)=>sp.classList.toggle('filled',i<cur));
+  }
   pip.classList.remove('dur-zero','dur-low','dur-recover','dur-full');
   const isRec=!!(G.facilityRecovering&&G.facilityRecovering[`${r},${c}`]&&G.facilityRecovering[`${r},${c}`][bldgId]);
   if(cur===0) pip.classList.add('dur-zero');
@@ -5631,7 +5668,7 @@ function newGame(){
     bulkStoreBonus:{},  // 量販店每格每組獎勵值（初始 8，每次觸發 +4 累積）
     vaultCounts:{},     // 物流倉每格計數（xlsx 新規格：計數≥3時 +8 收益）
     cellRedirectDir:{}, // 物流中心當前方向 {"r,c": 'right'|'down'|'left'|'top'}
-    facilityDurability:{}, // 耐用值 {"r,c":{bldgId:current}}；N/R=3、SR=5、SSR=7
+    facilityDurability:{}, // 耐用值 {"r,c":{bldgId:current}}；N=3、R=5、SR=7、SSR=9
     facilityRecovering:{}, // 恢復中旗標 {"r,c":{bldgId:true}}；只在歸 0 後啟動
     _turnDurHitSet:{},     // 本回合命中過的設施 {"r,c|bldgId":true}；turn 結束結算後清空
     talentBankStored:0, // 人力銀行儲存值（舊實作殘留，現採人材機制 _talentBankPending）
@@ -10335,7 +10372,7 @@ function renderGrid(){
       if(modVal!==0) h+=`<div class="${modVal>0?'cell-mod-pos':'cell-mod-neg'}">${modVal>0?'+':''}${modVal}</div>`;
       if(pctVal!==0) h+=`<div class="${pctVal>0?'cell-mod-pos':'cell-mod-neg'}" style="bottom:${modVal!==0?'12px':'2px'}">${pctVal>0?'+':''}${pctVal}%</div>`;
     }
-    // 耐用值徽章：左上角顯示「當前/最大」，依稀有度 N/R=3、SR=5、SSR=7
+    // 耐用值血條：頂端分段，依稀有度 N=3、R=5、SR=7、SSR=9
     if(b&&!isRuin&&typeof isDurabilityTracked==='function'&&isDurabilityTracked(bId)){
       const _curDur=getDurability(r,c,bId);
       const _maxDur=getDurabilityMax(bId);
@@ -10345,7 +10382,9 @@ function renderGrid(){
       else if(_isRec) _durCls=' dur-recover';
       else if(_curDur===1) _durCls=' dur-low';
       else if(_curDur>=_maxDur) _durCls=' dur-full';
-      h+=`<div class="dur-pip${_durCls}" title="耐用值 ${_curDur}/${_maxDur}${_isRec?'（恢復中）':''}">${_curDur}/${_maxDur}</div>`;
+      let _segs='';
+      for(let _i=0;_i<_maxDur;_i++) _segs+=`<span class="dur-seg${_i<_curDur?' filled':''}"></span>`;
+      h+=`<div class="dur-pip${_durCls}" title="耐用值 ${_curDur}/${_maxDur}${_isRec?'（恢復中）':''}">${_segs}</div>`;
     }
     h+=`</div>`;
   }
