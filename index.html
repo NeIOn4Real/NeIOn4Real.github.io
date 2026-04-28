@@ -2261,7 +2261,7 @@ const BLDG = {
   unstable_base:  { name:'地基不穩定站', emoji:'⚠️', desc:'使周圍4格的設施隨機交換位置，此回合使其獲得 +2。', req:'any', out:null, fn:v=>v, special:'unstable_base' },
 
   // ── 商店限定基礎設施（N，只在「購買設施」商店出現，工具型）──
-  container_house:      { name:'貨櫃屋', emoji:'🚛', desc:'僅能重疊在已有設施的格子上。將重疊的格子上的所有設施都回到手牌，每加入手牌一張設施，你獲得收益 -2。', req:null, out:null, fn:v=>v, special:'container_house' },
+  container_house:      { name:'貨櫃屋', emoji:'🚛', desc:'僅能重疊在已有設施的格子上（不可用於不可消滅設施與大型 2×2 部分格）。將重疊的格子上的所有設施都回到手牌，每加入手牌一張設施，你獲得收益 -2。重疊後消耗自身（不留在手牌）。', req:null, out:null, fn:v=>v, special:'container_house' },
   worker_brother_house: { name:'勞工兄弟屋', emoji:'🏘', desc:'回合結束時，清除自身。獲得人材 +2。', req:'any', out:null, fn:v=>v, special:'worker_brother_house' },
   traffic_light:        { name:'紅綠燈', emoji:'🚦', desc:'只能蓋在物流站上，選擇一個方向，該物流站變成指定的方向。', req:null, out:null, fn:v=>v, special:'traffic_light' },
 
@@ -6662,7 +6662,16 @@ function onCellDragOver(e,r,c){
   const isCenterNetOverlay = G.grid[r][c]==='center_elec_net' && placingB && !_draggingNoOverlay
     && hasTag(bldgDragging,'center') && bldgDragging!=='center_elec_net'
     && _ovsAtCell.length<_maxOv;
-  if(G.grid[r][c] && !isLeyaUpgrade && !isRuinPlace && !isOverlay && !isCenterNetOverlay) return;
+  // 貨櫃屋：允許拖到任意可拆解的設施上（排除 ruin / 大型 part / indestructible）
+  const isContainerHouseDrop = bldgDragging==='container_house' && G.grid[r][c] && G.grid[r][c]!=='ruin'
+    && G.grid[r][c]!=='dept_store_part' && G.grid[r][c]!=='ancient_factory_part'
+    && !(existB&&existB.indestructible);
+  // 紅綠燈：允許拖到 logistics_up/down/left/right 上
+  const isTrafficLightDrop = bldgDragging==='traffic_light'
+    && (G.grid[r][c]==='logistics_up'||G.grid[r][c]==='logistics_down'
+        ||G.grid[r][c]==='logistics_left'||G.grid[r][c]==='logistics_right');
+  if(G.grid[r][c] && !isLeyaUpgrade && !isRuinPlace && !isOverlay && !isCenterNetOverlay
+     && !isContainerHouseDrop && !isTrafficLightDrop) return;
   e.preventDefault();
   _clearBldgPreview();
   const cellEl=cellQ(r,c);
@@ -6670,6 +6679,14 @@ function onCellDragOver(e,r,c){
   if((isLeyaUpgrade||isOverlay||isCenterNetOverlay) && cellEl){
     cellEl.style.outline='3px solid var(--money)';
     cellEl.style.boxShadow='0 0 12px rgba(176,96,0,.45)';
+  } else if(isContainerHouseDrop && cellEl){
+    // 貨櫃屋：紅色高亮表示「拆解 / 回收」語意
+    cellEl.style.outline='3px solid #c84';
+    cellEl.style.boxShadow='0 0 12px rgba(200,80,40,.5)';
+  } else if(isTrafficLightDrop && cellEl){
+    // 紅綠燈：綠色高亮表示「改向」
+    cellEl.style.outline='3px solid #5a5';
+    cellEl.style.boxShadow='0 0 12px rgba(80,170,80,.5)';
   } else {
     _insertBldgPreview(cellEl, bldgDragging);
     if(isRuinPlace && cellEl) cellEl.style.outline='3px solid var(--money)';
