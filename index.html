@@ -4184,6 +4184,7 @@ function isContractTriggerRound(round){
   return round > 6 && round % 2 === 0;
 }
 // 合約前置詞條：合約出現條件 — 玩家須擁有指定詞條的設施/合夥人；無項目代表通用
+// electrode_contract / giant_contract 不設限：本身用途即是讓玩家「進入」該流派
 const CONTRACT_REQUIRES_TAG = {
   shop_invested:'shop', shop_distinct:'shop', commerce_focus:'shop',
   factory_invested:'production', factory_distinct:'production', industry_focus:'production',
@@ -4191,8 +4192,6 @@ const CONTRACT_REQUIRES_TAG = {
   transport_contract:'logistics', terminal_contract:'logistics', production_contract:'logistics',
   tectonic_contract:'demolish', barren_contract:'demolish', real_estate_contract:'demolish',
   employee_contract:'hr', union_pact_contract:'hr',
-  electrode_contract:'electronic',
-  giant_contract:'large',
   demon_pact_contract:'demon'
 };
 function pickContractCandidates(round){
@@ -5026,7 +5025,7 @@ const TAGS={
   human_demon:['hr','demon'], clone_master:['hr','unique'],
   goods_buyer:['trade'],
 };
-const TAG_WEIGHT=0.4; // 每個匹配詞條加 40% 權重（強化既有流派的傾向）
+const TAG_WEIGHT=0.3; // 每個匹配詞條加 30% 權重（強化既有流派的傾向）
 const TAG_MULTI_MATCH_BOOST=1.5; // 多詞條同時命中時額外乘數
 
 // 計算玩家當前擁有的詞條計數
@@ -5052,8 +5051,10 @@ function getPlayerTagCounts(){
 // 流派鎖池：當玩家擁有 2 個以上「鎖定詞條」（流派）時，候選池只保留：
 //   基礎(basic) / 惡魔(demon) / 無詞條 / 玩家已擁有的詞條；
 //   大型例外：必須有任一非 large 詞條對應玩家擁有（基礎與惡魔免限）。
-// basic / demon / production / large 不計入鎖定觸發（basic factories 自帶 production）。
-const TAG_LOCK_IGNORE=new Set(['basic','demon','production','large']);
+// IGNORE 詞條：basic（每張基礎都有）、demon（惡魔免限）、production（基礎廠都有）、
+//   large（結構標籤）、boost（booster 是基礎設施）、unique（每個起始合夥人都有）
+//   — 這些不計入鎖定觸發，filter 嚴格檢查時也視為通行（避免 catch-22）。
+const TAG_LOCK_IGNORE=new Set(['basic','demon','production','large','boost','unique']);
 function shouldRestrictByOwnedTags(tagCounts){
   const tc=tagCounts||getPlayerTagCounts();
   let n=0;
@@ -5074,7 +5075,10 @@ function filterByOwnedTags(pool, tagCounts){
       return others.some(t=>tc[t]>0);
     }
     if(tags.indexOf('basic')>=0) return true; // 基礎免限
-    return tags.every(t=>t==='large'||tc[t]>0);
+    // 只檢查鎖定詞條（非 IGNORE）；輔助詞條（boost/unique/production）通行
+    const lockTags=tags.filter(t=>!TAG_LOCK_IGNORE.has(t));
+    if(lockTags.length===0) return true;
+    return lockTags.every(t=>tc[t]>0);
   });
 }
 
