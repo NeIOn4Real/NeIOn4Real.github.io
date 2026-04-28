@@ -4865,4 +4865,173 @@ talent panel 新加按鈕條：
 - **新功能**：BGM mp3 + 場景切歌、3 個商店工具設施、人材批量、合約輪次擴展、DEV 合約 grid
 - **平衡調整**：擴展合約、積累合約（Session 39 G）
 
+---
+
+## Session 41（2026-04-28）— 投入預覽 UI + 設施耐用值系統
+
+### A. 投入預覽（拖卡到方向箭頭顯示估算輸出）
+
+**動機**：玩家拖元素卡到 `dbtn` 時無法預判落點與經設施轉換後的輸出。新增 `#invest-preview` 浮層，於拖曳期間顯示預期出口位置、輸出資源類型與數值。
+
+**結構**（CSS index.html:880-908、HTML index.html:1525-1534）：
+- `.ip-arrow` 方向箭頭、`.ip-emoji` 資源 emoji、`.ip-approx`「~」前綴、`.ip-value` 數值、`.ip-type` 類型 label、`.ip-badge` 右上角「估算」徽章
+- 動畫：`ipPulse 1.4s` 脈動，徽章一起呼吸
+
+**接線**：
+- `onDirDragOver` index.html:6592 → `showInvestPreview(dir,idx)`
+- `onDirDragLeave` / `onCardDragEnd` / `onDirDrop` index.html:6593-6603 → `hideInvestPreview()`
+
+**模擬器** `_simulateInvestment(dir,idx)` index.html:6720-6764：
+- 沿 `buildPath` 走格、套用 `BLDG.fn` 與 `b.out`
+- 處理 `redirect`（含 `perTurnRotate` 物流中心當前方向、颱風/運輸異常時失效視為直通）
+- 跳過 `req` 不符與耐用值耗盡格
+- 出口格採 `lastCell`
+
+**就近邊定位**（`showInvestPreview` index.html:6655-6697）：
+- 出口格中心至格子區四邊距離取最小者，預覽放於該邊外側 + 14px padding
+- viewport 邊緣 clamp
+- 邊框與數值色用 `TCOLOR[type]`
+
+**估算性質明示**：
+- 右上角紅色 pill「估算」徽章
+- 數值前綴 `~`（柔化色）
+
+**已知限制**：模擬只跑 `BLDG.fn`，未進入 `FACILITY_FX[special]`、未套用永久加成 / overlay / 事件 buff / 合夥人修正。中後期誤差較大，UI 已用「估算」徽章向玩家明示為非精準值。
+
+**附帶補強**：
+- D：颱風 / 場風大師方向不符時 `onDirDragOver` 直接 hide，不誤導玩家以為可投入
+- G：颱風 / 運輸異常時 redirect 視為直通（與 `stepWithMover` index.html:7895 對齊）
+
+### B. 設施耐用值系統
+
+**設計**：玩家設置在小鎮上的所有非大型設施（base 與 overlay 各自獨立）擁有耐用值；連續重複投入會耗光，歸 0 後設施暫時不參與投入；不投入即可恢復。
+
+| 稀有度 | 耐用值上限 |
+|---|---|
+| N | 3 |
+| R | 3 |
+| SR | 5 |
+| SSR | 7 |
+
+**規則**：
+- 每次設施實際參與投入（命中）→ 耐用值 −1
+- 歸 0：設施暫時不參與投入，資源直通該格不消耗任何耐用值
+- 恢復條件：**只有歸 0 過的設施才會自動恢復**（純粹 d>0 但未滿不會自動回升）
+- 恢復速率：每回合不被命中 → +1
+- recovering 狀態（從 0 恢復中、未滿）若被再次命中 → **中斷恢復**（清旗標、設施仍正常參與投入），之後若再歸 0 才會重啟恢復
+- 「不參與投入」的所有情境（req 不符 / 合約 skip / 颱風 redirect / 物流已觸發 / monopolist / 自身 broken）皆不消耗耐用
+- 大型設施（`isLarge:true`）與 part 視覺佔位（`dept_store_part` / `ancient_factory_part`）不適用、無耐用值
+
+**狀態結構**：
+- `G.facilityDurability = {"r,c": {bldgId: current}}`
+- `G.facilityRecovering = {"r,c": {bldgId: true}}`
+- `G._turnDurHitSet = {}`（per-turn，跨送累積；startTurn 後清空、不跨存檔）
+- 兩者加進 `KEYED_DATA_FIELDS` index.html:4423 → `swapCellData` / `clearKeyedData` / `destroyFacility` / `deserializeGame` 自動同步
+
+**Helpers**（index.html:4663-4752）：
+- `getDurabilityMax(bldgId)`：依稀有度回傳 3/3/5/7
+- `isDurabilityTracked(bldgId)`：排除 isLarge 與 part
+- `getDurability(r,c,bId)`：lazy init 至 max
+- `isFacilityBroken(r,c,bId)`：dur<=0
+- `consumeDurability(r,c,bId)`：扣 1、清 recovering（中斷）、寫入 hit set；歸 0 時 log 提示
+- `_processDurabilityRecovery()`：對 broken/recovering 且本回合未命中者 +1，0→1 設 recovering、回滿清 recovering
+
+**命中扣耐用 hook 點**：
+
+| 路徑 | 位置 |
+|---|---|
+| FX `fx.hit()` 路徑（base）| `_hit` 內 index.html:7886 |
+| FX 手動 `facHit++`（不走 fx.hit）| `tax_office` index.html:7172、`demolish_bureau` index.html:7342、`terminal` index.html:7351 |
+| 一般類型轉換路徑 | `if(b.req===effType\|...)` 區塊 index.html:8121 後 |
+| Redirect 觸發 | redirect block 颱風/已觸發過 略過後 index.html:8019 |
+| Overlay 命中 | `applyOverlayPipeline` 迴圈尾 index.html:7813 後 |
+
+**Broken 直通**：
+- `stepWithMover` 合約 skip 後 early-exit（index.html:7945-7949）：base broken → `_next(300); return;`（含 overlay 一併略過）
+- `applyOverlayPipeline` 迴圈內 broken overlay → `continue`（base 仍跑）index.html:7775-7781
+- `_simulateInvestment` 也跳過 broken（index.html:6735）
+
+**速遞站重投不算**：
+- `_next` 排程 replay 前設 `G.inv._speedReplayNext=true`（index.html:7877）
+- replay 進入 `stepWithMover` 時將其轉成 `G.inv._speedReplaying=true`（index.html:7841-7844）
+- `consumeDurability` 內檢查 `_speedReplaying` → 直接 return
+
+**Overlay context gate**：
+- 三個手動 `facHit++` 的 FX 內 `consumeDurability(fx.r,fx.c,G.grid[fx.r][fx.c])` 取的是 base 而非 overlay。當這些 FX 作為 overlay 跑時會錯扣 base
+- 修法：`consumeDurability` 內加 gate `if(_inOverlayCtx) return;`（index.html:4698）。pipeline 在 FX 之後另外呼叫 `consumeDurability(r,c,ovId)` 正確扣 overlay
+
+**回合銜接恢復**：
+- `startTurn` 在 `_lastStartedTurn` reentry 防護之後呼叫 `_processDurabilityRecovery()`（index.html:9059）
+- 每個 turn 切換各跑一次（包含過關後新輪的 startTurn）
+
+**UI 暗化**：
+- `.cell.dur-broken`（CSS index.html:465-467）：`filter:grayscale(.85) brightness(.55)` + `opacity:.62`，`::after` 斜紋疊加
+- `renderGrid` 在 base broken 時加 class（index.html:10117-10118）
+- 依設計：**不顯示耐用值數字、無角標**，只用整格暗化提示
+
+**狀態 lifecycle 範例**（SR 設施 max=5）：
+```
+T1: 命中 → 5→4
+T2: 命中 → 4→3
+T3: 不命中 → 3（不恢復；只有歸 0 才會恢復）
+T4-T6: 命中 → 3→2→1→0  ✗暫時無法投入
+T7: 略過（broken）
+T8 startTurn: 恢復 → 0→1，設 recovering
+T9: 命中（recovering 中）→ 1→0，清 recovering（中斷）
+T10 startTurn: 不恢復（本回合命中過）
+T11 startTurn: 恢復 → 0→1，重新進 recovering
+... 直到回滿 5 才完全離開 recovering
+```
+
+### C. 耐用值系統二輪審查修補
+
+**Bug 1：存檔載入清掉本回合命中記錄**
+
+`deserializeGame` 原本 `data._turnDurHitSet={};` 直接重置。情境：玩家在 turn N 投入過設施 F（dur 1→0），存檔，重載，再結束本回合 → `_processDurabilityRecovery` 看不到 F 在 hit set 裡 → 誤把 F 當成「本回合沒被命中」→ +1 恢復。但 F 是被命中才歸 0 的，依規格本回合不該恢復。
+
+修法（index.html:13193-13196）：改為「跨存檔保留」，僅缺失/損壞時 fallback：
+```js
+if(!data._turnDurHitSet||typeof data._turnDurHitSet!=='object') data._turnDurHitSet={};
+```
+
+**Bug 2：速遞站 → broken 設施浪費 1 個動畫週期**
+
+speedAct 在 stepWithMover line 7868 原本只對空格/廢墟清掉。情境：speed_station 命中後 speedAct=true，下一格是 broken 設施 → speedAct 沒清 → `_speedReplay=true` → 排程重投 → 重投又 broken skip → 才真的前進。功能正確但多一輪動畫，與空格/廢墟處理不對稱。
+
+修法（index.html:7868-7870）：把 broken 設施併入清旗標條件：
+```js
+const _durBrokenHere = bId&&bId!=='ruin'&&typeof isFacilityBroken==='function'&&isFacilityBroken(r,c,bId);
+if((!bId||bId==='ruin'||_durBrokenHere)&&G.inv.speedAct) G.inv.speedAct=false;
+```
+之後 line 7872 `_speedReplay` 看到 speedAct=false → 不排 replay → 直接前進。
+
+### D. 三輪審查補強
+
+**1. `G._turnDurHitSet` 加入 newGame 初始化**（index.html:5542）
+
+雖然 `consumeDurability` 與 `_processDurabilityRecovery` 都有 lazy-init fallback，但顯式列入新遊戲初始狀態避免不一致。
+
+**2. 通盤 walk-through 結果**
+
+確認所有命中路徑（FX hit、tax_office/demolish_bureau/terminal 手動 facHit++、generic transform、redirect、overlay pipeline）都有對應 `consumeDurability` 呼叫。所有「不參與投入」路徑（合約 skip、req 不符、typhoon redirect、log set 命中過、broken）都不消耗耐用值。`isLarge` / part 視覺佔位 / ruin 完全不追蹤。`KEYED_DATA_FIELDS` 與 `clearKeyedData` / `swapCellData` / `destroyFacility` / `deserializeGame` 同步。
+
+**3. 已知接受的設計權衡（不修）**
+
+| 行為 | 說明 |
+|---|---|
+| 工業化模式留下 stale durability entries | mega 創建後不會再用到原 cell 的耐用值，僅占少量記憶體 |
+| 複合設施 overlay 被替換時舊 entry 殘留 | 同上，記憶體占用可忽略 |
+| 玩家連續投入 broken 格時 log 每次都印「💔 略過」 | 提供清楚回饋，比靜默更好 |
+| 教學模式不對耐用值特例化 | 教學流程短，N=3 點不會耗光 |
+| 速遞站效果落在 redirect 上會被靜默吞掉 | pre-existing 行為（redirect 不走 `_next`），與耐用值無關 |
+| 暴食惡魔 + bulk_store 走 generic path 而非 FX | pre-existing 互動，耐用值仍正確扣 1 |
+
+### 整體影響
+
+- **新功能**：投入預覽 UI（估算）、設施耐用值系統 + 暗化視覺
+- **修補**：颱風 / 場風大師方向誤導預覽、redirect 颱風時模擬路徑錯誤、二輪審查兩個耐用值 bug（存檔 hit set 清空、speed_station 對 broken 動畫浪費）
+- **設計取捨**：投入預覽精度為「估算」非精準（FACILITY_FX 等未模擬），以「估算」徽章 + `~` 前綴向玩家明示
+- **耐用值對策略影響**：玩家不能無腦同方向 spam；中後期 SSR 設施有 7 點 buffer，較有彈性
+- **三輪審查**：`_turnDurHitSet` 顯式初始化、通盤 walk-through 確認所有 hook 點與設計權衡
+
 

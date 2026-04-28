@@ -462,6 +462,9 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 
 .cell.move-src{outline:3px solid var(--acc);box-shadow:0 0 10px rgba(179,58,0,.3);z-index:2;}
 .cell.ruin-cell{background:repeating-linear-gradient(45deg,var(--bg2),var(--bg2) 4px,rgba(120,100,80,.12) 4px,rgba(120,100,80,.12) 8px);border-color:rgba(120,100,80,.4);}
+/* 耐用值耗盡：整格暗化提示玩家無法投入 */
+.cell.dur-broken{filter:grayscale(.85) brightness(.55);opacity:.62;}
+.cell.dur-broken::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent,transparent 6px,rgba(60,40,20,.18) 6px,rgba(60,40,20,.18) 10px);pointer-events:none;border-radius:inherit;}
 .cell.drag-target{background:rgba(179,58,0,.1);border-color:var(--acc);border-style:dashed;}
 .cell.drag-over-cell{background:rgba(42,122,58,.12);border:2px solid var(--green);}
 
@@ -869,13 +872,44 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 #tooltip{
   position:fixed;z-index:9999;pointer-events:none;
   background:var(--tx);color:var(--bg);
-  border-radius:8px;padding:8px 12px;
-  font-size:10px;line-height:1.6;max-width:200px;
-  box-shadow:0 4px 16px rgba(0,0,0,.25);
+  border-radius:10px;padding:12px 16px;
+  font-size:14px;line-height:1.65;max-width:320px;
+  font-weight:500;letter-spacing:.2px;
+  box-shadow:0 6px 20px rgba(0,0,0,.3);
   opacity:0;transition:opacity .15s;
   white-space:pre-wrap;
 }
 #tooltip.show{opacity:1;}
+/* 投入預覽：拖曳卡牌至箭頭時，於預期出口顯示輸出資源與數值 */
+#invest-preview{
+  position:fixed;z-index:80;pointer-events:none;
+  display:flex;align-items:center;gap:6px;
+  background:var(--sur);border:2px solid var(--acc);
+  border-radius:12px;padding:6px 10px;
+  box-shadow:0 6px 20px rgba(179,58,0,.28);
+  font-family:'Noto Sans TC',sans-serif;
+  animation:ipPulse 1.4s ease-in-out infinite;
+}
+#invest-preview .ip-arrow{font-size:20px;font-weight:900;color:var(--acc);line-height:1;}
+#invest-preview .ip-body{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:48px;}
+#invest-preview .ip-emoji{font-size:22px;line-height:1;}
+#invest-preview .ip-num{display:flex;align-items:baseline;gap:1px;}
+#invest-preview .ip-approx{font-size:18px;font-weight:700;line-height:1;color:var(--mu);opacity:.85;}
+#invest-preview .ip-value{font-size:22px;font-weight:900;line-height:1;letter-spacing:-.5px;}
+#invest-preview .ip-type{font-size:10px;font-weight:700;color:var(--mu);line-height:1;}
+#invest-preview .ip-badge{
+  position:absolute;top:-7px;right:-7px;
+  background:var(--acc);color:#fff;
+  font-size:9px;font-weight:900;letter-spacing:.5px;
+  padding:2px 6px;border-radius:99px;line-height:1.2;
+  box-shadow:0 2px 6px rgba(179,58,0,.35);
+  font-family:'Noto Sans TC',sans-serif;
+}
+@keyframes ipPulse{
+  0%,100%{transform:scale(1);box-shadow:0 6px 20px rgba(179,58,0,.28);}
+  50%{transform:scale(1.06);box-shadow:0 8px 24px rgba(179,58,0,.45);}
+}
+
 /* 複合設施懸浮預覽 */
 #compound-preview-float{
   position:fixed;z-index:9998;pointer-events:none;
@@ -907,7 +941,7 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 .sel-card:hover{border-color:var(--acc);transform:translateY(-3px);box-shadow:0 8px 20px rgba(179,58,0,.18);}
 .sel-card-emoji{font-size:24px;line-height:1;margin-bottom:2px;}
 .sel-card-name{font-size:12px;font-weight:700;color:var(--tx);text-align:center;width:100%;}
-.sel-card-desc{font-size:9px;color:var(--mu);line-height:1.4;flex:1;text-align:center;width:100%;}
+.sel-card-desc{font-size:9px;color:var(--mu);line-height:1.4;flex:1;text-align:center;width:100%;white-space:pre-line;}
 .sel-card-pos{font-size:8px;color:var(--green);margin-top:2px;}
 .sel-card-neg{font-size:8px;color:var(--red);margin-top:1px;}
 /* partner card hover tooltip */
@@ -1492,6 +1526,15 @@ body { padding-bottom: 150px; }
 <!-- ACTION CHOOSER MODAL -->
 <div id="tooltip"></div>
 <div id="compound-preview-float"></div>
+<div id="invest-preview" style="display:none;">
+  <div class="ip-badge">估算</div>
+  <div class="ip-arrow">→</div>
+  <div class="ip-body">
+    <div class="ip-emoji">💵</div>
+    <div class="ip-num"><span class="ip-approx">~</span><span class="ip-value">0</span></div>
+    <div class="ip-type">金錢</div>
+  </div>
+</div>
 <div id="action-chooser" style="display:none;position:fixed;inset:0;z-index:90;align-items:center;justify-content:center;flex-direction:column;gap:14px;">
   <!-- 透明遮罩擋住後層操作 -->
   <div style="position:absolute;inset:0;pointer-events:auto;"></div>
@@ -4201,8 +4244,8 @@ function _contractChooserCardData(cid){
   if(!def) return null;
   const parts = [];
   if(def.immediateText) parts.push(def.immediateText);
-  if(def.guaranteeText) parts.push('【擔保】' + def.guaranteeText);
-  if(def.compensationText) parts.push('【'+(def.permanent?'永久':'賠償')+'】' + def.compensationText);
+  if(def.guaranteeText) parts.push('【擔保】\n' + def.guaranteeText);
+  if(def.compensationText) parts.push('【'+(def.permanent?'永久':'賠償')+'】\n' + def.compensationText);
   return {
     emoji: def.emoji || '📜',
     name: def.name,
@@ -4278,8 +4321,8 @@ function renderContractPanelModal(){
     ${ac.failed ? '<div style="color:var(--red);font-weight:700;font-size:10px;margin-bottom:4px;">⚠ 已違約（永久債務）</div>' : ''}
     <div style="font-size:10px;margin-bottom:8px;">${deadlineLabel}</div>
     ${def.immediateText ? `<div style="font-size:10px;line-height:1.5;">${def.immediateText}</div>` : ''}
-    ${def.guaranteeText ? `<div style="font-size:10px;color:var(--green);margin-top:6px;line-height:1.5;">【擔保】${def.guaranteeText}</div>` : ''}
-    ${def.compensationText ? `<div style="font-size:10px;color:var(--red);margin-top:4px;line-height:1.5;">【${ac.permanent?'永久':'賠償'}】${def.compensationText}</div>` : ''}
+    ${def.guaranteeText ? `<div style="font-size:10px;color:var(--green);margin-top:6px;line-height:1.5;"><div style="font-weight:700;">【擔保】</div>${def.guaranteeText}</div>` : ''}
+    ${def.compensationText ? `<div style="font-size:10px;color:var(--red);margin-top:4px;line-height:1.5;"><div style="font-weight:700;">【${ac.permanent?'永久':'賠償'}】</div>${def.compensationText}</div>` : ''}
     ${progressHtml}
     <div style="margin-top:10px;font-size:9px;color:var(--mu);text-align:center;">${_contractPanelIdx+1} / ${n}${n>1?'　← →':''}</div>
   `;
@@ -4380,7 +4423,7 @@ function isDemonNegDisabled(pid){
 }
 
 // 需要隨設施位置交換/轉移的鍵值資料欄位
-const KEYED_DATA_FIELDS=['bldgUpgrades','bldgUpgradesElec','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresValue','bulkStoreBonus','vaultCounts','cellRedirectDir','talentBankCount','ruinStacks'];
+const KEYED_DATA_FIELDS=['bldgUpgrades','bldgUpgradesElec','leyaPctMods','cellMods','bombTimers','logisticsVault','cellOverlay','futuresValue','bulkStoreBonus','vaultCounts','cellRedirectDir','talentBankCount','ruinStacks','facilityDurability','facilityRecovering'];
 const TCOLOR={ money:'var(--money)', material:'var(--mat)', goods:'var(--goods)', diamond:'#5bcefa' };
 const TLABEL={ money:'💰金錢', material:'🪨原料', goods:'📦商品', diamond:'💎鑽石' };
 const N=4; // base grid size
@@ -4616,6 +4659,96 @@ function getBldgRarity(id){ return BLDG_RARITY[id]||'N'; }
 function getPartnerRarity(id){ return PARTNER_RARITY[id]||'N'; }
 function getItemRarity(id){ return BLDG_RARITY[id]||PARTNER_RARITY[id]||'N'; }
 function getNextRarity(r){ const i=RARITY_ORDER.indexOf(r); return i<RARITY_ORDER.length-1?RARITY_ORDER[i+1]:r; }
+
+// ── 設施耐用值系統 ──
+// N/R=3、SR=5、SSR=7；大型設施與 part 視覺佔位不適用。
+// 耐用值在被命中時 −1；恢復條件：曾經歸 0、且該回合沒被命中 → +1，回滿時離開恢復狀態。
+// recovering 狀態下若再被命中 → 中斷恢復（清旗標、設施仍參與投入）。
+function getDurabilityMax(bldgId){
+  const r=getBldgRarity(bldgId);
+  if(r==='SSR') return 7;
+  if(r==='SR') return 5;
+  return 3;
+}
+function isDurabilityTracked(bldgId){
+  if(!bldgId||bldgId==='ruin') return false;
+  const b=BLDG[bldgId]; if(!b) return false;
+  if(b.isLarge) return false;
+  if(bldgId==='dept_store_part'||bldgId==='ancient_factory_part') return false;
+  return true;
+}
+function getDurability(r,c,bldgId){
+  if(!isDurabilityTracked(bldgId)) return Infinity;
+  const k=`${r},${c}`;
+  if(!G.facilityDurability) G.facilityDurability={};
+  if(!G.facilityDurability[k]) G.facilityDurability[k]={};
+  if(typeof G.facilityDurability[k][bldgId]!=='number'){
+    G.facilityDurability[k][bldgId]=getDurabilityMax(bldgId);
+  }
+  return G.facilityDurability[k][bldgId];
+}
+function isFacilityBroken(r,c,bldgId){
+  if(!isDurabilityTracked(bldgId)) return false;
+  return getDurability(r,c,bldgId)<=0;
+}
+function consumeDurability(r,c,bldgId){
+  if(!isDurabilityTracked(bldgId)) return;
+  // overlay context：pipeline 會在 FX 之後另行呼叫 consumeDurability(r,c,ovId)；
+  // FX 內部的 G.grid[r][c] 取到的是 base 而非 overlay，故此分支抑制重複扣 base
+  if(typeof _inOverlayCtx!=='undefined' && _inOverlayCtx) return;
+  // 速遞站重投：再觸發一次的當次命中不消耗耐用值
+  if(G.inv&&G.inv._speedReplaying) return;
+  const cur=getDurability(r,c,bldgId);
+  if(cur<=0) return; // 已歸零（理論上應該被 skip 攔下，防呆）
+  const next=cur-1;
+  G.facilityDurability[`${r},${c}`][bldgId]=next;
+  // 中斷恢復：若原本在 recovering，被命中即清旗標
+  const k=`${r},${c}`;
+  if(G.facilityRecovering&&G.facilityRecovering[k]&&G.facilityRecovering[k][bldgId]){
+    delete G.facilityRecovering[k][bldgId];
+    if(Object.keys(G.facilityRecovering[k]).length===0) delete G.facilityRecovering[k];
+  }
+  // 標記本回合命中（跨 send 累積，startTurn 時用於決定能否恢復）
+  if(!G._turnDurHitSet) G._turnDurHitSet={};
+  G._turnDurHitSet[`${k}|${bldgId}`]=true;
+  if(next===0){
+    const b=BLDG[bldgId];
+    addLog(`  💔 ${b.emoji}${b.name} 耐用耗盡 → 暫時無法投入`,'b');
+  }
+}
+// 回合結束時：對所有「破損(=0)或恢復中」設施，若本回合未被命中則 +1，回滿時離開恢復狀態。
+function _processDurabilityRecovery(){
+  const hits=G._turnDurHitSet||{};
+  const dur=G.facilityDurability||{};
+  Object.keys(dur).forEach(k=>{
+    const cellMap=dur[k]; if(!cellMap) return;
+    Object.keys(cellMap).forEach(bId=>{
+      const cur=cellMap[bId];
+      const max=getDurabilityMax(bId);
+      const broken=cur<=0;
+      const recovering=G.facilityRecovering&&G.facilityRecovering[k]&&G.facilityRecovering[k][bId];
+      if(!broken&&!recovering) return;
+      if(hits[`${k}|${bId}`]) return;
+      const next=Math.min(max,cur+1);
+      if(next===cur) return;
+      cellMap[bId]=next;
+      // 從 0 升 1：進入 recovering 狀態
+      if(cur===0){
+        if(!G.facilityRecovering) G.facilityRecovering={};
+        if(!G.facilityRecovering[k]) G.facilityRecovering[k]={};
+        G.facilityRecovering[k][bId]=true;
+        const b=BLDG[bId];
+        if(b) addLog(`  🩹 ${b.emoji}${b.name} 開始恢復（${next}/${max}）`,'g');
+      }
+      // 回滿：離開 recovering
+      if(next>=max&&G.facilityRecovering&&G.facilityRecovering[k]){
+        delete G.facilityRecovering[k][bId];
+        if(Object.keys(G.facilityRecovering[k]).length===0) delete G.facilityRecovering[k];
+      }
+    });
+  });
+  G._turnDurHitSet={};
+}
 
 // ── 稀有度×輪數 出現權重 ──
 // 回傳一個 0~1+ 的權重乘數，低輪數壓制高稀有度，高輪數釋放
@@ -5404,6 +5537,9 @@ function newGame(){
     bulkStoreBonus:{},  // 量販店每格每組獎勵值（初始 8，每次觸發 +4 累積）
     vaultCounts:{},     // 物流倉每格計數（xlsx 新規格：計數≥3時 +8 收益）
     cellRedirectDir:{}, // 物流中心當前方向 {"r,c": 'right'|'down'|'left'|'top'}
+    facilityDurability:{}, // 耐用值 {"r,c":{bldgId:current}}；N/R=3、SR=5、SSR=7
+    facilityRecovering:{}, // 恢復中旗標 {"r,c":{bldgId:true}}；只在歸 0 後啟動
+    _turnDurHitSet:{},     // 本回合命中過的設施 {"r,c|bldgId":true}；turn 結束結算後清空
     talentBankStored:0, // 人力銀行儲存值（舊實作殘留，現採人材機制 _talentBankPending）
     partners:[],         // 當前持有的合夥人 [{id, state}]
     partnerState:{},     // 合夥人專屬狀態 {id: any}
@@ -6547,21 +6683,139 @@ function onCardDragEnd(e){
   cardDragging=false;
   document.body.classList.remove('card-dragging');
   document.querySelectorAll('.dbtn').forEach(b=>b.classList.remove('drag-over'));
+  hideInvestPreview();
 }
 function onDirDragOver(e,btn){
   if(!cardDragging)return;
   e.preventDefault();
   e.dataTransfer.dropEffect='move';
   btn.classList.add('drag-over');
+  const dir=btn.getAttribute('data-dir');
+  const idx=parseInt(btn.getAttribute('data-idx'),10);
+  if(!dir || !Number.isFinite(idx)) return;
+  // 颱風 / 場風大師：方向不符時不顯示預覽（與 sendEl 阻擋條件對齊）
+  if(!G._industrializing){
+    const typhoonBlock=G.buff&&G.buff.typhoonActive&&G.windDir&&dir!==G.windDir;
+    const windMasterBlock=hasPartner('wind_master')&&G.windDir&&dir!==G.windDir;
+    if(typhoonBlock||windMasterBlock){ hideInvestPreview(); return; }
+  }
+  showInvestPreview(dir,idx);
 }
-function onDirDragLeave(btn){btn.classList.remove('drag-over');}
+function onDirDragLeave(btn){
+  btn.classList.remove('drag-over');
+  hideInvestPreview();
+}
 function onDirDrop(e,dir,idx){
   e.preventDefault();
   document.body.classList.remove('card-dragging');
   document.querySelectorAll('.dbtn').forEach(b=>b.classList.remove('drag-over'));
+  hideInvestPreview();
   if(!cardDragging)return;
   cardDragging=false;
   sendEl(dir,idx);
+}
+
+// ══════════════════════════════════════
+// 投入預覽：拖曳卡牌至箭頭時，於預期出口顯示輸出資源與數值
+// ══════════════════════════════════════
+function _simulateInvestment(dir,idx){
+  if(!G||!G.card) return null;
+  const _N=GN();
+  const buildPath=(d,i)=>{
+    const p=[];
+    if(d==='left')   for(let c=0;c<_N;c++)    p.push([i,c]);
+    if(d==='right')  for(let c=_N-1;c>=0;c--) p.push([i,c]);
+    if(d==='top')    for(let r=0;r<_N;r++)    p.push([r,i]);
+    if(d==='bottom') for(let r=_N-1;r>=0;r--) p.push([r,i]);
+    return p;
+  };
+  let el={value:G.card.value,type:G.card.type};
+  let path=buildPath(dir,idx);
+  let pi=0, lastCell=path[0]||[idx,idx], guard=0;
+  while(pi<path.length && guard++<200){
+    const [r,c]=path[pi++]; lastCell=[r,c];
+    const id=G.grid[r]&&G.grid[r][c];
+    if(!id||id==='ruin') continue;
+    const b=BLDG[id]; if(!b) continue;
+    // 耐用值耗盡：模擬時設施直通，不影響資源（與 stepWithMover 對齊）
+    if(typeof isFacilityBroken==='function'&&isFacilityBroken(r,c,id)) continue;
+    if(b.special==='redirect'){
+      // 颱風 / 運輸異常：物流失效，視為直通（與 stepWithMover 對齊）
+      if(G.buff&&(G.buff.typhoonActive||G.buff.logisticsDisabled)) continue;
+      const cellKey=`${r},${c}`;
+      const isPerTurnRot=b.perTurnRotate===true;
+      const cellDir=isPerTurnRot?((G.cellRedirectDir&&G.cellRedirectDir[cellKey])||b.dir):b.dir;
+      if(!cellDir) continue;
+      const np=[]; let nr=r,nc=c;
+      const seen=new Set([cellKey]);
+      for(let s=0;s<_N*4;s++){
+        if(cellDir==='top') nr--;
+        else if(cellDir==='bottom') nr++;
+        else if(cellDir==='left') nc--;
+        else if(cellDir==='right') nc++;
+        if(nr<0||nr>=_N||nc<0||nc>=_N) break;
+        const k=`${nr},${nc}`;
+        if(seen.has(k)) break;
+        seen.add(k); np.push([nr,nc]);
+      }
+      path=np; pi=0;
+      continue;
+    }
+    if(b.req && b.req!=='any' && b.req!==el.type) continue;
+    let nv=el.value;
+    try{ if(typeof b.fn==='function') nv=b.fn(el.value); }catch(_){ nv=el.value; }
+    if(typeof nv!=='number'||!Number.isFinite(nv)) nv=el.value;
+    el={value:nv, type:b.out||el.type};
+  }
+  return {el, exitCell:lastCell};
+}
+function showInvestPreview(dir,idx){
+  if(!G||!G.card) return;
+  const sim=_simulateInvestment(dir,idx);
+  if(!sim) return;
+  const preview=document.getElementById('invest-preview');
+  if(!preview) return;
+  const [er,ec]=sim.exitCell;
+  const cellEl=cellQ(er,ec);
+  const grid=document.getElementById('grid');
+  if(!cellEl||!grid){ preview.style.display='none'; return; }
+  const emojis={money:'💵',material:'🪨',goods:'📦',diamond:'💎'};
+  const labels={money:'金錢',material:'原料',goods:'商品',diamond:'鑽石'};
+  const arrowMap={left:'→',right:'←',top:'↓',bottom:'↑'};
+  const emojiEl=preview.querySelector('.ip-emoji');
+  const valEl=preview.querySelector('.ip-value');
+  const typeEl=preview.querySelector('.ip-type');
+  const arrowEl=preview.querySelector('.ip-arrow');
+  if(emojiEl) emojiEl.textContent=emojis[sim.el.type]||'❓';
+  if(valEl){ valEl.textContent=sim.el.value; valEl.style.color=TCOLOR[sim.el.type]||'var(--tx)'; }
+  if(typeEl) typeEl.textContent=labels[sim.el.type]||sim.el.type;
+  if(arrowEl) arrowEl.textContent=arrowMap[dir]||'→';
+  preview.style.borderColor=TCOLOR[sim.el.type]||'var(--acc)';
+  // 先顯示以取得正確尺寸
+  preview.style.display='flex';
+  preview.style.left='-9999px'; preview.style.top='-9999px';
+  const pw=preview.offsetWidth||120, ph=preview.offsetHeight||60;
+  const cr=cellEl.getBoundingClientRect();
+  const gr=grid.getBoundingClientRect();
+  const cx=cr.left+cr.width/2, cy=cr.top+cr.height/2;
+  // 找出口格子距離哪一邊最近，將預覽放在該邊外側
+  const dL=cx-gr.left, dR=gr.right-cx, dT=cy-gr.top, dB=gr.bottom-cy;
+  const m=Math.min(dL,dR,dT,dB);
+  const pad=14;
+  let x,y;
+  if(m===dR){ x=gr.right+pad; y=cy-ph/2; }
+  else if(m===dL){ x=gr.left-pad-pw; y=cy-ph/2; }
+  else if(m===dB){ x=cx-pw/2; y=gr.bottom+pad; }
+  else { x=cx-pw/2; y=gr.top-pad-ph; }
+  // 視窗邊緣保護
+  x=Math.max(8,Math.min(window.innerWidth-pw-8,x));
+  y=Math.max(8,Math.min(window.innerHeight-ph-8,y));
+  preview.style.left=x+'px';
+  preview.style.top=y+'px';
+}
+function hideInvestPreview(){
+  const preview=document.getElementById('invest-preview');
+  if(preview) preview.style.display='none';
 }
 
 // 設施拖曳到格子
@@ -6918,7 +7172,7 @@ const FACILITY_FX={
   },
   tax_office(fx){
     addLog(`  🏛 稅務局：通過（最終收益-10%）`);
-    G.inv.facHit=(G.inv.facHit||0)+1; fx.next(300);
+    G.inv.facHit=(G.inv.facHit||0)+1; consumeDurability(fx.r,fx.c,G.grid[fx.r][fx.c]); fx.next(300);
   },
   temp_shed(fx){
     // 通過無加成；效果在回合結束時（doNext）自動賣出 +2 + 隨機賣廢墟 +2
@@ -7088,6 +7342,7 @@ const FACILITY_FX={
   },
   demolish_bureau(fx){
     G.inv.facHit=(G.inv.facHit||0)+1;
+    consumeDurability(fx.r,fx.c,G.grid[fx.r][fx.c]);
     const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value,'拆遷補償局');
     fx.el={...fx.el,value:nv2};
     addLog(`  🏢 拆遷補償局: 通過（移動/消滅設施時+4收益）`);
@@ -7096,6 +7351,7 @@ const FACILITY_FX={
   terminal(fx){
     const bonus=(G.inv.facHit||0)*4;
     G.inv.facHit=(G.inv.facHit||0)+1;
+    consumeDurability(fx.r,fx.c,G.grid[fx.r][fx.c]);
     SFX.hit(G.inv.facHit-1, getOverlays(fx.r,fx.c).length);
     let termVal=fx.el.value+bonus;
     termVal=applyUpgradeBonus(fx.r,fx.c,termVal,'終點站');
@@ -7526,6 +7782,11 @@ function applyOverlayPipeline(el, r, c, cellEl){
   for(const ovId of ovs){
     const ob=BLDG[ovId];
     if(!ob) continue;
+    // 耐用值耗盡的疊加設施：不參與投入、不消耗耐用值
+    if(isFacilityBroken(r,c,ovId)){
+      addLog(`  💔 疊加 ${ob.emoji}${ob.name} 耐用耗盡，略過`,'b');
+      continue;
+    }
     // 類型匹配（暴食惡魔互換）
     let effType=el.type;
     if(hasPartner('gluttony')){
@@ -7565,6 +7826,7 @@ function applyOverlayPipeline(el, r, c, cellEl){
     }
     if(leyaPct>0) el.value=el.value+Math.ceil(el.value*leyaPct/100);
     G.inv.facHit=(G.inv.facHit||0)+1;
+    consumeDurability(r,c,ovId);
     if(G.inv.facPath) G.inv.facPath.push(ovId);
     addLog(`  🔁 疊加 ${ob.emoji}${ob.name}: ${TLABEL[prev.type]||prev.type}${prev.value}→${TLABEL[el.type]||el.type}${el.value}`,'g');
   }
@@ -7581,6 +7843,12 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
     return;
   }
   const[r,c]=path[i];
+
+  // 速遞站重投：前一次 stepWithMover 在 _next 排程重投時設定 _speedReplayNext，本次重入不消耗耐用值
+  if(G.inv){
+    G.inv._speedReplaying = G.inv._speedReplayNext === true;
+    G.inv._speedReplayNext = false;
+  }
 
   // 記錄實際經過的格子（工業化用）
   if(G.inv.cellPath) G.inv.cellPath.push([r,c]);
@@ -7600,8 +7868,9 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
   const _isDeptCell=bId==='dept_store'||bId==='dept_store_part';
   if(cellEl&&!_isDeptCell) cellEl.classList.add('active-path');
   stepWithMover._prevActive=_isDeptCell?null:cellEl;
-  // 速遞站：經過空格或廢墟時消耗 flag（效果浪費）
-  if((!bId||bId==='ruin')&&G.inv.speedAct) G.inv.speedAct=false;
+  // 速遞站：經過空格、廢墟或 broken 設施時消耗 flag（效果浪費；broken 也視為直通與空格一致，避免額外動畫）
+  const _durBrokenHere = bId&&bId!=='ruin'&&typeof isFacilityBroken==='function'&&isFacilityBroken(r,c,bId);
+  if((!bId||bId==='ruin'||_durBrokenHere)&&G.inv.speedAct) G.inv.speedAct=false;
   // ── 共用尾碼 helper ──
   // 速遞站：上一格觸發速遞站後，本格設施額外觸發一次
   const _speedReplay=G.inv.speedAct&&bId&&isFacility(bId)&&BLDG[bId]?.special!=='speed_station';
@@ -7609,6 +7878,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
   const _next=(delay=350)=>{
     if(_speedReplay){
       addLog(`  ⚡ 速遞站：再觸發一次！`,'g');
+      if(G.inv) G.inv._speedReplayNext=true; // 標記下一次同格重入為重投：不消耗耐用值
       setTimeout(()=>{ if(_stepAnimGen!==gen) return; stepWithMover(path,el,i,startVal,mover,updateMover); },delay);
     } else {
       setTimeout(()=>{ if(_stepAnimGen!==gen) return; stepWithMover(path,el,i+1,startVal,mover,updateMover); },delay);
@@ -7617,6 +7887,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
   const _prevValFx=el.value; // 大熱波：FACILITY_FX 用
   const _hit=(delay=350)=>{
     G.inv.facHit=(G.inv.facHit||0)+1;
+    consumeDurability(r,c,bId);
     SFX.hit(G.inv.facHit-1, getOverlays(r,c).length);
     if(G.inv.facPath) G.inv.facPath.push(bId);
     if(G.inv.facCellPath) G.inv.facCellPath.push([r,c]);
@@ -7672,6 +7943,12 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
     const _skipReason = (typeof _contractCellSkipReason==='function') ? _contractCellSkipReason(r,c,bId) : null;
     if(_skipReason){
       addLog(`  ⏭ ${b.emoji}${b.name} ${_skipReason}，跳過`,'b');
+      _next(300); return;
+    }
+
+    // ── 耐用值耗盡：設施暫時不參與投入（資源直通，不消耗耐用值） ──
+    if(isFacilityBroken(r,c,bId)){
+      addLog(`  💔 ${b.emoji}${b.name} 耐用耗盡，略過（資源直通）`,'b');
       _next(300); return;
     }
 
@@ -7758,6 +8035,8 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       }
       if(!G.inv.logSet) G.inv.logSet=new Set();
       G.inv.logSet.add(cellKey);
+      // 耐用值：物流轉向視為設施參與投入
+      consumeDurability(r,c,bId);
       // 交通合約：本輪轉向次數 +1
       if(G.contractCounters) G.contractCounters.roundRedirectHits = (G.contractCounters.roundRedirectHits||0) + 1;
       // 運輸大亨：每次通過物流+3
@@ -7857,6 +8136,7 @@ function stepWithMover(path,el,i,startVal,mover,updateMover){
       // 暴食惡魔：若匹配是因為互換，則視為互換類型進入
       if(hasPartner('gluttony')&&b.req===effType&&b.req!==el.type) el={...el,type:effType};
       G.inv.facHit=(G.inv.facHit||0)+1;
+      consumeDurability(r,c,bId);
       if(G.inv.facPath) G.inv.facPath.push(bId);
       if(G.inv.facCellPath) G.inv.facCellPath.push([r,c]);
       G._firstFacInvestedThisTurn = true; // 嫉妒惡魔：標記本回合已有設施被投入
@@ -8787,6 +9067,8 @@ function startTurn(){
     return;
   }
   _lastStartedTurn=turnKey;
+  // 耐用值：上一回合結束 → 處理破損/恢復中設施的恢復（未被命中者 +1）
+  _processDurabilityRecovery();
   G.phase='place';
   G._turnPitchOffset = 0; // 每回合音階位移歸零
   G._talentUsedOnElement = false;
@@ -9789,6 +10071,7 @@ function renderGrid(){
   h+=`<div class="drow"><div style="width:28px"></div>`;
   const _gn=GN();
   for(let ci=0;ci<_gn;ci++) h+=`<button class="dbtn${windDir==='top'?' wind-active':windDir?' wind-blocked':''}"
+    data-dir="top" data-idx="${ci}"
     ondragover="onDirDragOver(event,this)"
     ondragleave="onDirDragLeave(this)"
     ondrop="onDirDrop(event,'top',${ci})">↓</button>`;
@@ -9798,6 +10081,7 @@ function renderGrid(){
   h+=`<div class="dcol-wrap">`;
   h+=`<div class="dside">`;
   for(let ri=0;ri<_gn;ri++) h+=`<button class="dbtn side${windDir==='left'?' wind-active':windDir?' wind-blocked':''}"
+    data-dir="left" data-idx="${ri}"
     ondragover="onDirDragOver(event,this)"
     ondragleave="onDirDragLeave(this)"
     ondrop="onDirDrop(event,'left',${ri})">→</button>`;
@@ -9838,11 +10122,13 @@ function renderGrid(){
     const sellHi=(G._yongqingSellMode&&b)?' sell-shake':'';
     const devSelHi=(DEV._selectClearCells&&DEV._selectClearCells.has(`${r},${c}`))?' dev-select-clear':'';
     const isCenter=isCenterCell(r,c);
+    // 耐用值耗盡：整格暗化（base 設施 dur=0 → 整格略過投入）
+    const durBrokenHi=(b&&!isRuin&&isFacilityBroken(r,c,bId))?' dur-broken':'';
     // 暗叫合約配對消除提示：第一格選中 + 同 id 可配對的目標格
     const _hcPick = G._hiddenCallPickedCell;
     const hcSelHi = (_hcPick && _hcPick.r===r && _hcPick.c===c) ? ' hidden-pair-selected' : '';
     const hcTargetHi = (_hcPick && b && _hcPick.bId === b && (_hcPick.r!==r||_hcPick.c!==c)) ? ' hidden-pair-target' : '';
-    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${mcPromptHi}${evPreview}${tempBuffHi}${sellHi}${devSelHi}${hcSelHi}${hcTargetHi}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
+    h+=`<div class="${cls}${moveSrcHi}${upgradeHi}${rearrangeHi}${routeSrcHi}${routeTargetHi}${mcPromptHi}${evPreview}${tempBuffHi}${sellHi}${devSelHi}${hcSelHi}${hcTargetHi}${durBrokenHi}" data-r="${r}" data-c="${c}" data-center="${isCenter}"
       onmouseenter="cellHoverStart(event,${r},${c})"
       onmouseleave="cellHoverEnd()"
       onclick="onCell(${r},${c})"
@@ -9955,6 +10241,7 @@ function renderGrid(){
 
   h+=`<div class="dside">`;
   for(let ri=0;ri<_gn;ri++) h+=`<button class="dbtn side${windDir==='right'?' wind-active':windDir?' wind-blocked':''}"
+    data-dir="right" data-idx="${ri}"
     ondragover="onDirDragOver(event,this)"
     ondragleave="onDirDragLeave(this)"
     ondrop="onDirDrop(event,'right',${ri})">←</button>`;
@@ -9963,6 +10250,7 @@ function renderGrid(){
   // 下排
   h+=`<div class="drow"><div style="width:28px"></div>`;
   for(let ci=0;ci<_gn;ci++) h+=`<button class="dbtn${windDir==='bottom'?' wind-active':windDir?' wind-blocked':''}"
+    data-dir="bottom" data-idx="${ci}"
     ondragover="onDirDragOver(event,this)"
     ondragleave="onDirDragLeave(this)"
     ondrop="onDirDrop(event,'bottom',${ci})">↑</button>`;
@@ -10362,9 +10650,12 @@ function showTooltip(e,html){
 }
 function positionTooltip(e){
   const t=tip(); if(!t)return;
-  let x=e.clientX+14, y=e.clientY+14;
-  if(x+210>window.innerWidth) x=e.clientX-220;
-  if(y+120>window.innerHeight) y=e.clientY-130;
+  let x=e.clientX+16, y=e.clientY+16;
+  const w=t.offsetWidth||340, h=t.offsetHeight||140;
+  if(x+w+10>window.innerWidth) x=e.clientX-w-10;
+  if(y+h+10>window.innerHeight) y=e.clientY-h-10;
+  if(x<8) x=8;
+  if(y<8) y=8;
   t.style.left=x+'px'; t.style.top=y+'px';
 }
 function hideTooltip(){ const t=tip(); if(t) t.classList.remove('show'); }
@@ -12900,6 +13191,11 @@ function deserializeGame(save){
   if(!data.talentBankCount||typeof data.talentBankCount!=='object') data.talentBankCount={};
   if(!data.futuresValue||typeof data.futuresValue!=='object') data.futuresValue={};
   if(!data.ruinStacks||typeof data.ruinStacks!=='object') data.ruinStacks={};
+  // 耐用值系統：舊存檔欄位缺失初始化
+  if(!data.facilityDurability||typeof data.facilityDurability!=='object') data.facilityDurability={};
+  if(!data.facilityRecovering||typeof data.facilityRecovering!=='object') data.facilityRecovering={};
+  // _turnDurHitSet 跨存檔保留（per-turn 累積；若中途存檔，回合結束結算時要記得這 turn 命中過哪些）
+  if(!data._turnDurHitSet||typeof data._turnDurHitSet!=='object') data._turnDurHitSet={};
   // _talentBankPending 結構驗證：必須是非負有限整數、上限 100（防存檔損壞/竄改）
   const _tbp=data._talentBankPending;
   if(typeof _tbp!=='number'||!isFinite(_tbp)||_tbp<0||_tbp>100) data._talentBankPending=0;
