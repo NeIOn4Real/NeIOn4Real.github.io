@@ -4751,15 +4751,15 @@ function getItemRarity(id){ return BLDG_RARITY[id]||PARTNER_RARITY[id]||'N'; }
 function getNextRarity(r){ const i=RARITY_ORDER.indexOf(r); return i<RARITY_ORDER.length-1?RARITY_ORDER[i+1]:r; }
 
 // ── 設施耐用值系統 ──
-// N=3、R=5、SR=7、SSR=9；大型設施與 part 視覺佔位不適用。
+// N=5、R=7、SR=9、SSR=11；大型設施與 part 視覺佔位不適用。
 // 耐用值在被命中時 −1；恢復條件：曾經歸 0、且該回合沒被命中 → +1，回滿時離開恢復狀態。
 // recovering 狀態下若再被命中 → 中斷恢復（清旗標、設施仍參與投入）。
 function getDurabilityMax(bldgId){
   const r=getBldgRarity(bldgId);
-  if(r==='SSR') return 9;
-  if(r==='SR') return 7;
-  if(r==='R') return 5;
-  return 3;
+  if(r==='SSR') return 11;
+  if(r==='SR') return 9;
+  if(r==='R') return 7;
+  return 5;
 }
 function isDurabilityTracked(bldgId){
   if(!bldgId||bldgId==='ruin') return false;
@@ -5668,7 +5668,7 @@ function newGame(){
     bulkStoreBonus:{},  // 量販店每格每組獎勵值（初始 8，每次觸發 +4 累積）
     vaultCounts:{},     // 物流倉每格計數（xlsx 新規格：計數≥3時 +8 收益）
     cellRedirectDir:{}, // 物流中心當前方向 {"r,c": 'right'|'down'|'left'|'top'}
-    facilityDurability:{}, // 耐用值 {"r,c":{bldgId:current}}；N=3、R=5、SR=7、SSR=9
+    facilityDurability:{}, // 耐用值 {"r,c":{bldgId:current}}；N=5、R=7、SR=9、SSR=11
     facilityRecovering:{}, // 恢復中旗標 {"r,c":{bldgId:true}}；只在歸 0 後啟動
     _turnDurHitSet:{},     // 本回合命中過的設施 {"r,c|bldgId":true}；turn 結束結算後清空
     talentBankStored:0, // 人力銀行儲存值（舊實作殘留，現採人材機制 _talentBankPending）
@@ -10372,7 +10372,7 @@ function renderGrid(){
       if(modVal!==0) h+=`<div class="${modVal>0?'cell-mod-pos':'cell-mod-neg'}">${modVal>0?'+':''}${modVal}</div>`;
       if(pctVal!==0) h+=`<div class="${pctVal>0?'cell-mod-pos':'cell-mod-neg'}" style="bottom:${modVal!==0?'12px':'2px'}">${pctVal>0?'+':''}${pctVal}%</div>`;
     }
-    // 耐用值血條：頂端分段，依稀有度 N=3、R=5、SR=7、SSR=9
+    // 耐用值血條：頂端分段，依稀有度 N=5、R=7、SR=9、SSR=11
     if(b&&!isRuin&&typeof isDurabilityTracked==='function'&&isDurabilityTracked(bId)){
       const _curDur=getDurability(r,c,bId);
       const _maxDur=getDurabilityMax(bId);
