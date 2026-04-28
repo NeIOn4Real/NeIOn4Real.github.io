@@ -2222,7 +2222,7 @@ const BLDG = {
   spiral_hub:     { name:'螺旋物流站',   emoji:'🔄', desc:'商品→商品。資源投入時，之前每通過 1 個設施，這個設施獲得+2收益。', req:'goods', out:'goods', fn:v=>v, special:'spiral_hub' },
   terminal:       { name:'終點站',       emoji:'🏁', desc:'任意→任意。資源投入時，之前每通過 1 個設施，這個設施獲得+4。', req:'any', out:null, fn:v=>v, special:'terminal' },
   logistics_amp:  { name:'物流放大器',   emoji:'📡', desc:'任意→任意。資源投入時，下一設施這回合獲得+8。', req:'any', out:null, fn:v=>v, special:'logistics_amp' },
-  transfer_hub:   { name:'轉運中心',     emoji:'🔀', desc:'放置時變成物流（→↓←↑），可決定方向', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
+  transfer_hub:   { name:'轉運中心',     emoji:'🔀', desc:'放置時變成物流站（→↓←↑），可決定方向', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
   speed_station:  { name:'速遞站',       emoji:'⚡', desc:'資源投入時，若下一格有設施，使其立即再投入一次。', req:'any', out:null, fn:v=>v, special:'speed_station' },
   logistics_vault:{ name:'物流倉',       emoji:'🏪', desc:'資源投入時獲得1個物流計數。計數≥3時獲得+8收益（計數歸零）。', req:'any', out:null, fn:v=>v, special:'logistics_vault' },
   env_sensor:     { name:'環境感應站',   emoji:'📊', desc:'資源投入時，周圍 4 格每有1個設施，這個設施時獲得+2。', req:'any', out:null, fn:v=>v, special:'env_sensor' },
@@ -2245,6 +2245,11 @@ const BLDG = {
   demolish_bureau:{ name:'拆遷補償局',   emoji:'🏢', desc:'此回合，每次設施更動位置（自由排列／移動都市整段視為 1 次），或者被消滅時，都會獲得收益 +4。', req:'any', out:null, fn:v=>v, special:'demolish_bureau' },
   dynamic_amp:    { name:'動態加強器',   emoji:'🔋', desc:'任意→金錢 +4。此回合這個設施更動位置時，每次使這個設施額外獲得 +4（自由排列／移動都市整段視為 1 次）。', req:'any', out:'money', fn:v=>v+4, special:'dynamic_amp' },
   unstable_base:  { name:'地基不穩定站', emoji:'⚠️', desc:'使周圍4格的設施隨機交換位置，此回合使其獲得 +2。', req:'any', out:null, fn:v=>v, special:'unstable_base' },
+
+  // ── 商店限定基礎設施（N，只在「購買設施」商店出現，工具型）──
+  container_house:      { name:'貨櫃屋', emoji:'🚛', desc:'僅能重疊在已有設施的格子上。將重疊的格子上的所有設施都回到手牌，每加入手牌一張設施，你獲得收益 -2。', req:null, out:null, fn:v=>v, special:'container_house' },
+  worker_brother_house: { name:'勞工兄弟屋', emoji:'🏘', desc:'回合結束時，清除自身。獲得人材 +2。', req:'any', out:null, fn:v=>v, special:'worker_brother_house' },
+  traffic_light:        { name:'紅綠燈', emoji:'🚦', desc:'只能蓋在物流站上，選擇一個方向，該物流站變成指定的方向。', req:null, out:null, fn:v=>v, special:'traffic_light' },
 
   ruin:         { name:'廢墟', emoji:'🏚️', desc:'被消滅的設施殘骸', req:null, out:null, fn:v=>v, isRuin:true },
   envy_factory:{ name:'嫉妒工廠', emoji:'💚', desc:'任意→隨機資源；本回合首個投入此設施時永久獲得投入資源 +4；最終輸出符合此設施輸出時最終收益 +8（效果永久 +8）', req:'any', out:null, fn:v=>v, special:'envy' },
@@ -2292,7 +2297,7 @@ const BLDG = {
   disaster_bureau:{ name:'災害控管局', emoji:'🛡', desc:'此回合結束時，每消滅一個設施，獲得收益 +4。這個設施不會被消滅。', req:'any', out:null, fn:v=>v, special:'disaster_bureau', indestructible:true },
 
   // ── 物流系新設施 ──
-  logistics_hub:  { name:'物流轉運中心', emoji:'🔀', desc:'放置時變成物流（→↓←↑），你可以決定其方向。', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
+  logistics_hub:  { name:'物流轉運中心', emoji:'🔀', desc:'放置時變成物流中心，你可以決定其起始方向。', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
 
   // ── 人力系新設施 ──
   staff_housing:  { name:'員工住宅', emoji:'🏠', desc:'回合結束時，若沒有資源投入此設施，獲得人材 +4。', req:'any', out:null, fn:v=>v, special:'staff_housing' },
@@ -4502,6 +4507,7 @@ const LOGISTICS_DIRS=['logistics_up','logistics_down','logistics_left','logistic
 // 可進入一般池的設施過濾（排除特殊/大型/中央限定/物流方向）
 function isPoolableBldg(id){
   if(id==='envy_factory'||id==='ruin'||id==='dept_store_part'||id==='ancient_factory_part') return false;
+  if(SHOP_ONLY_FACILITIES&&SHOP_ONLY_FACILITIES.has(id)) return false;
   const b=BLDG[id]; if(!b) return false;
   if(b.centerOnly||b.needs2x2||b.ruinOnly) return false;
   if(LOGISTICS_DIRS.includes(id)) return false;
@@ -4514,6 +4520,8 @@ const BLDG_RARITY={
   // N（基礎）
   mat_factory:'N', factory:'N', shop:'N', refinery:'N', warehouse:'N', booster:'N', converter:'N',
   bomb_device:'N',
+  // N（商店限定）
+  container_house:'N', worker_brother_house:'N', traffic_light:'N',
   // R
   talent_training:'R',
   labor_convert:'R', talent_market:'R', talent_bank:'R', free_market:'R', import_tax:'R',
@@ -4572,6 +4580,8 @@ const PARTNER_RARITY={
 // 基礎設施抽選池：N 級且無特殊邏輯（從 BLDG_RARITY 自動推導，避免新增 N 級設施漏池）
 // 排除有 special 的（如 bomb_device）；目前推得 7 項：mat_factory/factory/shop/refinery/warehouse/booster/converter
 const BASIC_FACILITIES=Object.keys(BLDG_RARITY).filter(id=>BLDG_RARITY[id]==='N'&&BLDG[id]&&!BLDG[id].special);
+// 商店限定設施（N，工具型）：只在 doPermShop 商店出現，不會經由其他抽選途徑進手牌
+const SHOP_ONLY_FACILITIES=new Set(['container_house','worker_brother_house','traffic_light']);
 
 function getBldgRarity(id){ return BLDG_RARITY[id]||'N'; }
 function getPartnerRarity(id){ return PARTNER_RARITY[id]||'N'; }
@@ -4666,6 +4676,8 @@ const TAGS={
   staff_housing:['hr'],
   // 特殊設施
   envy_factory:['demon'],
+  // 商店限定工具型設施
+  container_house:['basic'], worker_brother_house:['basic','hr'], traffic_light:['basic','logistics'],
   // ── 合夥人 ──
   // 惡魔系
   poverty_god:['demon'], gluttony:['demon'], sloth:['demon'], lust:['demon'],
@@ -5509,7 +5521,9 @@ const COMPOUND_EXCLUDE=new Set([
   // 2×2 大型設施 part / 非 isLarge 的不可消滅設施（isLarge 由 _isCompoundExcluded 自動排除）
   'ancient_factory_part','disaster_bureau',
   // 僅中央設施（複合卡兩格無法保證都在中央）
-  'center_trade','center_tech','center_factory_bureau','center_shop_bureau','center_mat_bureau','center_elec_net'
+  'center_trade','center_tech','center_factory_bureau','center_shop_bureau','center_mat_bureau','center_elec_net',
+  // 商店限定工具型設施（不應出現在複合卡）
+  'container_house','worker_brother_house','traffic_light'
 ]);
 // 通用排除判定：明確列表 + 任何 isLarge 大型設施 + 無定義
 // 確保未來新增的大型設施自動被排除，無須手動更新 COMPOUND_EXCLUDE
@@ -6048,6 +6062,63 @@ function tryPlaceAtCell(r,c,bldgId){
     if(t1&&t2){ showTransferHubDirPicker(r,c,()=>showTransferHubDirPicker(r2,c2)); }
     else if(t1){ showTransferHubDirPicker(r,c); }
     else if(t2){ showTransferHubDirPicker(r2,c2); }
+    return true;
+  }
+
+  // ── 商店限定工具型設施（早於一般放置流程處理；本身不會留在格子上） ──
+  // 貨櫃屋：將目標格的 base + overlay 全數加回手牌，每張 -2 收益
+  if(bldgId==='container_house'){
+    const cur=G.grid[r][c];
+    if(!cur||cur==='ruin'){
+      addLog('🚛 貨櫃屋只能重疊在已有設施的格子上','b');
+      return false;
+    }
+    if(cur==='dept_store_part'||cur==='ancient_factory_part'){
+      addLog('🚛 貨櫃屋不能用於大型設施的 2×2 占位格','b');
+      return false;
+    }
+    if(BLDG[cur]&&BLDG[cur].indestructible){
+      addLog(`🚛 ${BLDG[cur].name}無法被拆解`,'b');
+      return false;
+    }
+    if(!handItem||handItem.count<=0) return false;
+    handItem.count--;
+    const overlays=getOverlays(r,c);
+    const all=[cur, ...overlays];
+    // 過濾不可加回手牌的（無 BLDG 定義 / indestructible）
+    const returnable=all.filter(id=>BLDG[id]&&!BLDG[id].indestructible);
+    returnable.forEach(id=>addHand(id,1));
+    G.grid[r][c]=null;
+    setOverlays(r,c,[]);
+    clearKeyedData(`${r},${c}`);
+    if(G.ruinCells) G.ruinCells.delete(`${r},${c}`);
+    const loss=returnable.length*2;
+    G.profit-=loss;
+    addLog(`🚛 貨櫃屋 (${r+1},${c+1})：返回 ${returnable.length} 個設施到手牌，收益 -${loss}`,'g');
+    recomputeBoosterAura();
+    if(typeof renderFanHand==='function') renderFanHand();
+    render();
+    return true;
+  }
+
+  // 紅綠燈：只能蓋在物流站上，選方向後該物流站變成指定方向
+  if(bldgId==='traffic_light'){
+    const cur=G.grid[r][c];
+    const isLogStation=['logistics_up','logistics_down','logistics_left','logistics_right'].includes(cur);
+    if(!isLogStation){
+      addLog('🚦 紅綠燈只能蓋在物流站（→↓←↑）上','b');
+      return false;
+    }
+    if(!handItem||handItem.count<=0) return false;
+    handItem.count--;
+    if(typeof renderFanHand==='function') renderFanHand();
+    // 取消未選方向時退還手牌（避免誤點消耗）
+    showTransferHubDirPicker(r,c,null,()=>{
+      handItem.count++;
+      if(typeof renderFanHand==='function') renderFanHand();
+      addLog('🚦 紅綠燈：未選擇方向，已退還','b');
+    });
+    render();
     return true;
   }
 
@@ -8930,6 +9001,20 @@ function doNext(){
     }
   });
 
+  // 勞工兄弟屋：回合結束時清除自身，獲得人材 +2
+  let _wbhCleared=0;
+  findCells((r,c,b)=>b==='worker_brother_house').forEach(([r,c])=>{
+    G.grid[r][c]=null;
+    clearKeyedData(`${r},${c}`);
+    G.talentCards=(G.talentCards||0)+2;
+    addLog(`🏘 勞工兄弟屋 (${r+1},${c+1})：回合結束清除，獲得人材 +2`,'g');
+    _wbhCleared++;
+  });
+  if(_wbhCleared>0){
+    if(typeof renderTalentPanel==='function') renderTalentPanel();
+    recomputeBoosterAura();
+  }
+
   // 合夥人回合結束效果（貧窮神、貪婪惡魔、傲慢惡魔、激情惡魔等）
   runPartnerHook('onTurnEnd');
   runContractHook('onTurnEnd');
@@ -9033,8 +9118,8 @@ function doPermShop(){
   if(G.phase!=='place'&&G.phase!=='done') return;
   if(G._permShopUsed) return;
   const _shopTc=getPlayerTagCounts();
-  // 基礎設施池 + 1 隨機物流方向
-  let pool=[...BASIC_FACILITIES];
+  // 基礎設施池 + 商店限定工具池 + 1 隨機物流方向
+  let pool=[...BASIC_FACILITIES, ...SHOP_ONLY_FACILITIES];
   pool.push(LOGISTICS_DIRS[Math.floor(Math.random()*LOGISTICS_DIRS.length)]);
   // 35% 機率額外出現一個非基礎設施
   if(Math.random()<0.35){
@@ -9549,7 +9634,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 // 轉運中心方向選擇器
 let _transferPickerCleanup=null; // 全域追蹤，防止多個 picker 洩漏
-function showTransferHubDirPicker(r,c,onDone){
+function showTransferHubDirPicker(r,c,onDone,onCancel){
   // 清除舊 picker（防止洩漏；視為被取消，套用 right 預設）
   if(_transferPickerCleanup){ _transferPickerCleanup(); _transferPickerCleanup=null; }
   const dirs=[
@@ -9564,16 +9649,39 @@ function showTransferHubDirPicker(r,c,onDone){
   const panel=document.createElement('div');
   panel.style.cssText=`position:fixed;z-index:600;background:var(--sur);border:2px solid var(--acc);border-radius:10px;padding:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);display:flex;gap:6px;left:${rect.left}px;top:${rect.bottom+4}px;`;
   let _selectedDir=null;
-  // 集中 finalize：保證 cell 不會卡在 transfer_hub/logistics_hub
+  // 集中 finalize：依當前 cell 內容決定變身/改向行為
+  // - transfer_hub：變成單向物流站（logistics_X）
+  // - logistics_hub：變成物流中心（logistics_center）並設定起始方向
+  // - logistics_X：紅綠燈情境，僅改變方向
   const _finalize=()=>{
     const cur=G.grid[r][c];
-    if(cur!=='transfer_hub'&&cur!=='logistics_hub') return;
+    const isLogStation=cur==='logistics_up'||cur==='logistics_down'||cur==='logistics_left'||cur==='logistics_right';
+    if(cur!=='transfer_hub'&&cur!=='logistics_hub'&&!isLogStation) return;
     if(_selectedDir){
-      G.grid[r][c]=dirMap[_selectedDir];
       const d=dirs.find(x=>x.dir===_selectedDir);
-      addLog(`🔀 轉運中心 (${r+1},${c+1}) → ${d.emoji} ${d.label}`,'g');
+      if(cur==='transfer_hub'){
+        G.grid[r][c]=dirMap[_selectedDir];
+        addLog(`🔀 轉運中心 (${r+1},${c+1}) → ${d.emoji} ${d.label}`,'g');
+      } else if(cur==='logistics_hub'){
+        G.grid[r][c]='logistics_center';
+        if(!G.cellRedirectDir) G.cellRedirectDir={};
+        G.cellRedirectDir[`${r},${c}`]=_selectedDir;
+        addLog(`🔀 物流轉運中心 (${r+1},${c+1}) → 物流中心（起始 ${d.emoji} ${d.label}）`,'g');
+      } else {
+        // 紅綠燈
+        G.grid[r][c]=dirMap[_selectedDir];
+        addLog(`🚦 紅綠燈 (${r+1},${c+1}) → ${d.emoji} ${d.label}`,'g');
+      }
     } else {
-      G.grid[r][c]='logistics_right';
+      // 取消預設
+      if(cur==='transfer_hub'){
+        G.grid[r][c]='logistics_right';
+      } else if(cur==='logistics_hub'){
+        G.grid[r][c]='logistics_center';
+        if(!G.cellRedirectDir) G.cellRedirectDir={};
+        G.cellRedirectDir[`${r},${c}`]='right';
+      }
+      // 紅綠燈未選：保持原物流站方向不動
     }
     render();
   };
@@ -9582,7 +9690,9 @@ function showTransferHubDirPicker(r,c,onDone){
     document.removeEventListener('keydown',_escPicker);
     document.removeEventListener('click',_clickClose);
     _transferPickerCleanup=null;
+    const wasCancelled=(_selectedDir===null);
     _finalize();
+    if(wasCancelled&&typeof onCancel==='function') onCancel();
     if(typeof onDone==='function') setTimeout(onDone,0);
   };
   const _escPicker=(e)=>{ if(e.key==='Escape') _cleanup(); };
