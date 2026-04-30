@@ -4070,8 +4070,13 @@ const CONTRACTS = {
     hooks: {
       onTurnStart(G, ac){
         if(!G.partners || G.partners.length === 0) return;
-        const idx = Math.floor(Math.random() * G.partners.length);
-        const removed = G.partners.splice(idx, 1)[0];
+        // 排除惡魔巨人本人，避免使其自我消除
+        const candidates = G.partners.filter(p=>p!=='demon_giant');
+        if(candidates.length === 0) return;
+        const removed = candidates[Math.floor(Math.random() * candidates.length)];
+        const idx = G.partners.indexOf(removed);
+        if(idx < 0) return;
+        G.partners.splice(idx, 1);
         const p = PARTNERS[removed];
         addLog(`📜 惡魔合約：失去 ${p?p.emoji+p.name:removed}`,'b');
         if(typeof renderPartners === 'function') renderPartners();
@@ -6564,6 +6569,13 @@ function showDemonGiantChooser(candidates){
 }
 
 function demonGiantDestroy(pid){
+  // 防呆：永不消除自身
+  if(pid==='demon_giant'){
+    addLog('👹 惡魔巨人：不能消滅自己','b');
+    G._giantSecondKillPending=false;
+    startTurn();
+    return;
+  }
   const p = PARTNERS[pid];
   G.partners = G.partners.filter(x=>x!==pid);
   if(p) addLog(`👹 惡魔巨人：${p.emoji}${p.name} 被消滅！`,'b');
