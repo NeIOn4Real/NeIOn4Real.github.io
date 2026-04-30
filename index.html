@@ -1298,10 +1298,10 @@ body { padding-bottom: 150px; }
   transform: translateY(-6px) scale(1.01);
 }
 
-/* 立繪顯隱切換鈕：吸附在立繪左緣中段，隱藏狀態下移到視窗右邊緣 */
+/* 立繪顯隱切換鈕：永遠貼在視窗底部、立繪左緣；隱藏狀態下滑到視窗右邊緣 */
 #char-toggle {
   position: fixed;
-  bottom: 28vh;
+  bottom: 8px;
   right: var(--char-w);
   z-index: 55;
   width: 16px;
