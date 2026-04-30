@@ -13,10 +13,12 @@
   --money:#b06000;--mat:#7a4e1a;--goods:#2a6e3a;
   --acc:#b33a00;--blue:#1a4e7a;--green:#2a7a3a;--red:#c0392b;
   --cell:66px;--r:10px;
+  --char-w:clamp(220px,22vw,360px); /* 立繪預留寬度，body / 手牌區同步避讓 */
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--tx);
   min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px;
+  padding-right:calc(12px + var(--char-w)); /* 右側預留立繪空間，內容靠左 */
   background-image:repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(80,55,20,.03) 40px,rgba(80,55,20,.03) 41px),
     repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(80,55,20,.03) 40px,rgba(80,55,20,.03) 41px);}
 
@@ -1003,30 +1005,15 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 /* ══ 扇形手牌系統 ══ */
 #hand-fan-area {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
+  bottom: 0; left: 0; right: var(--char-w);
   height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
   z-index: 60;
-  overflow: visible;
-}
-/* 米色漸層底色用 ::before 載入，並在右側立繪區域漸隱避免蓋住人物 */
-#hand-fan-area::before {
-  content: '';
-  position: absolute;
-  inset: 0;
   background: linear-gradient(to top, rgba(244,239,229,0.98) 75%, transparent);
-  -webkit-mask-image: linear-gradient(to right,
-    black 0,
-    black calc(100% - clamp(276px, 27.6vw, 437px)),
-    transparent calc(100% - clamp(276px, 27.6vw, 437px) + 40px));
-  mask-image: linear-gradient(to right,
-    black 0,
-    black calc(100% - clamp(276px, 27.6vw, 437px)),
-    transparent calc(100% - clamp(276px, 27.6vw, 437px) + 40px));
-  pointer-events: none;
+  overflow: visible;
 }
 
 /* 卡牌基底 */
@@ -1230,7 +1217,7 @@ body { padding-bottom: 150px; }
   right: -5px;
   z-index: 50;
   pointer-events: none;
-  width: clamp(276px, 27.6vw, 437px);
+  width: var(--char-w);
   display: flex;
   justify-content: flex-end;
   align-items: flex-end;
@@ -1240,7 +1227,7 @@ body { padding-bottom: 150px; }
 #char-bubble {
   position: fixed;
   right: 6px;
-  bottom: min(calc(clamp(276px, 27.6vw, 437px) * 1.5), 92vh);
+  bottom: min(calc(var(--char-w) * 1.5), 92vh);
   max-width: 240px;
   background: #fff;
   border: 2px solid var(--br2);
