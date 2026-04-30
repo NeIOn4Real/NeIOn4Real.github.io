@@ -3827,13 +3827,19 @@ const CONTRACTS = {
       let zeroed = 0;
       for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
         const ids=[G.grid[r][c], ...(typeof getOverlays==='function'?getOverlays(r,c):[])];
+        const k=`${r},${c}`;
         ids.forEach(id=>{
           if(!id||id==='ruin') return;
           if(typeof isDurabilityTracked==='function' && !isDurabilityTracked(id)) return;
-          if(!dur[`${r},${c}`]) dur[`${r},${c}`]={};
-          if(dur[`${r},${c}`][id]!==0){
-            dur[`${r},${c}`][id] = 0;
+          if(!dur[k]) dur[k]={};
+          if(dur[k][id]!==0){
+            dur[k][id] = 0;
             zeroed++;
+            // 強制歸零：同步清除 recovering 旗標，避免 cur=0 + recovering 旗標的 desync
+            if(G.facilityRecovering&&G.facilityRecovering[k]&&G.facilityRecovering[k][id]){
+              delete G.facilityRecovering[k][id];
+              if(Object.keys(G.facilityRecovering[k]).length===0) delete G.facilityRecovering[k];
+            }
             if(G.grid[r]&&G.grid[r][c]===id&&typeof _flashDurabilityPip==='function'){
               setTimeout(()=>_flashDurabilityPip(r,c,id,'down'),50);
             }
@@ -4124,7 +4130,7 @@ const CONTRACTS = {
         // 觸發 onLose 邏輯前先 cap：直接呼叫 cap 流程的話需先 filter 掉再讀取上限
         G.partners = G.partners.filter(p=>p!=='facility_maintainer');
         addLog('🥀 衰敗：失去合夥人「設施維護工」','b');
-        // 失去後，超過新上限的耐用值降回新上限
+        // 失去後，超過新上限的耐用值降回新上限；同步清除已達 max 的 recovering 旗標
         const dur=G.facilityDurability||{};
         Object.keys(dur).forEach(k=>{
           const cellMap=dur[k]; if(!cellMap) return;
@@ -4132,6 +4138,12 @@ const CONTRACTS = {
             const max=getDurabilityMax(bId);
             if(typeof cellMap[bId]==='number'&&cellMap[bId]>max){
               cellMap[bId]=max;
+            }
+            // cap 後或本來就已 ≥ max → 清除可能殘留的 recovering 旗標
+            if(typeof cellMap[bId]==='number'&&cellMap[bId]>=max
+               && G.facilityRecovering&&G.facilityRecovering[k]&&G.facilityRecovering[k][bId]){
+              delete G.facilityRecovering[k][bId];
+              if(Object.keys(G.facilityRecovering[k]).length===0) delete G.facilityRecovering[k];
             }
           });
         });
@@ -5127,6 +5139,10 @@ function _processMobileBreedCity(){
   // 每個 MBC 獨立判斷 dur>0
   mbcCells.forEach(([mr,mc])=>{
     const mk=`${mr},${mc}`;
+    // 防呆：前一輪迴圈中若有 MBC 因衰敗合約被 destroyFacility 清除，跳過 stale 條目
+    const stillHasMBC=(G.grid[mr]&&G.grid[mr][mc]==='mobile_breed_city')
+      || (typeof getOverlays==='function' && getOverlays(mr,mc).includes('mobile_breed_city'));
+    if(!stillHasMBC) return;
     const mDur=(G.facilityDurability&&G.facilityDurability[mk]&&G.facilityDurability[mk]['mobile_breed_city']);
     const mCur=(typeof mDur==='number')?mDur:getDurabilityMax('mobile_breed_city');
     if(mCur<=0) return; // 歸零時整個效果不發動
@@ -6729,10 +6745,22 @@ function tryPlaceAtCell(r,c,bldgId){
       return false;
     }
     if(!handItem||handItem.count<=0) return false;
-    handItem.count--;
-    // 恢復該格 base + 所有 overlay 的耐用值至上限
+    // 預先掃描：若所有目標皆已滿耐用，拒絕放置避免浪費卡片
     const k=`${r},${c}`;
     const targets=[cur, ...getOverlays(r,c)];
+    const needsHeal=targets.some(id=>{
+      if(typeof isDurabilityTracked==='function' && !isDurabilityTracked(id)) return false;
+      const max=getDurabilityMax(id);
+      const v=G.facilityDurability && G.facilityDurability[k] && G.facilityDurability[k][id];
+      const before=(typeof v==='number') ? v : max;
+      return before<max;
+    });
+    if(!needsHeal){
+      addLog('🛠️ 傳統生產線：該格設施已是滿耐用，無需修復','b');
+      return false;
+    }
+    handItem.count--;
+    // 恢復該格 base + 所有 overlay 的耐用值至上限
     let healed=0;
     targets.forEach(id=>{
       if(typeof isDurabilityTracked==='function' && !isDurabilityTracked(id)) return;
@@ -6747,7 +6775,7 @@ function tryPlaceAtCell(r,c,bldgId){
         healed++;
       }
     });
-    addLog(`🛠️ 傳統生產線 (${r+1},${c+1})：完全修復 ${healed||1} 個設施的耐用值`,'g');
+    addLog(`🛠️ 傳統生產線 (${r+1},${c+1})：完全修復 ${healed} 個設施的耐用值`,'g');
     if(typeof renderFanHand==='function') renderFanHand();
     render();
     return true;
@@ -13723,8 +13751,14 @@ function deserializeGame(save){
   delete data._freeMoveLogistics; delete data._freeMoveLogisticsSrc;
   delete data._mobileCityMode; delete data._mobileCitySrc; delete data._mobileCityUsedThisTurn; delete data._ruinPassedThisTurn;
   delete data._omniDragging; delete data._omniGainedThisTurn; delete data._dispatchHqFiredThisTurn;
+  // freeRearrange + invest 特例：phase='place' 但已投入完成；存檔時 freeRearrange 會被重置為 false（line above），
+  // 若不處理會造成 _turnInvested 被清掉 → 結束回合按鈕鎖死。一律 cap 為 'done' 以收尾。
+  if(data.phase==='place' && data._turnInvested && !data._extraUsePhase){
+    data.phase='done';
+  }
   // _turnInvested 只在 phase='done' 時有意義（代表本回合已投入），保留以確保按鈕可用
   if(data.phase!=='done') delete data._turnInvested;
+  delete data._giantSecondKillPending; // 巨人合約第二殺中段旗標：載入時不應殘留
   delete data._demoExpertMode; delete data._yongqingSellMode; delete data._yongqingSellUsed;
   delete data._demolitionRearrange; delete data._laborMinisterUsed; delete data._hrTalentUsedCount;
   delete data._currentEventId; delete data._demolishBureauPending; delete data._dynamicAmpPending; delete data._sendBaselineValue;
