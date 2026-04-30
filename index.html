@@ -13,12 +13,11 @@
   --money:#b06000;--mat:#7a4e1a;--goods:#2a6e3a;
   --acc:#b33a00;--blue:#1a4e7a;--green:#2a7a3a;--red:#c0392b;
   --cell:66px;--r:10px;
-  --char-w:clamp(220px,22vw,360px); /* 立繪預留寬度，body / 手牌區同步避讓 */
+  --char-w:clamp(280px,28vw,440px); /* 立繪預留寬度，body / 手牌區同步避讓 */
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--tx);
   min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px;
-  padding-right:calc(12px + var(--char-w) / 2); /* 右側預留立繪空間的一半，UI 居中偏左但不過度 */
   background-image:repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(80,55,20,.03) 40px,rgba(80,55,20,.03) 41px),
     repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(80,55,20,.03) 40px,rgba(80,55,20,.03) 41px);}
 
@@ -1005,15 +1004,32 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 /* ══ 扇形手牌系統 ══ */
 #hand-fan-area {
   position: fixed;
-  bottom: 0; left: 0; right: calc(var(--char-w) / 2);
+  bottom: 0; left: 0; right: 0;
   height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
   z-index: 60;
-  background: linear-gradient(to top, rgba(244,239,229,0.98) 75%, transparent);
   overflow: visible;
+}
+/* 漸層底色用 ::before 載入並水平 mask 至中央，避免蓋住兩側面板（提示）與右下立繪 */
+#hand-fan-area::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(244,239,229,0.98) 75%, transparent);
+  -webkit-mask-image: linear-gradient(to right,
+    transparent 0,
+    black 30%,
+    black 70%,
+    transparent 100%);
+  mask-image: linear-gradient(to right,
+    transparent 0,
+    black 30%,
+    black 70%,
+    transparent 100%);
+  pointer-events: none;
 }
 
 /* 卡牌基底 */
@@ -1213,7 +1229,7 @@ body { padding-bottom: 150px; }
 /* 拖曳卡片時不裁切/淡出立繪，僅靠 z-index 分層讓手牌與投入箭頭(.dbtn z70)位於立繪上方。 */
 #char-tray {
   position: fixed;
-  bottom: 0;
+  bottom: -10vh; /* 腿部沒入畫面下緣 */
   right: -5px;
   z-index: 50;
   pointer-events: none;
@@ -1227,7 +1243,8 @@ body { padding-bottom: 150px; }
 #char-bubble {
   position: fixed;
   right: 6px;
-  bottom: min(calc(var(--char-w) * 1.5), 92vh);
+  /* 跟隨 #char-tray bottom: -10vh 的偏移，使泡泡仍對準頭部上方 */
+  bottom: min(calc(var(--char-w) * 1.5 - 10vh), 92vh);
   max-width: 240px;
   background: #fff;
   border: 2px solid var(--br2);
@@ -1269,9 +1286,7 @@ body { padding-bottom: 150px; }
 /* 人物發光效果 */
 #char-tray img {
   display: block;
-  max-width: 100%;
-  max-height: 100vh;
-  width: auto;
+  width: 100%;
   height: auto;
   pointer-events: auto;
   cursor: pointer;
