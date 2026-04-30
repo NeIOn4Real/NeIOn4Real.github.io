@@ -5201,19 +5201,20 @@ Session 41 的耐用值系統已能透過機制本身鼓勵玩家變更產線（
 
 ## Session 44（2026-05-01）— 蕾雅疊加修復破損耐用 + UI 版面靠左 + 立繪縮小
 
-### A. 蕾雅疊加恢復破損耐用
+### A. 耐用值修復來源擴充（蕾雅疊加 + 人材投入）
 
-**設計**：當蕾雅將同 id 設施疊加於耐用值已耗盡（`cur===0`）的格子時，恢復一半耐用值（`Math.ceil(max/2)`）並進入 recovering 狀態。
+抽出通用 helper `_restoreDurabilityBy(r,c,bldgId,amount)`，集中處理：cap 至上限、0→正進 recovering、回滿離開 recovering、觸發綠色脈動。
 
-**位置**：
-- 新增 helper `_leyaRestoreDurabilityIfBroken(r,c,bldgId)`（`index.html:4910–4928`）
-- 在通用蕾雅疊加路徑（`tryPlaceAtCell` ~6582 行）`bldgUpgrades+=2` 之後呼叫
-- `dept_store` 蕾雅疊加路徑不需要：`isLarge` 不追蹤耐用值
+**蕾雅疊加修復破損耐用**：
+- `_leyaRestoreDurabilityIfBroken(r,c,bldgId)` 改為呼叫 `_restoreDurabilityBy`，amount = `Math.ceil(max/2)`
+- 僅在 `cur===0` 觸發；非破損狀態下疊加不影響耐用（避免變成主動回復神技）
+- 通用蕾雅疊加路徑（`tryPlaceAtCell` ~6582 行）`bldgUpgrades+=2` 後呼叫
+- `dept_store` 蕾雅疊加不需要（`isLarge` 不追蹤耐用值）
 
-**行為**：
-- 僅在 `cur===0` 觸發；非破損狀態下蕾雅疊加無耐用變化（避免疊加變成主動回復神技）
-- 從 0 拉回 ~半條 → 進入 recovering 視覺狀態 + log「蕾雅修復耐用」+ 綠色脈動動畫
-- 後續若繼續被命中或回滿，離開 recovering 的邏輯與既有路徑共用
+**人材投入修復耐用**：
+- 在 `_runTalentInvestSideEffects()` 末尾呼叫 `_restoreDurabilityBy(r,c,baseBldgId,1)`
+- 每次人材投入 +1 點，cap 至上限；批量投入時每張各 +1
+- 等於將人材投入定位為「同時強化（cellMods +1 本回合）+ 維護（耐用 +1 永久）」的雙效作用
 
 ### B. UI 整體靠左 + 立繪縮小
 

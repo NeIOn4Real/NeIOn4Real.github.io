@@ -4906,22 +4906,45 @@ function _processDurabilityRecovery(){
   });
   G._turnDurHitSet={};
 }
+// 通用耐用值修復：將 (r,c,bldgId) 的耐用 +amount，cap 至上限；同步維護 recovering 旗標與動畫
+// 回傳實際變化值（=0 表沒變）
+function _restoreDurabilityBy(r,c,bldgId,amount){
+  if(!isDurabilityTracked(bldgId)||amount<=0) return 0;
+  const k=`${r},${c}`;
+  if(!G.facilityDurability) G.facilityDurability={};
+  if(!G.facilityDurability[k]) G.facilityDurability[k]={};
+  const max=getDurabilityMax(bldgId);
+  const cur=(typeof G.facilityDurability[k][bldgId]==='number')
+    ? G.facilityDurability[k][bldgId] : max;
+  const next=Math.min(max,cur+amount);
+  if(next===cur) return 0;
+  G.facilityDurability[k][bldgId]=next;
+  // 0→正：進入 recovering
+  if(cur===0){
+    if(!G.facilityRecovering) G.facilityRecovering={};
+    if(!G.facilityRecovering[k]) G.facilityRecovering[k]={};
+    G.facilityRecovering[k][bldgId]=true;
+  }
+  // 回滿：離開 recovering
+  if(next>=max&&G.facilityRecovering&&G.facilityRecovering[k]){
+    delete G.facilityRecovering[k][bldgId];
+    if(Object.keys(G.facilityRecovering[k]).length===0) delete G.facilityRecovering[k];
+  }
+  if(G.grid[r]&&G.grid[r][c]===bldgId){
+    setTimeout(()=>_flashDurabilityPip(r,c,bldgId,'up'),50);
+  }
+  return next-cur;
+}
 // 蕾雅疊加：若該 (r,c, bldgId) 耐用值已耗盡（=0），恢復一半（向上取整）並進入 recovering 狀態
 function _leyaRestoreDurabilityIfBroken(r,c,bldgId){
   if(!isDurabilityTracked(bldgId)) return;
-  const k=`${r},${c}`;
-  const cellMap=G.facilityDurability&&G.facilityDurability[k];
-  if(!cellMap||typeof cellMap[bldgId]!=='number'||cellMap[bldgId]>0) return;
+  const cellMap=G.facilityDurability&&G.facilityDurability[`${r},${c}`];
+  if(!cellMap||cellMap[bldgId]!==0) return;
   const max=getDurabilityMax(bldgId);
-  const restore=Math.ceil(max/2);
-  cellMap[bldgId]=restore;
-  if(!G.facilityRecovering) G.facilityRecovering={};
-  if(!G.facilityRecovering[k]) G.facilityRecovering[k]={};
-  G.facilityRecovering[k][bldgId]=true;
-  const b=BLDG[bldgId];
-  if(b) addLog(`  🩹 ${b.emoji}${b.name} 蕾雅修復耐用（${restore}/${max}）`,'g');
-  if(G.grid[r]&&G.grid[r][c]===bldgId){
-    setTimeout(()=>_flashDurabilityPip(r,c,bldgId,'up'),50);
+  const delta=_restoreDurabilityBy(r,c,bldgId,Math.ceil(max/2));
+  if(delta>0){
+    const b=BLDG[bldgId];
+    if(b) addLog(`  🩹 ${b.emoji}${b.name} 蕾雅修復耐用（${cellMap[bldgId]}/${max}）`,'g');
   }
 }
 
@@ -11798,6 +11821,9 @@ function _runTalentInvestSideEffects(r, c, silent){
   // 工會合約：累計每格人材投入次數（永久）
   G.cellTalentInvested = G.cellTalentInvested || {};
   G.cellTalentInvested[key] = (G.cellTalentInvested[key]||0) + 1;
+  // 耐用值：人材投入恢復 +1（cap 至上限）
+  const _bIdNow = G.grid[r] && G.grid[r][c];
+  if(_bIdNow) _restoreDurabilityBy(r, c, _bIdNow, 1);
   if(!silent){
     const b = BLDG[G.grid[r][c]];
     addLog(`🧑‍💼 人材強化 ${b.emoji}${b.name}！本回合 +1`,'g');
