@@ -5226,3 +5226,48 @@ Session 41 的耐用值系統已能透過機制本身鼓勵玩家變更產線（
 - `#hand-fan-area` `right: 0` 改為 `right: var(--char-w)`，移除上版的 `::before` mask（不再需要）
 - `#char-tray` 寬度與 `#char-bubble` 的 `bottom` 計算統一改用 `var(--char-w)`
 
+---
+
+## Session 45（2026-05-01）— 新合夥人/設施/合約（耐用值流派擴充）
+
+依「超賺.xlsx」對照表新增 1 合夥人、2 設施、2 合約，圍繞耐用值機制延伸出新的策略選擇。
+
+### A. 新合夥人
+
+**設施維護工**（R，🛠️，basic 詞條）：
+- 效果：所有設置在小鎮的非大型設施 +2 耐用上限
+- `getDurabilityMax(bldgId)` 在 `hasPartner('facility_maintainer')` 且非 `isLarge` 時 base+=2
+- `onRecruit` 一次性把已存在設施的耐用 +2（cap 至新上限）
+- 失去後（衰敗合約 / 惡魔巨人）：超過新上限的耐用值降回新上限
+
+### B. 新設施
+
+**傳統生產線**（N，🛠️，basic）— `SHOP_ONLY_FACILITIES`：
+- 只在「商店」出現，不進通用抽選池
+- 拖曳到非廢墟、非大型 part、非大型設施的格子上 → 完全恢復該格 base+overlay 所有 bldgId 的耐用值，消耗自身（不留在格子上）
+- 拖曳預覽：藍綠色高亮（`outline:#3b8`）區別於貨櫃屋紅色與紅綠燈綠色
+
+**機動增殖都市**（SR，🏙️，basic）— 一般設施可進池：
+- `_processMobileBreedCity()` 於 startTurn 在 `_processDurabilityRecovery` 之後執行
+- 每個 MBC 個體獨立判斷：dur>0 時，使其他所有可追蹤設施 +1 耐用、自身 -1；dur=0 時整個效果不發動
+- 同格內的同 bldgId（自己）跳過，但同格其他 bldgId 仍算「其他」並受惠
+
+### C. 新合約
+
+**分工**（r2 池，🧩）：
+- 立即收益 +10
+- 擔保：本輪結算前小鎮中沒有設施耐用歸零
+- 違約：所有可追蹤設施耐用立即歸零（觸發紅色 dur-shake 動畫）
+- `checkProgress` 掃描可追蹤設施計算未破損數量與總數，UI 顯示 `已存活/總數`
+
+**衰敗**（r6 池，🥀，permanent）：
+- `onAccept`：失去合夥人「設施維護工」（如有），並把超出新上限的耐用值降回新上限
+- 永久效果：耐用值歸零的設施永久從小鎮清除
+- `consumeDurability` 內 `next===0` 時檢查 `hasActiveContract('decay_contract')`：base 呼叫 `destroyFacility`，overlay 從 overlay 列表移除 + 清除耐用/recovering 資料
+- `_processMobileBreedCity` 自我衰退至 0 也觸發此清除（讓 MBC 在衰敗合約下成為定時炸彈）
+
+### 共用 helper 重用
+
+- `_restoreDurabilityBy(r,c,bldgId,amount)` 為主要的「補耐用」入口，被傳統生產線、機動增殖都市、人材投入、蕾雅修復共用
+- 衰敗合約的耐用歸零→消滅邏輯只在 `consumeDurability` 與 `_processMobileBreedCity` 兩處攔截，避免散落各處
+

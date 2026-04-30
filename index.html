@@ -2368,6 +2368,8 @@ const BLDG = {
   container_house:      { name:'貨櫃屋', emoji:'🚛', desc:'僅能重疊在已有設施的格子上（不可用於不可消滅設施與大型 2×2 部分格）。將重疊的格子上的所有設施都回到手牌，每加入手牌一張設施，你獲得收益 -2。重疊後消耗自身（不留在手牌）。', req:null, out:null, fn:v=>v, special:'container_house' },
   worker_brother_house: { name:'勞工兄弟屋', emoji:'🏘', desc:'回合結束時，清除自身。獲得人材 +2。', req:'any', out:null, fn:v=>v, special:'worker_brother_house' },
   traffic_light:        { name:'紅綠燈', emoji:'🚦', desc:'只能蓋在物流站上，選擇一個方向，該物流站變成指定的方向。', req:null, out:null, fn:v=>v, special:'traffic_light' },
+  production_line:      { name:'傳統生產線', emoji:'🛠️', desc:'只能蓋在廢墟與大型設施外的其他設施上，使該設施的耐用值完全恢復。消耗自身（不留在手牌）。', req:null, out:null, fn:v=>v, special:'production_line' },
+  mobile_breed_city:    { name:'機動增殖都市', emoji:'🏙️', desc:'這個設施在小鎮上時，每回合使所有其他設施額外恢復一點耐用值。這個設施每回合失去一點耐用值。耐用值歸零時此效果不發動。', req:'any', out:null, fn:v=>v, special:'mobile_breed_city' },
 
   ruin:         { name:'廢墟', emoji:'🏚️', desc:'被消滅的設施殘骸', req:null, out:null, fn:v=>v, isRuin:true },
   envy_factory:{ name:'嫉妒工廠', emoji:'💚', desc:'任意→隨機資源；本回合首個投入此設施時永久獲得投入資源 +4；最終輸出符合此設施輸出時最終收益 +8（效果永久 +8）', req:'any', out:null, fn:v=>v, special:'envy' },
@@ -3346,6 +3348,26 @@ const PARTNERS = {
       updateCard(G.card);
     },
   },
+  facility_maintainer: {
+    id:'facility_maintainer', name:'設施維護工', emoji:'🛠️',
+    pos:'所有設置在小鎮的非大型設施獲得額外兩點耐用值上限。',
+    neg:'無', desc:'設施維護工',
+    onRecruit(G){
+      // 招募當下：把已設置的非大型設施耐用 +2（cap 至新上限）
+      const dur=G.facilityDurability||{};
+      Object.keys(dur).forEach(k=>{
+        const cellMap=dur[k]; if(!cellMap) return;
+        Object.keys(cellMap).forEach(bId=>{
+          if(typeof isDurabilityTracked==='function'&&!isDurabilityTracked(bId)) return;
+          const max=getDurabilityMax(bId); // 含 +2 之後的新上限
+          if(typeof cellMap[bId]==='number'){
+            cellMap[bId]=Math.min(max,cellMap[bId]+2);
+          }
+        });
+      });
+      addLog('🛠️ 設施維護工：所有非大型設施耐用上限 +2','g');
+    },
+  },
 };
 
 // ══════════════════════════════════════
@@ -3357,13 +3379,13 @@ const CONTRACT_TRIGGER_ROUNDS = [2, 4, 6];
 const CONTRACT_POOLS = {
   r2: ['shop_invested','shop_distinct','factory_invested','factory_distinct',
        'matfac_invested','matfac_distinct','accumulate',
-       'farm_focus','industry_focus','commerce_focus','burst','evolve'],
+       'farm_focus','industry_focus','commerce_focus','burst','evolve','segregation_contract'],
   // 第 4 輪：6 張 R2 dupes + 6 張新合約
   r4: ['accumulate','farm_focus','industry_focus','commerce_focus','burst','evolve',
        'transport_contract','tectonic_contract','barren_contract','employee_contract','expand_contract','electrode_contract'],
   // 第 6 輪：8 張新合約 + 暗叫
   r6: ['crowd_contract','real_estate_contract','production_contract','giant_contract',
-       'terminal_contract','sisters_contract','demon_pact_contract','union_pact_contract','hidden_call']
+       'terminal_contract','sisters_contract','demon_pact_contract','union_pact_contract','hidden_call','decay_contract']
 };
 // 查詢是否持有某合約（用於 runtime 渲染與點擊處理檢查永久效果）
 function hasActiveContract(contractId){
@@ -3718,6 +3740,59 @@ const CONTRACTS = {
     },
     onFail(G, ac){ _contractClearAllFacilitiesAndGiveBasics(); }
   },
+  segregation_contract: {
+    id:'segregation_contract', name:'分工', emoji:'🧩', pool:'r2', durationOffset:0,
+    immediateText:'立即獲得收益 +10。',
+    guaranteeText:'本輪結算前，小鎮中沒有設施的耐用值歸零。',
+    compensationText:'小鎮中所有設施的耐用值立即歸零。',
+    onAccept(G, ac){
+      G.profit += 10;
+      addLog('📜 分工：立即收益 +10','g');
+      const btn=document.getElementById('btn-contract');
+      if(btn && typeof profitFlyFrom==='function') profitFlyFrom(btn, 10);
+    },
+    checkProgress(G, ac){
+      // 掃描小鎮上所有可追蹤設施，計算未破損的數量
+      const dur = G.facilityDurability || {};
+      let total = 0, alive = 0;
+      const gn = GN();
+      for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+        const ids=[G.grid[r][c], ...(typeof getOverlays==='function'?getOverlays(r,c):[])];
+        ids.forEach(id=>{
+          if(!id||id==='ruin') return;
+          if(typeof isDurabilityTracked==='function' && !isDurabilityTracked(id)) return;
+          total++;
+          const v = dur[`${r},${c}`] && dur[`${r},${c}`][id];
+          // 未追蹤過視為滿（>0）
+          if(typeof v !== 'number' || v > 0) alive++;
+        });
+      }
+      const allAlive = (total === alive);
+      return { label:'未破損的設施', progress: alive, max: Math.max(1,total), done: total>0 && allAlive };
+    },
+    onFail(G, ac){
+      // 所有可追蹤設施耐用值歸零
+      const dur = G.facilityDurability = G.facilityDurability || {};
+      const gn = GN();
+      let zeroed = 0;
+      for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+        const ids=[G.grid[r][c], ...(typeof getOverlays==='function'?getOverlays(r,c):[])];
+        ids.forEach(id=>{
+          if(!id||id==='ruin') return;
+          if(typeof isDurabilityTracked==='function' && !isDurabilityTracked(id)) return;
+          if(!dur[`${r},${c}`]) dur[`${r},${c}`]={};
+          if(dur[`${r},${c}`][id]!==0){
+            dur[`${r},${c}`][id] = 0;
+            zeroed++;
+            if(G.grid[r]&&G.grid[r][c]===id&&typeof _flashDurabilityPip==='function'){
+              setTimeout(()=>_flashDurabilityPip(r,c,id,'down'),50);
+            }
+          }
+        });
+      }
+      addLog(`📜 分工違約：${zeroed} 個設施耐用值歸零`,'b');
+    }
+  },
   // ── 第 4 輪新合約 ──
   transport_contract: {
     id:'transport_contract', name:'交通', emoji:'🚦', pool:'r4', durationOffset:0,
@@ -3982,6 +4057,34 @@ const CONTRACTS = {
       if(typeof render==='function') render();
     }
     // 永久合約：無 checkProgress / onFail；效果由 hasActiveContract('hidden_call') 即時影響渲染與點擊
+  },
+  // ── 第 6 輪：衰敗（純永久效果）──
+  decay_contract: {
+    id:'decay_contract', name:'衰敗', emoji:'🥀', pool:'r6', permanent:true,
+    immediateText:'如果你擁有合夥人「設施維護工」，則你失去它。',
+    guaranteeText:'',
+    compensationText:'如果你的設施耐用值歸零，則永久從小鎮清除它。',
+    onAccept(G, ac){
+      if(hasPartner('facility_maintainer')){
+        // 觸發 onLose 邏輯前先 cap：直接呼叫 cap 流程的話需先 filter 掉再讀取上限
+        G.partners = G.partners.filter(p=>p!=='facility_maintainer');
+        addLog('🥀 衰敗：失去合夥人「設施維護工」','b');
+        // 失去後，超過新上限的耐用值降回新上限
+        const dur=G.facilityDurability||{};
+        Object.keys(dur).forEach(k=>{
+          const cellMap=dur[k]; if(!cellMap) return;
+          Object.keys(cellMap).forEach(bId=>{
+            const max=getDurabilityMax(bId);
+            if(typeof cellMap[bId]==='number'&&cellMap[bId]>max){
+              cellMap[bId]=max;
+            }
+          });
+        });
+        if(typeof renderPartners==='function') renderPartners();
+      }
+      if(typeof render==='function') render();
+    }
+    // 永久合約：耐用歸零的清除效果由 consumeDurability / _processMobileBreedCity 中的 hasActiveContract('decay_contract') 檢查觸發
   }
 };
 
@@ -4711,7 +4814,8 @@ const BLDG_RARITY={
   mat_factory:'N', factory:'N', shop:'N', refinery:'N', warehouse:'N', booster:'N', converter:'N',
   bomb_device:'N',
   // N（商店限定）
-  container_house:'N', worker_brother_house:'N', traffic_light:'N',
+  container_house:'N', worker_brother_house:'N', traffic_light:'N', production_line:'N',
+  mobile_breed_city:'SR',
   // R
   talent_training:'R',
   labor_convert:'R', talent_market:'R', talent_bank:'R', free_market:'R', import_tax:'R',
@@ -4763,6 +4867,7 @@ const PARTNER_RARITY={
   recycle_grandma:'SSR', elec_discharge_demon:'SSR', elec_artisan:'SSR',
   spread_demon:'SSR', demon_giant:'SSR', big_corp:'SSR', human_demon:'SSR',
   omni_accountant:'SSR', uncrowned_king:'SSR',
+  facility_maintainer:'R',
   // 惡魔系（不參與常規招募權重，仍可出現）
   gluttony:'SR', sloth:'SR', lust:'SR', wrath:'SR', envy:'SR', greed:'SR', pride:'SSR',
 };
@@ -4771,7 +4876,7 @@ const PARTNER_RARITY={
 // 排除有 special 的（如 bomb_device）；目前推得 7 項：mat_factory/factory/shop/refinery/warehouse/booster/converter
 const BASIC_FACILITIES=Object.keys(BLDG_RARITY).filter(id=>BLDG_RARITY[id]==='N'&&BLDG[id]&&!BLDG[id].special);
 // 商店限定設施（N，工具型）：只在 doPermShop 商店出現，不會經由其他抽選途徑進手牌
-const SHOP_ONLY_FACILITIES=new Set(['container_house','worker_brother_house','traffic_light']);
+const SHOP_ONLY_FACILITIES=new Set(['container_house','worker_brother_house','traffic_light','production_line']);
 
 function getBldgRarity(id){ return BLDG_RARITY[id]||'N'; }
 function getPartnerRarity(id){ return PARTNER_RARITY[id]||'N'; }
@@ -4784,10 +4889,14 @@ function getNextRarity(r){ const i=RARITY_ORDER.indexOf(r); return i<RARITY_ORDE
 // 從 0 升 1 時進入 recovering 視覺狀態（從破損復活）；回滿或被命中即離開 recovering。
 function getDurabilityMax(bldgId){
   const r=getBldgRarity(bldgId);
-  if(r==='SSR') return 11;
-  if(r==='SR') return 9;
-  if(r==='R') return 7;
-  return 5;
+  let base=5;
+  if(r==='SSR') base=11;
+  else if(r==='SR') base=9;
+  else if(r==='R') base=7;
+  // 設施維護工：非大型設施 +2 上限
+  const b=BLDG[bldgId];
+  if(b&&!b.isLarge&&typeof hasPartner==='function'&&hasPartner('facility_maintainer')) base+=2;
+  return base;
 }
 function isDurabilityTracked(bldgId){
   if(!bldgId||bldgId==='ruin') return false;
@@ -4835,6 +4944,22 @@ function consumeDurability(r,c,bldgId){
   if(next===0){
     const b=BLDG[bldgId];
     addLog(`  💔 ${b.emoji}${b.name} 耐用耗盡 → 暫時無法投入`,'b');
+    // 衰敗合約永久效果：耐用歸零 → 永久從小鎮清除設施
+    if(typeof hasActiveContract==='function' && hasActiveContract('decay_contract')){
+      // 限定 base：base 等於該 bldgId 才呼叫 destroyFacility（會清整格 + KEYED_DATA）
+      // overlay 場景：將該 bldgId 從 overlay 列表中移除
+      const ovs=(typeof getOverlays==='function')?getOverlays(r,c):[];
+      if(G.grid[r]&&G.grid[r][c]===bldgId){
+        addLog(`  📜 衰敗：${b.emoji}${b.name} (${r+1},${c+1}) 耐用歸零，永久清除`,'b');
+        if(typeof destroyFacility==='function') destroyFacility(r,c);
+      } else if(ovs.includes(bldgId)){
+        const newOvs=ovs.filter(id=>id!==bldgId);
+        if(typeof setOverlays==='function') setOverlays(r,c,newOvs);
+        if(G.facilityDurability&&G.facilityDurability[k]) delete G.facilityDurability[k][bldgId];
+        if(G.facilityRecovering&&G.facilityRecovering[k]) delete G.facilityRecovering[k][bldgId];
+        addLog(`  📜 衰敗：疊加層 ${b.emoji}${b.name} (${r+1},${c+1}) 耐用歸零，永久清除`,'b');
+      }
+    }
   }
 }
 // 直接更新 cell 內 .dur-pip 的區段填滿 + class + 觸發動畫，避免等到下一次 render() 才反映
@@ -4934,6 +5059,49 @@ function _restoreDurabilityBy(r,c,bldgId,amount){
     setTimeout(()=>_flashDurabilityPip(r,c,bldgId,'up'),50);
   }
   return next-cur;
+}
+// 機動增殖都市：每回合若 dur>0，其他設施 +1 耐用、自身 -1；dur=0 時不發動
+function _processMobileBreedCity(){
+  const gn=GN();
+  const mbcCells=[];
+  for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+    const ids=[G.grid[r][c], ...getOverlays(r,c)];
+    ids.forEach(id=>{ if(id==='mobile_breed_city') mbcCells.push([r,c]); });
+  }
+  if(mbcCells.length===0) return;
+  // 每個 MBC 獨立判斷 dur>0
+  mbcCells.forEach(([mr,mc])=>{
+    const mk=`${mr},${mc}`;
+    const mDur=(G.facilityDurability&&G.facilityDurability[mk]&&G.facilityDurability[mk]['mobile_breed_city']);
+    const mCur=(typeof mDur==='number')?mDur:getDurabilityMax('mobile_breed_city');
+    if(mCur<=0) return; // 歸零時整個效果不發動
+    // 其他所有可追蹤設施 +1（不含同格的這個 MBC，但同格其他 bldgId 仍算「其他」）
+    for(let r=0;r<gn;r++) for(let c=0;c<gn;c++){
+      const ids=[G.grid[r][c], ...getOverlays(r,c)];
+      ids.forEach(id=>{
+        if(!id||id==='ruin') return;
+        if(r===mr&&c===mc&&id==='mobile_breed_city') return; // 同格的自己跳過
+        if(typeof isDurabilityTracked==='function'&&!isDurabilityTracked(id)) return;
+        _restoreDurabilityBy(r,c,id,1);
+      });
+    }
+    // 自身 -1
+    if(!G.facilityDurability) G.facilityDurability={};
+    if(!G.facilityDurability[mk]) G.facilityDurability[mk]={};
+    const mNext=mCur-1;
+    G.facilityDurability[mk]['mobile_breed_city']=mNext;
+    if(G.grid[mr]&&G.grid[mr][mc]==='mobile_breed_city'){
+      setTimeout(()=>_flashDurabilityPip(mr,mc,'mobile_breed_city','down'),50);
+    }
+    addLog(`🏙️ 機動增殖都市 (${mr+1},${mc+1})：所有其他設施 +1 耐用，自身 -1（剩 ${mNext}）`,'g');
+    // 衰敗合約：自我衰退至 0 也觸發永久清除
+    if(mNext===0 && typeof hasActiveContract==='function' && hasActiveContract('decay_contract')){
+      if(G.grid[mr]&&G.grid[mr][mc]==='mobile_breed_city'){
+        addLog(`  📜 衰敗：🏙️ 機動增殖都市 (${mr+1},${mc+1}) 耐用歸零，永久清除`,'b');
+        if(typeof destroyFacility==='function') destroyFacility(mr,mc);
+      }
+    }
+  });
 }
 // 蕾雅疊加：若該 (r,c, bldgId) 耐用值已耗盡（=0），恢復一半（向上取整）並進入 recovering 狀態
 function _leyaRestoreDurabilityIfBroken(r,c,bldgId){
@@ -5038,6 +5206,7 @@ const TAGS={
   envy_factory:['demon'],
   // 商店限定工具型設施
   container_house:['basic'], worker_brother_house:['basic','hr'], traffic_light:['basic','logistics'],
+  production_line:['basic'], mobile_breed_city:['basic'],
   // ── 合夥人 ──
   // 惡魔系
   poverty_god:['demon'], gluttony:['demon'], sloth:['demon'], lust:['demon'],
@@ -5070,6 +5239,7 @@ const TAGS={
   demon_giant:['large','demon'], big_corp:['large','unique'],
   human_demon:['hr','demon'], clone_master:['hr','unique'],
   goods_buyer:['trade'],
+  facility_maintainer:['basic'],
 };
 const TAG_WEIGHT=0.3; // 每個匹配詞條加 30% 權重（強化既有流派的傾向）
 const TAG_MULTI_MATCH_BOOST=1.5; // 多詞條同時命中時額外乘數
@@ -6494,6 +6664,46 @@ function tryPlaceAtCell(r,c,bldgId){
     return true;
   }
 
+  // 傳統生產線：蓋在非廢墟、非大型 part 的既有設施上 → 完全恢復該格設施所有 bldgId 的耐用值；消耗自身
+  if(bldgId==='production_line'){
+    const cur=G.grid[r][c];
+    if(!cur||cur==='ruin'){
+      addLog('🛠️ 傳統生產線只能蓋在既有設施上','b');
+      return false;
+    }
+    if(cur==='dept_store_part'||cur==='ancient_factory_part'){
+      addLog('🛠️ 傳統生產線不能用於大型設施的 2×2 占位格','b');
+      return false;
+    }
+    if(BLDG[cur]&&BLDG[cur].isLarge){
+      addLog('🛠️ 傳統生產線不能用於大型設施','b');
+      return false;
+    }
+    if(!handItem||handItem.count<=0) return false;
+    handItem.count--;
+    // 恢復該格 base + 所有 overlay 的耐用值至上限
+    const k=`${r},${c}`;
+    const targets=[cur, ...getOverlays(r,c)];
+    let healed=0;
+    targets.forEach(id=>{
+      if(typeof isDurabilityTracked==='function' && !isDurabilityTracked(id)) return;
+      const max=getDurabilityMax(id);
+      if(!G.facilityDurability) G.facilityDurability={};
+      if(!G.facilityDurability[k]) G.facilityDurability[k]={};
+      const before=(typeof G.facilityDurability[k][id]==='number') ? G.facilityDurability[k][id] : max;
+      if(before<max){
+        const delta=max-before;
+        if(typeof _restoreDurabilityBy==='function') _restoreDurabilityBy(r,c,id,delta);
+        else G.facilityDurability[k][id]=max;
+        healed++;
+      }
+    });
+    addLog(`🛠️ 傳統生產線 (${r+1},${c+1})：完全修復 ${healed||1} 個設施的耐用值`,'g');
+    if(typeof renderFanHand==='function') renderFanHand();
+    render();
+    return true;
+  }
+
   // 紅綠燈：只能蓋在物流站上，選方向後該物流站變成指定方向
   if(bldgId==='traffic_light'){
     const cur=G.grid[r][c];
@@ -7158,8 +7368,13 @@ function onCellDragOver(e,r,c){
   const isTrafficLightDrop = bldgDragging==='traffic_light'
     && (G.grid[r][c]==='logistics_up'||G.grid[r][c]==='logistics_down'
         ||G.grid[r][c]==='logistics_left'||G.grid[r][c]==='logistics_right');
+  // 傳統生產線：允許拖到非廢墟、非大型 part 的既有設施上
+  const isProductionLineDrop = bldgDragging==='production_line' && G.grid[r][c]
+    && G.grid[r][c]!=='ruin'
+    && G.grid[r][c]!=='dept_store_part' && G.grid[r][c]!=='ancient_factory_part'
+    && !(existB&&existB.isLarge);
   if(G.grid[r][c] && !isLeyaUpgrade && !isRuinPlace && !isOverlay && !isCenterNetOverlay
-     && !isContainerHouseDrop && !isTrafficLightDrop) return;
+     && !isContainerHouseDrop && !isTrafficLightDrop && !isProductionLineDrop) return;
   e.preventDefault();
   _clearBldgPreview();
   const cellEl=cellQ(r,c);
@@ -7175,6 +7390,10 @@ function onCellDragOver(e,r,c){
     // 紅綠燈：綠色高亮表示「改向」
     cellEl.style.outline='3px solid #5a5';
     cellEl.style.boxShadow='0 0 12px rgba(80,170,80,.5)';
+  } else if(isProductionLineDrop && cellEl){
+    // 傳統生產線：藍綠色高亮表示「修復」
+    cellEl.style.outline='3px solid #3b8';
+    cellEl.style.boxShadow='0 0 12px rgba(60,180,140,.5)';
   } else {
     _insertBldgPreview(cellEl, bldgDragging);
     if(isRuinPlace && cellEl) cellEl.style.outline='3px solid var(--money)';
@@ -9280,6 +9499,8 @@ function startTurn(){
   _lastStartedTurn=turnKey;
   // 耐用值：上一回合結束 → 對所有未被命中且未滿的設施 +1
   _processDurabilityRecovery();
+  // 機動增殖都市：每回合 dur>0 時，其他設施 +1 耐用、自身 -1（dur=0 時不發動）
+  _processMobileBreedCity();
   G.phase='place';
   G._turnPitchOffset = 0; // 每回合音階位移歸零
   G._talentUsedOnElement = false;
