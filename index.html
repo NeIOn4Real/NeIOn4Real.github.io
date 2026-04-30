@@ -1010,8 +1010,23 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
   justify-content: center;
   pointer-events: none;
   z-index: 60;
-  background: linear-gradient(to top, rgba(244,239,229,0.98) 75%, transparent);
   overflow: visible;
+}
+/* 米色漸層底色用 ::before 載入，並在右側立繪區域漸隱避免蓋住人物 */
+#hand-fan-area::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(244,239,229,0.98) 75%, transparent);
+  -webkit-mask-image: linear-gradient(to right,
+    black 0,
+    black calc(100% - clamp(276px, 27.6vw, 437px)),
+    transparent calc(100% - clamp(276px, 27.6vw, 437px) + 40px));
+  mask-image: linear-gradient(to right,
+    black 0,
+    black calc(100% - clamp(276px, 27.6vw, 437px)),
+    transparent calc(100% - clamp(276px, 27.6vw, 437px) + 40px));
+  pointer-events: none;
 }
 
 /* 卡牌基底 */
