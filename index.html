@@ -5153,19 +5153,6 @@ function _processMobileBreedCity(){
     }
   });
 }
-// 蕾雅疊加：若該 (r,c, bldgId) 耐用值已耗盡（=0），恢復一半（向上取整）並進入 recovering 狀態
-function _leyaRestoreDurabilityIfBroken(r,c,bldgId){
-  if(!isDurabilityTracked(bldgId)) return;
-  const cellMap=G.facilityDurability&&G.facilityDurability[`${r},${c}`];
-  if(!cellMap||cellMap[bldgId]!==0) return;
-  const max=getDurabilityMax(bldgId);
-  const delta=_restoreDurabilityBy(r,c,bldgId,Math.ceil(max/2));
-  if(delta>0){
-    const b=BLDG[bldgId];
-    if(b) addLog(`  🩹 ${b.emoji}${b.name} 蕾雅修復耐用（${cellMap[bldgId]}/${max}）`,'g');
-  }
-}
-
 // ── 稀有度×輪數 出現權重 ──
 // 回傳一個 0~1+ 的權重乘數，低輪數壓制高稀有度，高輪數釋放
 // round: 當前輪數
@@ -6878,7 +6865,6 @@ function tryPlaceAtCell(r,c,bldgId){
     const k=`${r},${c}`;
     G.bldgUpgrades[k]=(G.bldgUpgrades[k]||0)+2;
     addLog(`👩‍🔧 蕾雅：${BLDG[bldgId].emoji}${BLDG[bldgId].name} 疊加於 (${r+1},${c+1})，永久+2（共${G.bldgUpgrades[k]}）`,'g');
-    _leyaRestoreDurabilityIfBroken(r,c,bldgId);
     placeEffect(r,c,{overlay:true,bldgId}); render();
     return true;
   }
@@ -9085,8 +9071,14 @@ function finish(el,startVal){
   // ── 大熱波追蹤與檢查 ──
   checkHeatwave();
 
-  G.phase='done';
   G._turnInvested=true; // 旗標：本回合已完成投入（供按鈕容錯）
+  if(G.freeRearrange){
+    // 排列模式中投入：維持 place 階段，讓玩家可繼續拖曳設施；元素卡的 canDrag 會因 _turnInvested 自動失效，避免重複投入
+    G.phase='place';
+    addLog('🔧 排列模式中投入完成，可繼續排列或點「確認排列」結束','g');
+  } else {
+    G.phase='done';
+  }
   updateCard(el);
   render();
 
@@ -11469,7 +11461,8 @@ function renderFanHand() {
   // 3. Element card always last (rightmost)
   if (G.card) {
     const emojis = {money:'💵', material:'🪨', goods:'📦', diamond:'💎'};
-    const canDrag = G.phase === 'place';
+    // 投入後（_turnInvested=true）不能再拖曳，除非處於額外投入階段（人材效果）
+    const canDrag = G.phase === 'place' && (!G._turnInvested || G._extraUsePhase);
     cards.push({
       type: 'element',
       emoji: emojis[G.card.type] || '💵',
