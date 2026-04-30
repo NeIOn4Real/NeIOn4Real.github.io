@@ -4906,6 +4906,24 @@ function _processDurabilityRecovery(){
   });
   G._turnDurHitSet={};
 }
+// 蕾雅疊加：若該 (r,c, bldgId) 耐用值已耗盡（=0），恢復一半（向上取整）並進入 recovering 狀態
+function _leyaRestoreDurabilityIfBroken(r,c,bldgId){
+  if(!isDurabilityTracked(bldgId)) return;
+  const k=`${r},${c}`;
+  const cellMap=G.facilityDurability&&G.facilityDurability[k];
+  if(!cellMap||typeof cellMap[bldgId]!=='number'||cellMap[bldgId]>0) return;
+  const max=getDurabilityMax(bldgId);
+  const restore=Math.ceil(max/2);
+  cellMap[bldgId]=restore;
+  if(!G.facilityRecovering) G.facilityRecovering={};
+  if(!G.facilityRecovering[k]) G.facilityRecovering[k]={};
+  G.facilityRecovering[k][bldgId]=true;
+  const b=BLDG[bldgId];
+  if(b) addLog(`  🩹 ${b.emoji}${b.name} 蕾雅修復耐用（${restore}/${max}）`,'g');
+  if(G.grid[r]&&G.grid[r][c]===bldgId){
+    setTimeout(()=>_flashDurabilityPip(r,c,bldgId,'up'),50);
+  }
+}
 
 // ── 稀有度×輪數 出現權重 ──
 // 回傳一個 0~1+ 的權重乘數，低輪數壓制高稀有度，高輪數釋放
@@ -6577,6 +6595,7 @@ function tryPlaceAtCell(r,c,bldgId){
     const k=`${r},${c}`;
     G.bldgUpgrades[k]=(G.bldgUpgrades[k]||0)+2;
     addLog(`👩‍🔧 蕾雅：${BLDG[bldgId].emoji}${BLDG[bldgId].name} 疊加於 (${r+1},${c+1})，永久+2（共${G.bldgUpgrades[k]}）`,'g');
+    _leyaRestoreDurabilityIfBroken(r,c,bldgId);
     placeEffect(r,c,{overlay:true,bldgId}); render();
     return true;
   }

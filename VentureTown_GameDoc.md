@@ -5197,3 +5197,31 @@ Session 41 的耐用值系統已能透過機制本身鼓勵玩家變更產線（
 - `recovering` 視覺旗標仍保留：僅在「從 0 升 1」時設置，0→1 仍會 log「開始恢復」並走綠色脈動動畫；回滿或被命中即離開 recovering
 - 設計效果：玩家暫停某設施一回合即可回 1 點，無需等到完全 broken 才恢復；策略上更鼓勵主動輪替而非「打到歸 0 → 強制冷卻」
 
+---
+
+## Session 44（2026-05-01）— 蕾雅疊加修復破損耐用 + UI 版面靠左 + 立繪縮小
+
+### A. 蕾雅疊加恢復破損耐用
+
+**設計**：當蕾雅將同 id 設施疊加於耐用值已耗盡（`cur===0`）的格子時，恢復一半耐用值（`Math.ceil(max/2)`）並進入 recovering 狀態。
+
+**位置**：
+- 新增 helper `_leyaRestoreDurabilityIfBroken(r,c,bldgId)`（`index.html:4910–4928`）
+- 在通用蕾雅疊加路徑（`tryPlaceAtCell` ~6582 行）`bldgUpgrades+=2` 之後呼叫
+- `dept_store` 蕾雅疊加路徑不需要：`isLarge` 不追蹤耐用值
+
+**行為**：
+- 僅在 `cur===0` 觸發；非破損狀態下蕾雅疊加無耐用變化（避免疊加變成主動回復神技）
+- 從 0 拉回 ~半條 → 進入 recovering 視覺狀態 + log「蕾雅修復耐用」+ 綠色脈動動畫
+- 後續若繼續被命中或回滿，離開 recovering 的邏輯與既有路徑共用
+
+### B. UI 整體靠左 + 立繪縮小
+
+**動機**：先前立繪在大寬度視窗下佔據右側空間，導致 UI 中心偏右、台詞泡泡可能被裁切。
+
+**改動**（`index.html`）：
+- 新增 CSS 變數 `--char-w: clamp(220px, 22vw, 360px)`（原 276–437px ≈ 縮小至 80%）
+- `body` 加 `padding-right: calc(12px + var(--char-w))`，讓 `align-items:center` 把 `#hdr`/`#ev-banner`/`#main` 自然居中於左側可用區
+- `#hand-fan-area` `right: 0` 改為 `right: var(--char-w)`，移除上版的 `::before` mask（不再需要）
+- `#char-tray` 寬度與 `#char-bubble` 的 `bottom` 計算統一改用 `var(--char-w)`
+
