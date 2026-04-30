@@ -391,7 +391,7 @@ python <generate_xlsx_script>
 
 ## 事件系統
 
-每 3 回合觸發一次隨機事件（共 19 種），預告時即以藍色輪廓標示受影響格子（`event-preview`）。事件受影響區域在預告時即透過 `precomputeEventData()` 預先決定並儲存於 `G.nextEventData`。事件抽選使用加權系統（`pickNextEvent()`），莫菲定律權重根據玩家行為動態調整。
+每 3 回合觸發一次隨機事件（共 19 種），預告時即以藍色輪廓標示受影響格子（`event-preview`）。事件受影響區域在預告時即透過 `precomputeEventData()` 預先決定並儲存於 `G.nextEventData`。事件抽選為等權重隨機（`pickNextEvent()`），所有事件（含莫菲定律）皆從同一池中均等抽取。
 
 ### 事件列表
 | 事件 | id | 效果 | 預告高亮 |
@@ -416,12 +416,10 @@ python <generate_xlsx_script>
 | 🔀 莫菲定律 | murphy | 所有設施隨機打亂位置，獲得 2 張複合設施 | 所有設施格 |
 | 💼 就業輔助 | job_assist | 獲得目標 20% 收益 | 無 |
 
-### 莫菲定律權重系統
-- 基礎權重 1，其他事件權重均為 1
-- 玩家連續從相同方向+位置投入 3+ 次時，每多一次 +3 權重
-- 玩家連續 3+ 回合未移動設施時，每多一回合 +2 權重
-- 觸發後權重追蹤重置，避免連續觸發
-- 觸發後下次事件限定為：設施補給、地震、就業輔助、蕾雅的禮物
+### 莫菲定律
+- 等權重事件之一，僅透過市場事件池隨機觸發
+- 觸發時打亂所有設施位置並提供 2 張保證複合設施作為補償
+- 不再有額外觸發路徑（合約、權重、未移動偵測等）；耐用值機制已取代「強制讓玩家變更產線」的設計需求
 
 ---
 
@@ -504,8 +502,6 @@ python <generate_xlsx_script>
 | `logisticsVault` | 物流倉儲存值 `{'r,c': value}` |
 | `cellOverlay` | 物流之王/倉儲女王疊加設施 `{'r,c': bldgId}` |
 | `partnerState` | 合夥人專屬狀態 `{partnerId: any}` |
-| `_murphyTrack` | 莫菲定律權重追蹤 `{lastSend, repeatCount, noMove}` |
-| `_murphyNextPool` | 莫菲觸發後下次事件限定池 flag |
 | `_eventDeferred` | 跨輪未觸發事件延遲次數 |
 | `_futuresMoveNext` | 期貨交易所下回合需移動列表 `[{r,c}]` |
 | `_landSpecStale` | 地皮炒家設施未移動回合計數 `{'r,c': count}` |
@@ -541,7 +537,7 @@ python <generate_xlsx_script>
 - **Phase 保護**：resume/import 時非 `place` phase 強制重置
 
 ### 跨回合狀態（持久保留）
-`demolitionCharges`、`_murphyTrack`、`_murphyNextPool`、`_eventDeferred`、`_futuresMoveNext`、`_landSpecStale`、`partnerState`、`eventTriggerCounts`、`roundHistory`、`difficultyMult`
+`demolitionCharges`、`_eventDeferred`、`_futuresMoveNext`、`_landSpecStale`、`partnerState`、`eventTriggerCounts`、`roundHistory`、`difficultyMult`
 
 ### 共用常數
 `KEYED_DATA_FIELDS`：8 個需隨設施位置轉移的鍵值欄位，供 `swapCellData`/地震/期貨移動共用
@@ -4431,7 +4427,7 @@ desc：「周圍 4 格每有 1 個**設施** +2」（per-cell），但 `countAdj
 ### C. 第 4 輪池（12 張）
 - **6 dupes**（與第 2 輪共用 id）：accumulate / farm_focus / industry_focus / commerce_focus / burst / evolve
 - **6 新合約**：
-  - **交通**：沒拆遷隊則贈送；本輪 ≥2 次轉向；違約觸發莫菲定律 + 消滅所有物流中心
+  - **交通**：沒拆遷隊則贈送；本輪 ≥2 次轉向；違約消滅所有物流中心
   - **板塊（永久）**：贈送動態加強器；每回合 onTurnStart 觸發地震事件
   - **荒蕪**：下次商店 5 張全免費；本輪 ≥4 廢墟；違約：4 格設施變爆破裝置
   - **員工**：+10 人材；本輪 ≥50 人材歷史最高；違約：缺多少從手牌資源扣多少
@@ -5163,4 +5159,32 @@ if((!bId||bId==='ruin'||_durBrokenHere)&&G.inv.speedAct) G.inv.speedAct=false;
 - `pickContractCandidates`：filtered=0 退回通用合約池；若完全空 chooser 不出（log「合約池為空」）
 - 兩者皆為防呆設計，預期極少觸發
 
+---
+
+## Session 43（2026-04-30）— 莫菲定律簡化為純市場事件
+
+### 動機
+
+Session 41 的耐用值系統已能透過機制本身鼓勵玩家變更產線（設施被命中後耐用值下降，必須輪替），原本由「莫菲定律」承擔的「強制打散同一產線」設計目的已失效。莫菲定律先前的「劫持預告事件 / 替代隨機事件」機制在耐用值之上反而是過度懲罰，因此改為單純的市場事件之一。
+
+### 變更內容
+
+**移除的觸發路徑**：
+- `transport_contract.compensationText` / `onFail` 中 `_contractTriggerEventById('murphy')`（仍保留消滅物流中心的補償）
+- `triggerEvent()` / 跨輪事件流程中的 `checkMurphyHijack()` 機率劫持（含第 2 輪起的權重判定）
+- `send()` 內 `_murphyTrack.repeatCount`（連續同方向投入追蹤）
+- `startTurn()` 內 `_murphyTrack.noMove`（未移動回合追蹤）
+- `rearrangeFacilities()` 內重置 noMove 的同步邏輯
+- 觸發後的 `_murphyNextPool` 限定下次事件池（設施補給/地震/就業輔助/蕾雅的禮物）
+- `pickNextEvent()` / `swap_ev` 把 murphy 從預告池排除的 filter
+- `G._murphyTrack` / `G._murphyNextPool` state 宣告
+
+**保留的部分**：
+- `EVENTS.murphy` 本身（打亂 + 2 張複合設施 + 全屏特效）
+- 全屏震動/立繪/台詞效果與 `precomputeEventData` 中對 murphy 的預告高亮
+- `EVENT_SFX_TYPE.murphy='bad'` 分類
+
+### 結果
+
+`pickNextEvent()` 改為從完整 `EVENTS` 池等權重抽取（19 事件均等），`triggerEvent()` 同步簡化為 `EVENTS[Math.floor(Math.random()*EVENTS.length)]`。莫菲定律現在與其他事件同等機率出現，無條件觸發、無權重、無預告劫持。
 
