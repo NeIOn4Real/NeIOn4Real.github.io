@@ -5275,6 +5275,66 @@ Session 41 的耐用值系統已能透過機制本身鼓勵玩家變更產線（
 
 ### 共用 helper 重用
 
-- `_restoreDurabilityBy(r,c,bldgId,amount)` 為主要的「補耐用」入口，被傳統生產線、機動增殖都市、人材投入、蕾雅修復共用
+- `_restoreDurabilityBy(r,c,bldgId,amount)` 為主要的「補耐用」入口，被傳統生產線、機動增殖都市、人材投入共用
 - 衰敗合約的耐用歸零→消滅邏輯只在 `consumeDurability` 與 `_processMobileBreedCity` 兩處攔截，避免散落各處
+
+> 註：Session 47 依使用者要求移除「蕾雅疊加修復破損耐用」的呼叫與 `_leyaRestoreDurabilityIfBroken` helper（設施疊加時不恢復耐用）。
+
+---
+
+## Session 46（2026-05-01）— UI / 立繪 / 排列模式中投入 + 雜項修補
+
+### A. UI 與立繪佈局調整
+
+承 Session 44 的避讓策略，依使用者反饋進一步調整：
+
+- `--char-w` 由 `clamp(220, 22vw, 360)` 放大到 `clamp(280, 28vw, 440)`
+- `body` 的 `padding-right` 從 `12px + var(--char-w)` 收回為 `12px + var(--char-w)/2`，最終再回到單純 `12px`（UI 整體置中）
+- `#hand-fan-area` 漸層改用 `::before` + 水平 mask（`linear-gradient(to right, transparent 0, black 30%, black 70%, transparent 100%)`），漸層只在中央 30%–70% 顯示，避免蓋到「提示」面板與右下立繪
+- `#char-tray` 改 `bottom: -10vh`，移除 `max-height: 100vh`，讓立繪自然延伸到視窗外（腿部沒入），不對立繪本體加 mask
+- `#char-bubble` `bottom` 計算扣除 10vh 以追蹤新的頭部位置
+
+### B. 立繪顯隱切換鈕
+
+- 新增 `#char-toggle` 小箭頭按鈕（寬 16px、高 40px）
+- 永遠貼視窗底部（`bottom: 8px`）+ 立繪左緣（`right: var(--char-w)`）；隱藏狀態下滑到視窗右邊緣 `right: 0`
+- 點擊切換 `body.char-hidden` class，隱藏 `#char-tray` 與 `#char-bubble`
+- 文字 ▶/◀ 對應顯示／隱藏狀態
+- localStorage 持久化未實作，每次重載重置為顯示
+
+### C. 排列模式中允許投入
+
+- `finish()` 結算後若 `G.freeRearrange===true`，phase 維持 `'place'`（非預設的 `'done'`），玩家可繼續拖曳設施
+- 元素卡 `canDrag` 加入 `(!_turnInvested || _extraUsePhase)` 守門，避免重複投入；人材延長投入仍正常
+- 結束流程：先點「確認排列」離開排列模式，再點「結束回合」（`_canEnd` 在 `_inOtherMode` 為 true 時拒絕）
+
+### D. 設施疊加不恢復耐用
+
+依使用者調整：通用蕾雅疊加路徑不再呼叫 `_leyaRestoreDurabilityIfBroken`，連同 helper 函式一併移除。傳統生產線的「完全恢復耐用」屬於專屬機制（不算疊加）保留。
+
+### E. 惡魔巨人 self-destroy 修補
+
+`demon_pact_contract.hooks.onTurnStart` 隨機消除合夥人時排除 `demon_giant`，避免巨人自我清除。`demonGiantDestroy(pid)` 入口加防呆短路。
+
+---
+
+## Session 47（2026-05-01）— 系統性審查修補（耐用值/合約 6 issues）
+
+audit agent 找到 10 個潛在問題，修復其中 6 個高/中影響度，4 個低風險或屬設計選擇。
+
+### 修補列表
+
+1. **`_processMobileBreedCity` 迭代防呆**（high）：第一個 MBC 自我衰退至 0 觸發 `decay_contract` `destroyFacility` 後，迴圈中後續 mbcCells 條目 stale（已被清除），re-check `G.grid[mr][mc]==='mobile_breed_city' || getOverlays(...).includes(...)` 後才繼續，避免重觸發或誤更新已清除的格子
+2. **`decay_contract.onAccept` cap 後清 recovering**（medium）：cap 後若 `cellMap[bId] >= max` 同步清除 `facilityRecovering[k][bId]`，避免永久綠色脈動 desync
+3. **`segregation_contract.onFail` 強制歸 0 同時清 recovering**（medium）：避免 `cur=0` 同時 `recovering=true` 的旗標 desync
+4. **`_giantSecondKillPending` 加入 deserialize 清除清單**（medium）：避免存讀檔吃掉巨人合約第二殺
+5. **freeRearrange + invest 存讀檔軟鎖**（medium）：deserialize 偵測 `phase==='place' && _turnInvested && !_extraUsePhase` 特例 → cap 為 `'done'`，避免結束回合按鈕鎖死
+6. **`production_line` 預先掃描**（low）：所有目標已滿耐用時拒絕放置 + 提示，不消耗卡片
+
+### 未修補（已知邊界）
+
+- `runContractHook('onTurnStart')` 在 `_processMobileBreedCity` 之後執行，若該 turn 由 `demon_pact_contract` 隨機消除 `facility_maintainer`，當前 turn 已用舊上限 cap 過耐用，超出值會在下次被命中時被吞但暫不重新 cap（影響極小）
+- `cellMods` per-cell 不 per-bldgId 為原設計
+- `facility_maintainer.onRecruit` 對 stale `facilityDurability` 條目 +2（記憶體輕微洩漏）
+- `consumeDurability` decay 分支對空 `facilityRecovering[k]` 物件不刪除（cosmetic 累積）
 
