@@ -5188,3 +5188,12 @@ Session 41 的耐用值系統已能透過機制本身鼓勵玩家變更產線（
 
 `pickNextEvent()` 改為從完整 `EVENTS` 池等權重抽取（19 事件均等），`triggerEvent()` 同步簡化為 `EVENTS[Math.floor(Math.random()*EVENTS.length)]`。莫菲定律現在與其他事件同等機率出現，無條件觸發、無權重、無預告劫持。
 
+### 補充：耐用值恢復條件放寬
+
+原本 `_processDurabilityRecovery()` 僅對「破損(=0) 或 recovering 中」的設施 +1，意在懲罰連續 spam 後需要漫長恢復。改為**所有未被命中且未滿的設施每回合 +1**：
+
+- `index.html:4870–4895`：移除 `if(!broken&&!recovering) return` 早退，改為 `if(cur>=max) return`
+- 註解同步更新（`index.html:4779–4782`、`startTurn()` 4870 行旁註）
+- `recovering` 視覺旗標仍保留：僅在「從 0 升 1」時設置，0→1 仍會 log「開始恢復」並走綠色脈動動畫；回滿或被命中即離開 recovering
+- 設計效果：玩家暫停某設施一回合即可回 1 點，無需等到完全 broken 才恢復；策略上更鼓勵主動輪替而非「打到歸 0 → 強制冷卻」
+

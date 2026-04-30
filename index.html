@@ -4778,8 +4778,8 @@ function getNextRarity(r){ const i=RARITY_ORDER.indexOf(r); return i<RARITY_ORDE
 
 // ── 設施耐用值系統 ──
 // N=5、R=7、SR=9、SSR=11；大型設施與 part 視覺佔位不適用。
-// 耐用值在被命中時 −1；恢復條件：曾經歸 0、且該回合沒被命中 → +1，回滿時離開恢復狀態。
-// recovering 狀態下若再被命中 → 中斷恢復（清旗標、設施仍參與投入）。
+// 耐用值在被命中時 −1；該回合沒被命中 → 回合結束時 +1（不限於破損/恢復中）。
+// 從 0 升 1 時進入 recovering 視覺狀態（從破損復活）；回滿或被命中即離開 recovering。
 function getDurabilityMax(bldgId){
   const r=getBldgRarity(bldgId);
   if(r==='SSR') return 11;
@@ -4867,7 +4867,7 @@ function _flashDurabilityPip(r,c,bldgId,dir){
   pip.classList.remove('dur-shake','dur-bloom'); void pip.offsetWidth; pip.classList.add(cls);
   setTimeout(()=>{ if(pip&&pip.classList) pip.classList.remove(cls); },700);
 }
-// 回合結束時：對所有「破損(=0)或恢復中」設施，若本回合未被命中則 +1，回滿時離開恢復狀態。
+// 回合結束時：對所有「未被命中且未滿」的設施 +1；從 0 升 1 進入 recovering，回滿或被命中時離開。
 function _processDurabilityRecovery(){
   const hits=G._turnDurHitSet||{};
   const dur=G.facilityDurability||{};
@@ -4876,10 +4876,8 @@ function _processDurabilityRecovery(){
     Object.keys(cellMap).forEach(bId=>{
       const cur=cellMap[bId];
       const max=getDurabilityMax(bId);
-      const broken=cur<=0;
-      const recovering=G.facilityRecovering&&G.facilityRecovering[k]&&G.facilityRecovering[k][bId];
-      if(!broken&&!recovering) return;
-      if(hits[`${k}|${bId}`]) return;
+      if(cur>=max) return; // 已滿不需恢復
+      if(hits[`${k}|${bId}`]) return; // 本回合被命中過則不恢復
       const next=Math.min(max,cur+1);
       if(next===cur) return;
       cellMap[bId]=next;
@@ -9236,7 +9234,7 @@ function startTurn(){
     return;
   }
   _lastStartedTurn=turnKey;
-  // 耐用值：上一回合結束 → 處理破損/恢復中設施的恢復（未被命中者 +1）
+  // 耐用值：上一回合結束 → 對所有未被命中且未滿的設施 +1
   _processDurabilityRecovery();
   G.phase='place';
   G._turnPitchOffset = 0; // 每回合音階位移歸零
