@@ -18,7 +18,7 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--tx);
   min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px;
-  padding-right:calc(12px + var(--char-w)); /* 右側預留立繪空間，內容靠左 */
+  padding-right:calc(12px + var(--char-w) / 2); /* 右側預留立繪空間的一半，UI 居中偏左但不過度 */
   background-image:repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(80,55,20,.03) 40px,rgba(80,55,20,.03) 41px),
     repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(80,55,20,.03) 40px,rgba(80,55,20,.03) 41px);}
 
@@ -1005,7 +1005,7 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 /* ══ 扇形手牌系統 ══ */
 #hand-fan-area {
   position: fixed;
-  bottom: 0; left: 0; right: var(--char-w);
+  bottom: 0; left: 0; right: calc(var(--char-w) / 2);
   height: 200px;
   display: flex;
   align-items: center;
