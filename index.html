@@ -437,6 +437,42 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 .log-entry.g{ color:var(--green); }
 .log-entry.b{ color:var(--red); }
 .log-entry.w{ color:var(--money); }
+.log-entry-contract{ cursor:pointer;text-decoration:underline dotted;border-radius:3px; }
+.log-entry-contract:hover{ background:rgba(255,255,255,.08); }
+
+/* 合約結算動畫覆層 */
+#contract-fx{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:120;pointer-events:none;display:none;
+}
+.contract-fx-card{
+  background:linear-gradient(135deg,#fdf6e3 0%,#f5e8c5 100%);
+  border:3px solid #b08c4a;border-radius:14px;
+  padding:14px 22px;box-shadow:0 16px 48px rgba(0,0,0,.6);
+  color:#3a2a10;text-align:center;min-width:240px;
+}
+.contract-fx-emoji{font-size:42px;line-height:1;margin-bottom:4px;}
+.contract-fx-name{font-size:13px;font-weight:900;margin-bottom:4px;}
+.contract-fx-stamp{
+  display:inline-block;font-size:18px;font-weight:900;letter-spacing:3px;
+  border:3px solid;padding:3px 12px;margin:4px 0;transform:rotate(-6deg);
+}
+.contract-fx-stamp.ok{color:#2a8b3d;border-color:#2a8b3d;}
+.contract-fx-stamp.bad{color:#c43a2c;border-color:#c43a2c;}
+.contract-fx-detail{font-size:11px;color:#7a5a20;margin-top:4px;}
+@keyframes contractFxIn{
+  0%{transform:scale(.4);opacity:0;}
+  60%{transform:scale(1.08);opacity:1;}
+  100%{transform:scale(1);opacity:1;}
+}
+@keyframes contractFxOut{0%{opacity:1;}100%{opacity:0;transform:scale(.95);}}
+.contract-fx-card.in{animation:contractFxIn .45s ease-out both;}
+.contract-fx-card.out{animation:contractFxOut .35s ease-in both;}
+@keyframes stampDown{
+  0%{transform:rotate(-6deg) scale(2.2);opacity:0;}
+  100%{transform:rotate(-6deg) scale(1);opacity:1;}
+}
+.contract-fx-card.in .contract-fx-stamp{animation:stampDown .35s .15s ease-out both;}
 .log-entry.h{ color:var(--tx);font-weight:700; }
 .log-calc{ font-family:'DM Mono',monospace;font-size:9px;color:var(--blue);padding-left:8px; }
 
@@ -1677,6 +1713,17 @@ body.char-hidden #char-toggle {
   </div>
 </div>
 
+<!-- 合約結算動畫覆層 -->
+<div id="contract-fx"></div>
+
+<!-- 合約結算詳情：點擊側邊 log 中的 ✓/✗ 紀錄開啟 -->
+<div id="contract-resolve-detail" style="display:none;position:fixed;inset:0;z-index:97;align-items:center;justify-content:center;background:rgba(0,0,0,.55);" onclick="if(event.target===this)closeContractResolveDetail()">
+  <div style="position:relative;width:min(90vw,420px);background:linear-gradient(135deg,#fdf6e3 0%,#f5e8c5 100%);border:2px solid #b08c4a;border-radius:12px;padding:18px 16px;box-shadow:0 12px 32px rgba(0,0,0,.5);color:#3a2a10;">
+    <div style="position:absolute;top:6px;right:8px;cursor:pointer;font-size:14px;color:#b08c4a;" onclick="closeContractResolveDetail()">✕</div>
+    <div id="contract-resolve-detail-body" style="min-height:120px;"></div>
+  </div>
+</div>
+
 <!-- 合約瀏覽面板：點擊工具列 📜 開啟，可滾動瀏覽多份合約 -->
 <div id="contract-panel" style="display:none;position:fixed;inset:0;z-index:96;align-items:center;justify-content:center;background:rgba(0,0,0,.55);" onclick="if(event.target===this)closeContractPanel()">
   <div style="position:relative;width:min(90vw,420px);background:linear-gradient(135deg,#fdf6e3 0%,#f5e8c5 100%);border:2px solid #b08c4a;border-radius:12px;padding:18px 16px;box-shadow:0 12px 32px rgba(0,0,0,.5);color:#3a2a10;">
@@ -2467,7 +2514,7 @@ const BLDG = {
   disaster_bureau:{ name:'災害控管局', emoji:'🛡', desc:'此回合結束時，每消滅一個設施，獲得收益 +4。這個設施不會被消滅。', req:'any', out:null, fn:v=>v, special:'disaster_bureau', indestructible:true },
 
   // ── 物流系新設施 ──
-  logistics_hub:  { name:'物流轉運中心', emoji:'🔀', desc:'放置時變成物流中心，你可以決定其起始方向。', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
+  logistics_hub:  { name:'物流轉運中心', emoji:'🔀', desc:'放置時變成物流站（→↓←↑），可決定方向。', req:'any', out:null, fn:v=>v, special:'redirect', dir:'right' },
 
   // ── 人力系新設施 ──
   staff_housing:  { name:'員工住宅', emoji:'🏠', desc:'回合結束時，若沒有資源投入此設施，獲得人材 +4。', req:'any', out:null, fn:v=>v, special:'staff_housing' },
@@ -4460,17 +4507,29 @@ function checkContractDeadlines(roundJustEnded){
       try { result = def.checkProgress.call(def, G, ac) || result; }
       catch(e){ console.warn('contract.checkProgress 失敗:', ac.id, e); }
     }
+    const _resolveMeta = {
+      type:'contract_result',
+      contractId: ac.id,
+      contractName: def.name,
+      contractEmoji: def.emoji||'📜',
+      success: !!result.done,
+      label: result.label||'',
+      progress: result.progress||0,
+      max: result.max||0,
+      permanent: !!def.failConvertsToPermanent,
+      round: roundJustEnded
+    };
     if(result.done){
       try { if(def.onComplete) def.onComplete.call(def, G, ac); }
       catch(e){ console.warn('contract.onComplete 失敗:', ac.id, e); }
-      addLog(`📜✓ 合約完成：${def.name}`, 'g');
-      if(typeof showContractResolveFx === 'function') showContractResolveFx(def, true);
+      addLog(`📜✓ 合約完成：${def.name}`, 'g', _resolveMeta);
+      if(typeof showContractResolveFx === 'function') showContractResolveFx(def, true, result);
       G.activeContracts.splice(i, 1);
     } else {
       try { if(def.onFail) def.onFail.call(def, G, ac); }
       catch(e){ console.warn('contract.onFail 失敗:', ac.id, e); }
-      addLog(`📜✗ 合約違約：${def.name}`, 'b');
-      if(typeof showContractResolveFx === 'function') showContractResolveFx(def, false);
+      addLog(`📜✗ 合約違約：${def.name}`, 'b', _resolveMeta);
+      if(typeof showContractResolveFx === 'function') showContractResolveFx(def, false, result);
       if(def.failConvertsToPermanent){
         ac.failed = true;
         ac.permanent = true;
@@ -4584,11 +4643,81 @@ function renderContractPanelModal(){
     <div style="margin-top:10px;font-size:9px;color:var(--mu);text-align:center;">${_contractPanelIdx+1} / ${n}${n>1?'　← →':''}</div>
   `;
 }
-// 合約完成/失敗中央燃燒動畫（Phase A 簡化版：純 log + alert pulse；燃燒視覺留 Phase E）
-function showContractResolveFx(def, success){
-  // Phase E 將替換為「合約飛到中央被燒掉」的動畫
+// 合約完成/失敗結算動畫：中央顯示卡片含 ✓/✗ 印章，自動消失，多份合約依序播放
+let _contractFxQueue=[];
+let _contractFxActive=false;
+function showContractResolveFx(def, success, result){
+  if(!def) return;
+  _contractFxQueue.push({
+    contractEmoji: def.emoji||'📜',
+    contractName: def.name||'',
+    success: !!success,
+    label: result&&result.label||'',
+    progress: result&&result.progress||0,
+    max: result&&result.max||0,
+    permanent: !!def.failConvertsToPermanent
+  });
   if(success){ if(typeof SFX!=='undefined' && SFX.goalReached) SFX.goalReached(); }
   else { if(typeof SFX!=='undefined' && SFX.loseToll) SFX.loseToll(); }
+  _kickContractFx();
+}
+function _kickContractFx(){
+  if(_contractFxActive) return;
+  if(_contractFxQueue.length===0) return;
+  const m=_contractFxQueue.shift();
+  _contractFxActive=true;
+  const el=document.getElementById('contract-fx');
+  if(!el){ _contractFxActive=false; return; }
+  const stampCls=m.success?'ok':'bad';
+  const stampText=m.success?'✓ 完成':'✗ 違約';
+  const detail=m.max>0?`${m.label} ${m.progress}/${m.max}`:(m.success?'達成':'未達成');
+  el.innerHTML=`<div class="contract-fx-card in">
+    <div class="contract-fx-emoji">${m.contractEmoji}</div>
+    <div class="contract-fx-name">📜 ${m.contractName}</div>
+    <div class="contract-fx-stamp ${stampCls}">${stampText}</div>
+    <div class="contract-fx-detail">${detail}${!m.success&&m.permanent?'（轉為永久債務）':''}</div>
+  </div>`;
+  el.style.display='block';
+  setTimeout(()=>{
+    const card=el.querySelector('.contract-fx-card');
+    if(card){ card.classList.remove('in'); card.classList.add('out'); }
+    setTimeout(()=>{
+      el.style.display='none';
+      el.innerHTML='';
+      _contractFxActive=false;
+      _kickContractFx();
+    },350);
+  },1500);
+}
+function showContractResolveDetail(meta){
+  if(!meta) return;
+  const body=document.getElementById('contract-resolve-detail-body');
+  if(!body) return;
+  const def=(typeof CONTRACTS!=='undefined')?CONTRACTS[meta.contractId]:null;
+  const stampCls=meta.success?'ok':'bad';
+  const stampText=meta.success?'✓ 完成':'✗ 違約';
+  const detail=meta.max>0?`${meta.label||''} ${meta.progress||0}/${meta.max}`:(meta.success?'達成':'未達成');
+  let html=`<div style="text-align:center;">
+    <div style="font-size:36px;line-height:1;">${meta.contractEmoji||'📜'}</div>
+    <div style="font-weight:900;font-size:14px;margin:4px 0;">${meta.contractName||(def&&def.name)||''}</div>
+    <div class="contract-fx-stamp ${stampCls}" style="transform:none;margin:6px 0;">${stampText}</div>
+    <div style="font-size:11px;color:#7a5a20;">第 ${meta.round||'?'} 輪結束結算</div>
+    <div style="font-size:11px;color:#7a5a20;margin:4px 0 8px;">${detail}</div>
+  </div>`;
+  if(def){
+    if(def.guaranteeText){
+      html+=`<div style="font-size:10px;color:#2a8b3d;margin-top:4px;line-height:1.5;"><div style="font-weight:700;">【擔保】</div>${def.guaranteeText}</div>`;
+    }
+    if(def.compensationText){
+      html+=`<div style="font-size:10px;color:#c43a2c;margin-top:4px;line-height:1.5;"><div style="font-weight:700;">【${meta.permanent?'永久':'賠償'}】</div>${def.compensationText}</div>`;
+    }
+  }
+  body.innerHTML=html;
+  document.getElementById('contract-resolve-detail').style.display='flex';
+}
+function closeContractResolveDetail(){
+  const el=document.getElementById('contract-resolve-detail');
+  if(el) el.style.display='none';
 }
 
 // ── 合約進度判定 helper（Phase B+） ──
@@ -6115,10 +6244,12 @@ function showRoundBanner(round){
 }
 
 let _logRenderTimer=null;
-function addLog(msg,cls=''){
+function addLog(msg,cls='',meta=null){
   // Add to current turn log entries
   if(!G.turnLog) G.turnLog=[];
-  G.turnLog.push({msg,cls});
+  const entry={msg,cls};
+  if(meta) entry.meta=meta;
+  G.turnLog.push(entry);
   // 節流：合併短時間內的多次 log 渲染
   if(!_logRenderTimer){
     _logRenderTimer=setTimeout(()=>{ _logRenderTimer=null; renderSideLog(); },50);
@@ -6461,6 +6592,11 @@ function _placeCompoundPart(r,c,partId){
       const ovs = getOverlays(r,c); ovs.push(partId); setOverlays(r,c,ovs);
       const k = `${r},${c}`;
       G.bldgUpgrades[k] = (G.bldgUpgrades[k]||0) + 2;
+      if(isDurabilityTracked(partId)){
+        const _heal=Math.ceil(getDurabilityMax(partId)/2);
+        const _gained=_restoreDurabilityBy(r,c,partId,_heal);
+        if(_gained>0) addLog(`  🩹 ${BLDG[partId].emoji}${BLDG[partId].name} 耐用值 +${_gained}（疊加恢復）`,'g');
+      }
       return 'leya';
     }
   }
@@ -6493,11 +6629,13 @@ function _placeCompoundPart(r,c,partId){
 // 事件
 // ══════════════════════════════════════
 // 市場事件 id 集合（惡魔巨人的觸發事件）
-const MARKET_EVENT_IDS = ['mat_crash','mat_boom','goods_up','row_buff','col_buff','area_buff'];
+const MARKET_EVENT_IDS = ['mat_crash','mat_boom','goods_up','row_buff','col_buff','area_buff','murphy'];
 
 function triggerEvent(){
   G.phase='event';
-  const ev=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  // 莫菲定律僅透過每 3 回合的預告流程觸發，不允許從即時觸發（如「⚡ 觸發隨機事件」）抽到
+  const pool=EVENTS.filter(e=>e.id!=='murphy');
+  const ev=pool[Math.floor(Math.random()*pool.length)];
   G._currentEventId = ev.id;
   G.nextEventData=precomputeEventData(ev);
   _playEventSfx(ev);
@@ -6905,6 +7043,11 @@ function tryPlaceAtCell(r,c,bldgId){
     const k=`${r},${c}`;
     G.bldgUpgrades[k]=(G.bldgUpgrades[k]||0)+2;
     addLog(`👩‍🔧 蕾雅：${BLDG[bldgId].emoji}${BLDG[bldgId].name} 疊加於 (${r+1},${c+1})，永久+2（共${G.bldgUpgrades[k]}）`,'g');
+    if(isDurabilityTracked(bldgId)){
+      const _heal=Math.ceil(getDurabilityMax(bldgId)/2);
+      const _gained=_restoreDurabilityBy(r,c,bldgId,_heal);
+      if(_gained>0) addLog(`  🩹 ${BLDG[bldgId].emoji}${BLDG[bldgId].name} 耐用值 +${_gained}（疊加恢復）`,'g');
+    }
     placeEffect(r,c,{overlay:true,bldgId}); render();
     return true;
   }
@@ -10491,8 +10634,7 @@ function showTransferHubDirPicker(r,c,onDone,onCancel){
   panel.style.cssText=`position:fixed;z-index:600;background:var(--sur);border:2px solid var(--acc);border-radius:10px;padding:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);display:flex;gap:6px;left:${rect.left}px;top:${rect.bottom+4}px;`;
   let _selectedDir=null;
   // 集中 finalize：依當前 cell 內容決定變身/改向行為
-  // - transfer_hub：變成單向物流站（logistics_X）
-  // - logistics_hub：變成物流中心（logistics_center）並設定起始方向
+  // - transfer_hub / logistics_hub：變成單向物流站（logistics_X，固定方向、不旋轉）
   // - logistics_X：紅綠燈情境，僅改變方向
   const _finalize=()=>{
     const cur=G.grid[r][c];
@@ -10502,25 +10644,23 @@ function showTransferHubDirPicker(r,c,onDone,onCancel){
       const d=dirs.find(x=>x.dir===_selectedDir);
       if(cur==='transfer_hub'){
         G.grid[r][c]=dirMap[_selectedDir];
+        if(G.cellRedirectDir) delete G.cellRedirectDir[`${r},${c}`];
         addLog(`🔀 轉運中心 (${r+1},${c+1}) → ${d.emoji} ${d.label}`,'g');
       } else if(cur==='logistics_hub'){
-        G.grid[r][c]='logistics_center';
-        if(!G.cellRedirectDir) G.cellRedirectDir={};
-        G.cellRedirectDir[`${r},${c}`]=_selectedDir;
-        addLog(`🔀 物流轉運中心 (${r+1},${c+1}) → 物流中心（起始 ${d.emoji} ${d.label}）`,'g');
+        G.grid[r][c]=dirMap[_selectedDir];
+        if(G.cellRedirectDir) delete G.cellRedirectDir[`${r},${c}`];
+        addLog(`🔀 物流轉運中心 (${r+1},${c+1}) → ${d.emoji} ${d.label}`,'g');
       } else {
         // 紅綠燈
         G.grid[r][c]=dirMap[_selectedDir];
+        if(G.cellRedirectDir) delete G.cellRedirectDir[`${r},${c}`];
         addLog(`🚦 紅綠燈 (${r+1},${c+1}) → ${d.emoji} ${d.label}`,'g');
       }
     } else {
       // 取消預設
-      if(cur==='transfer_hub'){
+      if(cur==='transfer_hub'||cur==='logistics_hub'){
         G.grid[r][c]='logistics_right';
-      } else if(cur==='logistics_hub'){
-        G.grid[r][c]='logistics_center';
-        if(!G.cellRedirectDir) G.cellRedirectDir={};
-        G.cellRedirectDir[`${r},${c}`]='right';
+        if(G.cellRedirectDir) delete G.cellRedirectDir[`${r},${c}`];
       }
       // 紅綠燈未選：保持原物流站方向不動
     }
@@ -10846,9 +10986,21 @@ function renderHand(){
   }).join('');
 }
 
+let _contractMetaCache=[];
+function _renderLogEntry(e){
+  const isCalc=e.msg.startsWith('  ');
+  const baseCls=isCalc?'log-calc':'log-entry';
+  if(e.meta&&e.meta.type==='contract_result'){
+    const idx=_contractMetaCache.length;
+    _contractMetaCache.push(e.meta);
+    return `<div class="${baseCls} ${e.cls||''} log-entry-contract" onclick="showContractResolveDetail(_contractMetaCache[${idx}])">${e.msg.trim()}</div>`;
+  }
+  return `<div class="${baseCls} ${e.cls||''}">${e.msg.trim()}</div>`;
+}
 function renderSideLog(){
   const el=document.getElementById('side-log');
   if(!el) return;
+  _contractMetaCache=[];
   let html='';
 
   // 過去回合（舊→新，最新在底部）
@@ -10857,10 +11009,7 @@ function renderSideLog(){
     reversed.forEach(t=>{
       html+=`<div class="log-turn-block" style="opacity:.7;">`;
       html+=`<div class="log-turn-hdr" style="color:var(--mu);">第${t.round}輪 回合${t.turn}</div>`;
-      html+=t.entries.map(e=>{
-        const isCalc=e.msg.startsWith('  ');
-        return `<div class="${isCalc?'log-calc':'log-entry'} ${e.cls||''}">${e.msg.trim()}</div>`;
-      }).join('');
+      html+=t.entries.map(_renderLogEntry).join('');
       html+=`</div>`;
     });
   }
@@ -10869,10 +11018,7 @@ function renderSideLog(){
   if(G.turnLog&&G.turnLog.length>0){
     html+=`<div class="log-turn-block">`;
     html+=`<div class="log-turn-hdr">第${G.round}輪 回合${G.turn}</div>`;
-    html+=G.turnLog.map(e=>{
-      const isCalc=e.msg.startsWith('  ');
-      return `<div class="${isCalc?'log-calc':'log-entry'} ${e.cls||''}">${e.msg.trim()}</div>`;
-    }).join('');
+    html+=G.turnLog.map(_renderLogEntry).join('');
     html+=`</div>`;
   }
 
@@ -12164,6 +12310,7 @@ function onTalentDropCell(e, r, c) {
   }
   renderFanHand();
   render();
+  if(typeof TUT!=='undefined' && TUT.active && TUT.hookTalentDrop) TUT.hookTalentDrop(r, c);
 }
 
 function onTalentDragOverCell(e, r, c) {
@@ -13144,7 +13291,7 @@ const TUT = {
   setUIVisibility(show){
     const ids = ['hdr','profit-area','pbar','ev-banner','hand-fan-area',
                  'partner-section','btn-next','talent-section-title','talent-panel',
-                 'el-profit','side-log','upgrade-hint'];
+                 'el-profit','side-log','upgrade-hint','btn-contract'];
     ids.forEach(id=>{
       const el = document.getElementById(id);
       if(el) el.style.visibility = show ? '' : 'hidden';
@@ -13239,8 +13386,33 @@ const TUT = {
     });
   },
 
-  // ── Step 5: 收益為零，給工廠和商店 ──
+  // ── Step 5: 介紹耐用值 ──
   step5(){
+    // 高亮原料廠的耐用值血條
+    const matCell = (function(){
+      for(let r=0;r<GN();r++) for(let c=0;c<GN();c++){
+        if(G.grid[r][c]==='mat_factory') return cellQ(r,c);
+      }
+      return null;
+    })();
+    if(matCell){
+      matCell.style.outline='3px solid var(--acc)';
+      matCell.style.boxShadow='0 0 18px rgba(179,58,0,.5)';
+    }
+    TUT.speak([
+      '注意原料廠上方那條長條——那是「耐用值」。',
+      '每被資源命中一次就 −1，回合結束時若沒被命中則自動 +1。',
+      '稀有度越高耐用值上限越高（N=5、R=7、SR=9、SSR=11）。',
+      '耐用值歸零會「破損」，暫時無法投入；不過下回合就會開始恢復。',
+      '同一條產線不能一直被命中，要適時換路或補耐用值喔！',
+    ], ()=>{
+      if(matCell){ matCell.style.outline=''; matCell.style.boxShadow=''; }
+      TUT.next();
+    });
+  },
+
+  // ── Step 6: 介紹商店：給工廠和商店 ──
+  step6(){
     // 顯示右側面板（本次收益、回合記錄）
     const panels = document.querySelectorAll('#main .panel');
     if(panels[1]) panels[1].style.visibility = '';
@@ -13255,20 +13427,19 @@ const TUT = {
     if(pbar) pbar.style.visibility = '';
     render();
     TUT.speak([
-      '來，我再給你一個工廠和商店——',
+      '把資源變回金錢才能算「收益」。',
+      '關鍵設施是「商店」：商品 → 商店 → 金錢。',
+      '我給你一個工廠和一個商店——',
     ], ()=>{
-      // 給工廠和商店，同時設定 waitingFor
       G.hand = [{id:'factory', count:1}, {id:'shop', count:1}];
       TUT.waitingFor = 'place_factory_shop';
       renderHand();
       renderFanHand();
       TUT.speak([
-        '原料→工廠→商品→商店→金錢，這樣就能賺到錢了！',
-        '把工廠和商店也放到格子上吧～',
+        '原料 → 工廠 → 商品 → 商店 → 金錢，這就是基本的生產鏈。',
+        '把工廠和商店都放到格子上吧～',
       ], ()=>{
-        // 如果 onAction 已經處理過，waitingFor 會是 null，不要重複呼叫 next
         if(TUT.waitingFor !== 'place_factory_shop') return;
-        // 檢查玩家是否已經放置了
         const hasFac=findCells((r,c,b)=>b==='factory').length>0;
         const hasShop=findCells((r,c,b)=>b==='shop').length>0;
         if(hasFac && hasShop){
@@ -13279,16 +13450,15 @@ const TUT = {
     });
   },
 
-  // ── Step 6: 放置完成，投入金錢並結束回合 ──
-  step6(){
+  // ── Step 7: 投入金錢轉換為收益 ──
+  step7(){
     // 顯示結束回合按鈕
     const btn = document.getElementById('btn-next');
     if(btn) btn.style.visibility = '';
     TUT.speak([
-      '設施都蓋好了，快試試看能賺多少錢！',
-      '投入你的金錢，看看能賺多少收益！',
+      '生產鏈已完成！再給你一塊錢，看看資源走完一圈會發生什麼事——',
+      '把金錢拖到小鎮邊緣的箭頭，啟動完整生產鏈！',
     ], ()=>{
-      // 給玩家一塊錢
       G.card = {value:1, type:'money'};
       G.phase = 'place';
       renderFanHand();
@@ -13296,30 +13466,64 @@ const TUT = {
     });
   },
 
-  // ── Step 7: 顯示拆遷隊選擇 ──
-  step7(){
+  // ── Step 8: 介紹人材 ──
+  step8(){
+    // 顯示人材面板
+    const tt = document.getElementById('talent-section-title');
+    const tp = document.getElementById('talent-panel');
+    if(tt) tt.style.visibility = '';
+    if(tp) tp.style.visibility = '';
+    G.talentCards = (G.talentCards||0) + 1;
+    G._talentUsedOnElement = false; // 教學重置
+    if(typeof renderTalentPanel === 'function') renderTalentPanel();
+    G.phase = 'place';
+    // 暫時禁用結束回合，強迫先學習人材
+    const btn = document.getElementById('btn-next');
+    if(btn) btn.disabled = true;
+    render();
+    TUT.speak([
+      '太棒了！再來介紹一個重要資源：「人材」。',
+      '我給你 1 個人材——左下角那張小卡片就是。',
+      '把人材拖到任一個設施上：本回合該設施 +1 收益，並恢復 +1 耐用值。',
+      '（也可以拖到資源卡上，讓資源額外多投入一次）',
+      '試著把人材拖到原料廠上吧！',
+    ], ()=>{
+      TUT.waitingFor = 'tut_talent_drop';
+    });
+  },
+
+  // ── Step 9: 介紹合約 ──
+  step9(){
+    // 顯示合約按鈕（強制顯示，讓 onAccept 的 profitFly 有可見錨點）
+    const btnContract = document.getElementById('btn-contract');
+    if(btnContract){ btnContract.style.visibility=''; btnContract.style.display='inline-flex'; }
+    TUT.speak([
+      '幹得好！最後一個系統：「合約」。',
+      '每隔幾輪會出現合約選擇——立即拿到獎勵，但需在期限內達成擔保條件。',
+      '達成 → 完成；沒達成 → 違約並付出賠償。',
+      '現在試著挑一份合約看看吧！',
+    ], ()=>{
+      TUT.waitingFor = 'tut_pick_contract';
+      TUT.showTutContractChoice();
+    });
+  },
+
+  // ── Step 10: 顯示拆遷隊選擇 ──
+  step10(){
     // 顯示合夥人面板
     const partnerSection = document.getElementById('partner-section');
     if(partnerSection) partnerSection.style.visibility = '';
-    const hasProfit = G.profit > 0;
-    TUT.speak(hasProfit ? [
-      '幹得好！你賺到了收益！',
-      '現在，我們來介紹「合夥人」！',
+    TUT.speak([
+      '接下來介紹「合夥人」。',
       '合夥人會在整輪遊戲中持續幫助你——但通常也有負面效果。',
-      '這次我們提供你一個特別的合夥人：拆遷隊。選擇它吧！',
-    ] : [
-      '雖然這次沒有賺到收益，但沒關係！',
-      '現在，我們來介紹「合夥人」！',
-      '合夥人會在整輪遊戲中持續幫助你——但通常也有負面效果。',
-      '這次我們提供你一個特別的合夥人：拆遷隊。選擇它吧！',
+      '這次提供你一個特別的合夥人：拆遷隊。選擇它吧！',
     ], ()=>{
-      // Show single partner choice: demolition only
       TUT.showTutPartnerChoice();
     });
   },
 
-  // ── Step 8: 觸發行業熱潮，引導使用拆遷隊 ──
-  step8(){
+  // ── Step 11: 觸發行業熱潮，引導使用拆遷隊 ──
+  step11(){
     // 清空事件預告（已觸發）
     G.nextEvent = null;
     // 顯示事件橫幅
@@ -13361,8 +13565,8 @@ const TUT = {
     });
   },
 
-  // ── Step 9: 最後說明，進入正式遊戲 ──
-  step9(){
+  // ── Step 12: 最後說明，進入正式遊戲 ──
+  step12(){
     TUT.speak([
       '很棒！看到了吧？合夥人能讓你更靈活地應對各種狀況。',
       '但記得——每個合夥人都有自己的負面效果，選擇時要仔細考慮策略！',
@@ -13542,10 +13746,10 @@ const TUT = {
     return false;
   },
 
-  // finish 結尾（phase='done' 後）：step6 投入完成後提示結束回合
+  // finish 結尾（phase='done' 後）：step7 投入完成後提示結束回合
   hookFinishPost(totalTurnProfit){
-    if(!TUT.active || TUT.step!==6 || TUT.waitingFor) return false;
-    TUT.waitingFor = 'tut_end_turn_for_partner';
+    if(!TUT.active || TUT.step!==7 || TUT.waitingFor) return false;
+    TUT.waitingFor = 'tut_end_turn_for_talent';
     setTimeout(()=>{
       TUT.speak(totalTurnProfit > 0 ? [
         `太棒了！你獲得了 +${totalTurnProfit} 收益！`,
@@ -13562,23 +13766,63 @@ const TUT = {
   // doNext（結束回合按鈕）：教學各階段的回合推進
   hookDoNext(){
     if(!TUT.active) return false;
-    // step8：跳過拆遷隊
+    // step11：跳過拆遷隊
     if(TUT.waitingFor==='use_demolition'||TUT.waitingFor==='confirm_rearrange'){
       TUT.waitingFor=null;
       document.querySelectorAll('.joker-card').forEach(c=>{c.style.outline='';c.style.animation='';});
-      TUT.step=8; TUT.next();
+      TUT.step=11; TUT.next();
       return true;
     }
     // 一般 end_turn
     if(TUT.waitingFor==='end_turn'){ TUT.onAction('end_turn'); return true; }
-    // step6 結束回合 → step7
-    if(TUT.waitingFor==='tut_end_turn_for_partner'){
+    // step7 結束回合 → step8（人材）
+    if(TUT.waitingFor==='tut_end_turn_for_talent'){
       G.turn = 3; render();
-      TUT.waitingFor = null; TUT.step = 6; TUT.next();
+      TUT.waitingFor = null; TUT.step = 7; TUT.next();
       return true;
     }
     // 教學模式下無匹配的 waitingFor → 不執行正常回合推進
     return true;
+  },
+
+  // 人材拖到設施格子上：教學 step8 推進
+  hookTalentDrop(r, c){
+    if(!TUT.active || TUT.waitingFor!=='tut_talent_drop') return false;
+    TUT.waitingFor = null;
+    setTimeout(()=>TUT.next(), 600);
+    return false;
+  },
+
+  // 教學合約選擇 UI
+  showTutContractChoice(){
+    const ids = ['shop_invested','factory_invested'];
+    const cards = ids.map(cid=>{
+      const def = (typeof CONTRACTS!=='undefined') ? CONTRACTS[cid] : null;
+      if(!def) return null;
+      const parts = [];
+      if(def.immediateText) parts.push(def.immediateText);
+      if(def.guaranteeText) parts.push('【擔保】\n' + def.guaranteeText);
+      if(def.compensationText) parts.push('【賠償】\n' + def.compensationText);
+      return {
+        emoji: def.emoji || '📜',
+        name: def.name,
+        desc: parts.join('\n'),
+        pos: '',
+        neg: '',
+        extraClass: 'contract-card',
+        onclick: `TUT.pickTutContract('${cid}')`
+      };
+    }).filter(Boolean);
+    showCardChooser('📜 教學：選擇一份合約', cards, ()=>{}, {silent:true});
+    const skipBtn = document.getElementById('card-chooser-skip');
+    if(skipBtn) skipBtn.style.display = 'none';
+  },
+
+  pickTutContract(cid){
+    closeCardChooser();
+    if(typeof acceptContract==='function') acceptContract(cid);
+    TUT.waitingFor = null;
+    setTimeout(()=>TUT.next(), 500);
   },
 
   // confirmRearrange 結尾：確認排列後恢復等待
