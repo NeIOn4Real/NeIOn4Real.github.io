@@ -905,6 +905,8 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 }
 .perm-btn:hover:not(.perm-disabled){border-color:var(--acc);box-shadow:0 0 8px rgba(176,96,0,.2);}
 .perm-btn.perm-disabled{opacity:.4;cursor:not-allowed;}
+/* 立繪 z-index:50，右側 panel 的常駐按鈕需高於立繪以避免點擊被攔截 */
+#perm-btns, #btn-next { position: relative; z-index: 55; }
 .cell.upgrade-glow{
   border-color:var(--money)!important;
   box-shadow:0 0 0 2px rgba(176,96,0,.3), 0 0 10px rgba(176,96,0,.2);
@@ -4270,8 +4272,10 @@ function _contractRecruitIfMissing(pid, contractName){
   }
   return true;
 }
-// 觸發指定 id 的事件（如 earthquake / murphy）
+// 觸發指定 id 的事件（如 earthquake）
+// 莫菲定律僅透過 pickNextEvent 預告流程觸發，此處強制排除
 function _contractTriggerEventById(evId){
+  if(evId==='murphy'){ console.warn('莫菲定律不允許從即時觸發路徑呼叫'); return; }
   if(typeof EVENTS === 'undefined' || !Array.isArray(EVENTS)) return;
   const ev = EVENTS.find(e=>e.id===evId);
   if(!ev || !ev.show) return;

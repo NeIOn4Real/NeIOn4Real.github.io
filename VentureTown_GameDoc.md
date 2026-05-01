@@ -33,7 +33,7 @@
 | 40 | Post-Session-39 微調批次（系統擴展、平衡、UX、DEV 工具） | A: BGM 預設開啟 + bgm_4 標題畫面音樂 + SM 場景切歌 (`setScene`)；B: 擴展合約平衡（商店費用 ×5→×3、空格懲罰 −10/格 → −5%/格 比例式）；C: 3 個商店限定 N 工具設施（貨櫃屋 / 勞工兄弟屋 / 紅綠燈）+ 物流轉運中心 desc 修正（變物流中心而非物流站，攜帶起始方向）；D: 商店 offer 每回合鎖定（避免取消重開無限刷新，跨存檔同 turn/round 沿用）；E: 物流站 cellRedirectDir 防禦（runtime `isPerTurnRot===true` 嚴格化）+ sell-shake CSS 特異度修正（被 `cell.temp-buff/event-preview` 覆蓋）+ 立繪不裁切（移除 opacity/pointer-events override）；F: 人材批量投入 UI（×1/×2/×5/全部 按鈕條，per-投入完整副作用）+ 第 6 輪後每 2 輪合約 chooser（使用 r2+r4+r6 合併池）；G: DEV 合約面板加「點擊獲得指定合約」grid（池篩選 + 已接受灰階）|
 | 42 | 耐用值 UI 血條化 + 詞條權重/鎖池/合約過濾 + 4 處後續修復 | A: 耐用值 UI 從文字徽章改分段血條，N/R/SR/SSR 上限 3/5/7 → 5/7/9/11；B: TAG_WEIGHT 0.12→0.3、多詞條同時命中 ×1.5 boost；C: 流派鎖池 `filterByOwnedTags`：玩家有 ≥2 非中性詞條時，候選池只保留 basic/demon/無詞條/已擁有詞條（大型例外要求對應詞條）；D: 合約前置 `CONTRACT_REQUIRES_TAG` 過濾，玩家未具前置詞條的合約不出現；E: 後續修復 — `TAG_LOCK_IGNORE` 加入 boost/unique（避免 starter 第 1 回合就鎖）、filter 嚴格檢查改用 `lockTags`（避免 mayor/big_corp 自身 unique catch-22）、移除 `electrode_contract`/`giant_contract` 循環前置 |
 | 48 | 蕾雅耐用恢復回歸 + 合約結算 UI + 莫菲純預告 + 物流站化 + 教學擴充 | A: 蕾雅同類疊加恢復目標耐用上限一半（向上取整），含複合卡路徑；B: 合約結算側邊 log 可點擊開詳情 modal + 中央 ✓/✗ 印章動畫（queue 依序播放）；C: 莫菲從 `triggerEvent` 即時池排除（只走 `pickNextEvent` 預告流程），同時加入 `MARKET_EVENT_IDS` 讓惡魔巨人觸發；D: `logistics_hub` 放置改為轉成 `logistics_<dir>` 固定方向（與 `transfer_hub` 同），desc 同步；E: 教學從 9 步擴為 12 步，新增耐用值/人材/合約三個 step，互動期間強制只允許教學動作 |
-| 49 | 教學 bug 修復 + 排列取消還原手牌 + 高級設施直接覆蓋升級 | A: 教學中立繪自動退場（`body.tutorial-active` opacity:0 + pointer-events:none）避免遮 btn-next；B: step8 人材說明強調「恢復 +1 耐用值」（★ 重點 + 急救包比喻）；C: 拆遷隊重排後卡死修復 — `hookConfirmRearrange` 改設新狀態 `tut_post_rearrange_end_turn` + 清空 `G.card` + speak 提示「點⏩結束回合」+ `hookDoNext` 識別新狀態推進到 step12；D: `saveGridSnapshot`/`restoreGridSnapshot` 加 `_handSnapshot`，cancelRearrange 還原手牌（修「取消後手牌設施消失」bug，覆蓋拆遷隊與移動都市兩條路徑）；E: 高級原料廠/高級工廠/超商 直接蓋在對應基礎設施（mat_factory/factory/shop）上，視為升級替換（per-cell 加成 bldgUpgrades/cellMods/cellPctMods 自然繼承，耐用值依新稀有度上限重建，overlay 存在時拒絕避免破壞疊加狀態）+ onCellDragOver 預覽放行 + desc 同步 |
+| 49 | 教學 bug 修復 + 排列取消還原手牌 + 高級設施直接覆蓋升級 + 莫菲非預告防禦 + 常駐按鈕 z-index | A: 教學中立繪自動退場（`body.tutorial-active` opacity:0 + pointer-events:none）避免遮 btn-next；B: step8 人材說明強調「恢復 +1 耐用值」（★ 重點 + 急救包比喻）；C: 拆遷隊重排後卡死修復 — `hookConfirmRearrange` 改設新狀態 `tut_post_rearrange_end_turn` + 清空 `G.card` + speak 提示「點⏩結束回合」+ `hookDoNext` 識別新狀態推進到 step12；D: `saveGridSnapshot`/`restoreGridSnapshot` 加 `_handSnapshot`，cancelRearrange 還原手牌（修「取消後手牌設施消失」bug，覆蓋拆遷隊與移動都市兩條路徑）；E: 高級原料廠/高級工廠/超商 直接蓋在對應基礎設施（mat_factory/factory/shop）上，視為升級替換（per-cell 加成 bldgUpgrades/cellMods/cellPctMods 自然繼承，耐用值依新稀有度上限重建，overlay 存在時拒絕避免破壞疊加狀態）+ onCellDragOver 預覽放行 + desc 同步；F: `_contractTriggerEventById` 加莫菲過濾（防禦 latent bug：避免任何合約即時路徑繞過 `pickNextEvent` 預告流程觸發莫菲）；G: 右側 panel 常駐按鈕（`#perm-btns` 商店/轉換、`#btn-next` 結束回合）加 `position:relative; z-index:55` 高於立繪（z-index:50），修復普通遊戲中立繪 img 的 `pointer-events:auto` 攔截轉換收益按鈕點擊 |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -5607,11 +5607,47 @@ if(G.grid[r][c] && !isLeyaUpgrade && !isRuinPlace && !isOverlay && !isCenterNetO
 
 **路徑覆蓋**：點擊放置（`onCell` → `tryPlaceAtCell`）與拖曳放置（`onCellDrop` → `tryPlaceAtCell`）共用同一入口。複合卡路徑（`tryPlaceAtCell` 早段獨立處理）不受影響。
 
+### F. 莫菲定律「非預告路徑」防禦過濾
+
+**背景**：Session 48 在 `triggerEvent` 過濾莫菲（即時觸發如「⚡ 觸發隨機事件」行動、合約即時觸發等不會抽到莫菲），但 `_contractTriggerEventById(evId)`（line 4274，由合約 onTurnStart 等呼叫）**沒有任何 id 過濾**。雖然目前只有 `earthquake_contract` 用它，但若未來新增「觸發莫菲」的合約則完全繞過 `pickNextEvent` 預告流程。
+
+**修法**（line 4278）：
+```javascript
+function _contractTriggerEventById(evId){
+  if(evId==='murphy'){ console.warn('莫菲定律不允許從即時觸發路徑呼叫'); return; }
+  ...
+}
+```
+
+**現況保證**：莫菲唯一觸發路徑為 `pickNextEvent` → 設定 `G.nextEvent` → 至少 1 回合預告 → `startTurn` 內 `G.turn>=G.nextEventTurn` 才 fire。
+
+**所有 `ev.show` 呼叫點驗證**：
+- `pickNextEvent` (9480) → 預告路徑 ✓
+- `triggerEvent` (6648) → `EVENTS.filter(e=>e.id!=='murphy')` ✓
+- `_contractTriggerEventById` (4278) → 新加 `if(evId==='murphy') return` ✓
+- DEV panel (15543) → 開發者模式（不適用 production）
+
+### G. 常駐按鈕 z-index 修復（普通遊戲也會被立繪遮）
+
+**背景**：A 修了「教學中立繪遮按鈕」，但**普通遊戲下立繪仍然遮按鈕**。立繪 `#char-tray` `position:fixed; z-index:50; pointer-events:none`，但子層 `#char-tray img` 為 `pointer-events:auto; cursor:pointer`（為了點立繪跳對話用）。右側 panel `position:static`，子按鈕無 z-index 預設 auto，會被立繪 img 在視覺與點擊上覆蓋。
+
+**症狀**：玩家持非金錢資源時 `#btn-perm-convert` 按鈕看似亮了（`btn-glow`），但點擊被立繪 img 攔截 → 「按鈕無法點擊」。`#btn-perm-shop`、`#btn-next` 同樣會被攔截。
+
+**修法**（CSS line 909）：
+```css
+#perm-btns, #btn-next { position: relative; z-index: 55; }
+```
+- 55 > 50（立繪），按鈕在立繪上方
+- 55 < 60（手牌扇形區）、< 70（投入箭頭 `.dbtn`）、< 99（對話泡泡）— 不影響其他互動層級
+- `position:relative` 創建 stacking context 才能讓 z-index 生效
+
 ### 修改檔案
 
 `index.html`：
+- ~909：CSS `#perm-btns, #btn-next` z-index:55
 - ~1373：CSS `body.tutorial-active #char-tray` / `#char-toggle` 樣式
 - ~2492-2494：BLDG.adv_mat_factory / adv_factory / convenience desc 同步
+- ~4278：`_contractTriggerEventById` 加莫菲過濾
 - ~5650-5670：`saveGridSnapshot` / `restoreGridSnapshot` / `deleteGridSnapshot` 加 `_handSnapshot`
 - ~7148：`tryPlaceAtCell` 升級替換邏輯
 - ~7635：`onCellDragOver` 擋板放行 + ~7660 升級預覽高亮分支
