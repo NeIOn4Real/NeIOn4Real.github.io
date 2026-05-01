@@ -1369,6 +1369,15 @@ body.char-hidden #char-bubble {
 body.char-hidden #char-toggle {
   right: 0;
 }
+/* 教學進行中：立繪退場避免遮住按鈕（泡泡 z-index:99 仍可見） */
+body.tutorial-active #char-tray {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s ease;
+}
+body.tutorial-active #char-toggle {
+  display: none;
+}
 
 /* 合夥人選擇卡頭像 */
 .sel-card-avatar {
@@ -2480,9 +2489,9 @@ const BLDG = {
   tax_office:{ name:'稅務局', emoji:'🏛', desc:'每回合開始隨機設施升級，最終收益-10%', req:'any', out:null, fn:v=>v, special:'tax_office' },
 
   // ── 基礎升級設施（R 級）──
-  adv_mat_factory:{ name:'高級原料廠', emoji:'⛏️', desc:'金錢→原料 +4。', req:'money', out:'material', fn:v=>v+4 },
-  adv_factory:    { name:'高級工廠',   emoji:'🏭', desc:'原料→商品 +4。', req:'material', out:'goods', fn:v=>v+4 },
-  convenience:    { name:'超商', emoji:'🏪', desc:'商店。商品→金錢 +4。原料→金錢 +4。', req:'any', out:'money', fn:v=>v, special:'convenience', isShop:true },
+  adv_mat_factory:{ name:'高級原料廠', emoji:'⛏️', desc:'金錢→原料 +4。可直接蓋在原料廠上升級替換（加成繼承）。', req:'money', out:'material', fn:v=>v+4 },
+  adv_factory:    { name:'高級工廠',   emoji:'🏭', desc:'原料→商品 +4。可直接蓋在工廠上升級替換（加成繼承）。', req:'material', out:'goods', fn:v=>v+4 },
+  convenience:    { name:'超商', emoji:'🏪', desc:'商店。商品→金錢 +4。原料→金錢 +4。可直接蓋在商店上升級替換（加成繼承）。', req:'any', out:'money', fn:v=>v, special:'convenience', isShop:true },
   chem_refinery:  { name:'化工精煉廠', emoji:'🔩', desc:'原料→原料 +6。', req:'material', out:'material', fn:v=>v+6 },
   adv_warehouse:  { name:'高級倉庫',   emoji:'📦', desc:'商品→商品 +6。', req:'goods', out:'goods', fn:v=>v+6 },
   adv_booster:    { name:'強化增幅裝置', emoji:'⚡', desc:'任意+4。周圍 4 格設施被動獲得 +2（位置變動時更新）。', req:'any', out:null, fn:v=>v+4, special:'adv_booster' },
@@ -5640,6 +5649,7 @@ function findFacilityCells(){ return findCells((r,c,b)=>isFacility(b)); }
 function cellQ(r,c){ return document.querySelector(`[data-r="${r}"][data-c="${c}"]`); }
 function saveGridSnapshot(){
   G._gridSnapshot=G.grid.map(r=>[...r]);
+  G._handSnapshot=JSON.parse(JSON.stringify(G.hand||[]));
   G._keyedSnapshot={};
   KEYED_DATA_FIELDS.forEach(dk=>{ G._keyedSnapshot[dk]=JSON.parse(JSON.stringify(G[dk]||{})); });
   G._ruinCellsSnapshot=G.ruinCells?new Set(G.ruinCells):new Set();
@@ -5649,6 +5659,7 @@ function saveGridSnapshot(){
 function restoreGridSnapshot(){
   if(!G._gridSnapshot) return;
   G.grid=G._gridSnapshot;
+  if(G._handSnapshot) G.hand=G._handSnapshot;
   if(G._keyedSnapshot) KEYED_DATA_FIELDS.forEach(dk=>{ G[dk]=G._keyedSnapshot[dk]||{}; });
   if(G._ruinCellsSnapshot) G.ruinCells=G._ruinCellsSnapshot;
   if(G.partnerState&&G.partnerState.envy) G.partnerState.envy.cellBonus=G._envyCellBonusSnapshot||{};
@@ -5657,7 +5668,7 @@ function restoreGridSnapshot(){
   deleteGridSnapshot();
 }
 function deleteGridSnapshot(){
-  delete G._gridSnapshot; delete G._keyedSnapshot; delete G._ruinCellsSnapshot; delete G._envyCellBonusSnapshot;
+  delete G._gridSnapshot; delete G._handSnapshot; delete G._keyedSnapshot; delete G._ruinCellsSnapshot; delete G._envyCellBonusSnapshot;
 }
 
 // ══════════════════════════════════════
@@ -7133,6 +7144,33 @@ function tryPlaceAtCell(r,c,bldgId){
       return true;
     }
   }
+  // ── 高級設施直接覆蓋升級：高級原料廠/高級工廠/超商 蓋在對應基礎設施上，加成繼承 ──
+  const _UPGRADE_FROM = {
+    adv_mat_factory: 'mat_factory',
+    adv_factory: 'factory',
+    convenience: 'shop',
+  };
+  if(_UPGRADE_FROM[bldgId] && G.grid[r][c]===_UPGRADE_FROM[bldgId]){
+    if(!handItem||handItem.count<=0) return false;
+    if(getOverlays(r,c).length>0){
+      addLog(`⬆ ${BLDG[bldgId].name}：該格有疊加設施，無法升級替換`,'b');
+      return false;
+    }
+    handItem.count--;
+    const oldId = G.grid[r][c];
+    G.grid[r][c] = bldgId;
+    // 耐用值：新舊稀有度上限不同，清除以便下次 stepWithMover 依新 ID 重建
+    const k=`${r},${c}`;
+    if(G.facilityDurability) delete G.facilityDurability[k];
+    if(G.facilityRecovering) delete G.facilityRecovering[k];
+    addLog(`⬆ 升級：${BLDG[oldId].emoji}${BLDG[oldId].name} → ${BLDG[bldgId].emoji}${BLDG[bldgId].name} (${r+1},${c+1})（加成繼承）`,'g');
+    TUT.hookPlace(bldgId);
+    if(typeof onFacilityPlaced==='function') onFacilityPlaced(r,c,bldgId);
+    placeEffect(r,c);
+    render();
+    return true;
+  }
+
   if(G.grid[r][c]){
     addLog(G.grid[r][c]==='ruin'?'該格子是廢墟，無法放置設施':'該格子已有設施','b');
     return false;
@@ -7592,8 +7630,11 @@ function onCellDragOver(e,r,c){
     && G.grid[r][c]!=='ruin'
     && G.grid[r][c]!=='dept_store_part' && G.grid[r][c]!=='ancient_factory_part'
     && !(existB&&existB.isLarge);
+  // 高級設施升級替換：高級原料廠/高級工廠/超商 蓋在對應基礎設施上
+  const _UPGRADE_FROM_MAP = { adv_mat_factory:'mat_factory', adv_factory:'factory', convenience:'shop' };
+  const isUpgradeReplace = _UPGRADE_FROM_MAP[bldgDragging] && G.grid[r][c]===_UPGRADE_FROM_MAP[bldgDragging] && _ovsAtCell.length===0;
   if(G.grid[r][c] && !isLeyaUpgrade && !isRuinPlace && !isOverlay && !isCenterNetOverlay
-     && !isContainerHouseDrop && !isTrafficLightDrop && !isProductionLineDrop) return;
+     && !isContainerHouseDrop && !isTrafficLightDrop && !isProductionLineDrop && !isUpgradeReplace) return;
   e.preventDefault();
   _clearBldgPreview();
   const cellEl=cellQ(r,c);
@@ -7613,6 +7654,11 @@ function onCellDragOver(e,r,c){
     // 傳統生產線：藍綠色高亮表示「修復」
     cellEl.style.outline='3px solid #3b8';
     cellEl.style.boxShadow='0 0 12px rgba(60,180,140,.5)';
+  } else if(isUpgradeReplace && cellEl){
+    // 升級替換：金色高亮 + 預覽新設施
+    cellEl.style.outline='3px solid var(--money)';
+    cellEl.style.boxShadow='0 0 14px rgba(220,170,30,.55)';
+    _insertBldgPreview(cellEl, bldgDragging);
   } else {
     _insertBldgPreview(cellEl, bldgDragging);
     if(isRuinPlace && cellEl) cellEl.style.outline='3px solid var(--money)';
@@ -13278,6 +13324,8 @@ const TUT = {
     TUT.active = true;
     TUT.step = 0;
     TUT.initState();
+    // 教學中立繪退場避免遮按鈕
+    document.body.classList.add('tutorial-active');
     // 隱藏存讀檔按鈕
     const btnEx=document.getElementById('btn-export'), btnIm=document.getElementById('btn-import');
     if(btnEx) btnEx.style.display='none'; if(btnIm) btnIm.style.display='none';
@@ -13484,7 +13532,8 @@ const TUT = {
     TUT.speak([
       '太棒了！再來介紹一個重要資源：「人材」。',
       '我給你 1 個人材——左下角那張小卡片就是。',
-      '把人材拖到任一個設施上：本回合該設施 +1 收益，並恢復 +1 耐用值。',
+      '把人材拖到設施上：本回合該設施 +1 收益。',
+      '★ 重點：還會「恢復 +1 耐用值」！設施快破損時，人材就是急救包。',
       '（也可以拖到資源卡上，讓資源額外多投入一次）',
       '試著把人材拖到原料廠上吧！',
     ], ()=>{
@@ -13579,6 +13628,8 @@ const TUT = {
   finish(){
     TUT.active = false;
     TUT.waitingFor = null;
+    // 還原立繪
+    document.body.classList.remove('tutorial-active');
     // 還原存讀檔按鈕
     const btnEx=document.getElementById('btn-export'), btnIm=document.getElementById('btn-import');
     if(btnEx) btnEx.style.display=''; if(btnIm) btnIm.style.display='';
@@ -13766,8 +13817,8 @@ const TUT = {
   // doNext（結束回合按鈕）：教學各階段的回合推進
   hookDoNext(){
     if(!TUT.active) return false;
-    // step11：跳過拆遷隊
-    if(TUT.waitingFor==='use_demolition'||TUT.waitingFor==='confirm_rearrange'){
+    // step11：跳過拆遷隊 / 重排後結束回合 → step12
+    if(TUT.waitingFor==='use_demolition'||TUT.waitingFor==='confirm_rearrange'||TUT.waitingFor==='tut_post_rearrange_end_turn'){
       TUT.waitingFor=null;
       document.querySelectorAll('.joker-card').forEach(c=>{c.style.outline='';c.style.animation='';});
       TUT.step=11; TUT.next();
@@ -13825,11 +13876,20 @@ const TUT = {
     setTimeout(()=>TUT.next(), 500);
   },
 
-  // confirmRearrange 結尾：確認排列後恢復等待
+  // confirmRearrange 結尾：確認排列後提示玩家結束回合
   hookConfirmRearrange(){
     if(!TUT.active || TUT.waitingFor!=='confirm_rearrange') return false;
-    TUT.waitingFor = 'use_demolition';
+    TUT.waitingFor = 'tut_post_rearrange_end_turn';
     document.getElementById('btn-next').disabled=false;
+    // 移除合夥人高亮
+    document.querySelectorAll('.joker-card').forEach(c=>{c.style.outline='';c.style.animation='';});
+    // 不讓玩家投入金錢，直接點結束回合
+    G.card = null;
+    if(typeof renderFanHand==='function') renderFanHand();
+    TUT.speak([
+      '排列完成！這回合不需要再投入資源了——',
+      '直接點右下角「⏩ 結束回合」結束本回合吧～',
+    ]);
     return false;
   },
 
