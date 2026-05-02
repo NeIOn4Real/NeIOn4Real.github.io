@@ -34,6 +34,7 @@
 | 42 | 耐用值 UI 血條化 + 詞條權重/鎖池/合約過濾 + 4 處後續修復 | A: 耐用值 UI 從文字徽章改分段血條，N/R/SR/SSR 上限 3/5/7 → 5/7/9/11；B: TAG_WEIGHT 0.12→0.3、多詞條同時命中 ×1.5 boost；C: 流派鎖池 `filterByOwnedTags`：玩家有 ≥2 非中性詞條時，候選池只保留 basic/demon/無詞條/已擁有詞條（大型例外要求對應詞條）；D: 合約前置 `CONTRACT_REQUIRES_TAG` 過濾，玩家未具前置詞條的合約不出現；E: 後續修復 — `TAG_LOCK_IGNORE` 加入 boost/unique（避免 starter 第 1 回合就鎖）、filter 嚴格檢查改用 `lockTags`（避免 mayor/big_corp 自身 unique catch-22）、移除 `electrode_contract`/`giant_contract` 循環前置 |
 | 48 | 蕾雅耐用恢復回歸 + 合約結算 UI + 莫菲純預告 + 物流站化 + 教學擴充 | A: 蕾雅同類疊加恢復目標耐用上限一半（向上取整），含複合卡路徑；B: 合約結算側邊 log 可點擊開詳情 modal + 中央 ✓/✗ 印章動畫（queue 依序播放）；C: 莫菲從 `triggerEvent` 即時池排除（只走 `pickNextEvent` 預告流程），同時加入 `MARKET_EVENT_IDS` 讓惡魔巨人觸發；D: `logistics_hub` 放置改為轉成 `logistics_<dir>` 固定方向（與 `transfer_hub` 同），desc 同步；E: 教學從 9 步擴為 12 步，新增耐用值/人材/合約三個 step，互動期間強制只允許教學動作 |
 | 49 | 教學 bug 修復 + 排列取消還原手牌 + 高級設施直接覆蓋升級 + 莫菲非預告防禦 + 常駐按鈕 z-index | A: 教學中立繪自動退場（`body.tutorial-active` opacity:0 + pointer-events:none）避免遮 btn-next；B: step8 人材說明強調「恢復 +1 耐用值」（★ 重點 + 急救包比喻）；C: 拆遷隊重排後卡死修復 — `hookConfirmRearrange` 改設新狀態 `tut_post_rearrange_end_turn` + 清空 `G.card` + speak 提示「點⏩結束回合」+ `hookDoNext` 識別新狀態推進到 step12；D: `saveGridSnapshot`/`restoreGridSnapshot` 加 `_handSnapshot`，cancelRearrange 還原手牌（修「取消後手牌設施消失」bug，覆蓋拆遷隊與移動都市兩條路徑）；E: 高級原料廠/高級工廠/超商 直接蓋在對應基礎設施（mat_factory/factory/shop）上，視為升級替換（per-cell 加成 bldgUpgrades/cellMods/cellPctMods 自然繼承，耐用值依新稀有度上限重建，overlay 存在時拒絕避免破壞疊加狀態）+ onCellDragOver 預覽放行 + desc 同步；F: `_contractTriggerEventById` 加莫菲過濾（防禦 latent bug：避免任何合約即時路徑繞過 `pickNextEvent` 預告流程觸發莫菲）；G: 右側 panel 常駐按鈕（`#perm-btns` 商店/轉換、`#btn-next` 結束回合）加 `position:relative; z-index:55` 高於立繪（z-index:50），修復普通遊戲中立繪 img 的 `pointer-events:auto` 攔截轉換收益按鈕點擊 |
+| 50 | 程式碼精簡（CSS 變數 + DOM 快取 + display helper + 巢狀 if 扁平化） | A: `--pill-r:99px` 變數取代 20 處硬編碼（CSS rule 8 + JS template inline 11）；B: 新增 `_$()` DOM 快取 helper + `_ELC` 物件，替換 86 處靜態頂層元素 `document.getElementById`（btn-next/btn-contract/wind-hint/contract-fx/modal/r-turn/r-profit/r-goal/ev-* 等），動態元素如 fancard-N/各 overlay/popup 刻意保留；C: 新增 `_show(el,mode)` / `_hide(el)` helper 替換 49 處 `.style.display='flex'/'none'/'block'`，2 處讀取（檢查 display 狀態）保留；D: 5 處巢狀 if 扁平化（poverty_god onTurnEnd / moveMode 移動分支 / terminal_contract 違約檢查 / `_contractProfitZeroTurns` zero-profit / showContractResolveDetail def 檢查 + `_clearLogisticsCenters` overlay / 手牌物流卡判斷）；總計 −4.7KB；不動 BLDG fn 預填 / PARTNERS desc 自動拼 / `isDemonNegDisabled` 中央化 / `partnerState` 統一 init / 耐用值 UI CSS 合併 / stepWithMover G.buff 順序（依 GameDoc S22/26/28/30/32 教訓判定為高風險） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -5659,4 +5660,107 @@ function _contractTriggerEventById(evId){
 `VentureTown_GameDoc.md`：
 - 索引表加入 Session 49
 - 新增 Session 49 詳細章節（本節）
+
+---
+
+## Session 50（2026-05-02）— 程式碼精簡（CSS 變數 + DOM 快取 + display helper + 巢狀 if 扁平化）
+
+### 背景
+
+Explore agent 對 index.html（15,482 行 / 761KB）做精簡掃描，初版回報 ~270–340 行（1.8–2.3%）可精簡空間。對照本 GameDoc 後發現多項建議落入「歷史地雷區」（S22/S26/S28/S30 死碼 pattern、S11/S32 isDemonNegDisabled 漏判、S26 desc 解讀規則精確映射），實際安全範圍縮為 ~180 行；高風險項目刻意不動。
+
+### A. CSS `border-radius:99px` 變數化（20 處）
+
+`:root` 加 `--pill-r:99px`，替換所有膠囊樣式。
+
+- CSS rule（8 處）：`.chip` / `#pbar` / `#pbar-fill` / `.eopt` / `#mbtn` / `.change-badge` / `#btn-contract .contract-count`+`.contract-failed-dot` / 卡片 rarity badge
+- JS template inline style（11 處）：粒子角標、`omniCount` badge、`stackN` badge、批量投入 label、`magnet_plate` x= 標記等
+
+### B. DOM 靜態元素快取（`_$()` helper + `_ELC` 物件）
+
+新增於 line 1755–1757：
+
+```js
+const _ELC = {};
+function _$(id){ return _ELC[id] || (_ELC[id] = document.getElementById(id)); }
+```
+
+替換 86 處 `document.getElementById(...)` 呼叫，涵蓋：
+- 工具列：`btn-next` / `btn-contract` / `btn-export` / `btn-import` / `btn-bgm` / `btn-perm-shop` / `btn-perm-convert`
+- Modal/Overlay：`modal` / `mtitle` / `mmsg` / `mbtn` / `mbox` / `memo` / `card-chooser` / `card-chooser-skip` / `card-chooser-cards` / `card-chooser-title` / `action-chooser` / `action-cards` / `contract-panel` / `contract-panel-body` / `contract-resolve-detail` / `contract-resolve-detail-body` / `contract-fx` / `partner-float` / `compound-preview-float`
+- Round info：`r-turn` / `r-profit` / `r-goal` / `r-diff` / `pbar` / `pbar-fill`
+- Header / 區塊：`hdr` / `logo` / `profit-area` / `main` / `grid` / `grid-area` / `partner-section` / `partner-row` / `pf-row` / `hand-list` / `hand-fan-area` / `side-log` / `el-profit` / `el-mover` / `talent-section-title` / `talent-panel` / `talent-count` / `char-tray` / `char-toggle` / `char-bubble` / `upgrade-hint`
+- 場景：`ts-cards` / `title-screen`
+- 事件 banner：`ev-banner` / `ev-title` / `ev-desc` / `ev-opts` / `wind-hint` / `wind-hint-text` / `wind-dir-arrow` / `diff-chip` / `invest-preview`
+- Mega/Battle/Dev：`mega-overlay` / `mega-grid-area` / `mega-hand-list` / `mega-profit` / `mega-log` / `mega-fan-area` / `mega-inspect-overlay` / `mega-inspect-box` / `battle-overlay` / `battle-mover` / `battle-log` / `battle-field` / `battle-field-area` / `battle-hp-fill` / `battle-hp-text` / `battle-turn-info` / `battle-enemy-name` / `battle-fan-area` / `btn-battle-draw` / `btn-battle-invest` / `btn-battle-redraw` / `dev-panel`
+
+**刻意保留原寫法**（避免 stale 引用）：
+- 動態建立/移除：`heatwave-overlay` / `murphy-overlay` / `indust-hint` / `omni-drag-panel` / `omni-source-card` / `omni-confirm-box` / `dev-select-clear-bar` / `tooltip`
+- 變數 id：`fancard-${i}` / `getElementById(id)` 內 id 為函式參數
+
+### C. Display helper（`_show` / `_hide`）
+
+新增於 line 1758–1760：
+
+```js
+function _show(el,mode){ if(el) el.style.display = mode!==undefined ? mode : 'flex'; }
+function _hide(el){ if(el) el.style.display = 'none'; }
+```
+
+替換 49 處 `.style.display='flex'/'none'/'block'/'inline-flex'`。
+
+- `mode` 預設 `'flex'`；傳 `''` 可清除回 stylesheet 預設
+- 內建 null check（與既有 `if(el)` 防呆模式一致）
+- **保留 2 處 `style.display==='flex'` 讀取檢查**（`isAnyEventModalOpen`：判定 card-chooser/action-chooser 是否開啟）
+
+### D. 巢狀 if 扁平化（5 處）
+
+僅扁平化「合併 condition 後語意完全等價」的 case。所有 stepWithMover 內 G.buff 順序、partner hook 條件分支刻意不動（依 GameDoc 歷史教訓）。
+
+| 位置 | 原寫法 | 新寫法 |
+|---|---|---|
+| `poverty_god.onTurnEnd` | `else { if(st.bonus>8){...} st.bonus=8; }` | `else if(st.bonus>8){...; st.bonus=8;} else { st.bonus=8; }` |
+| `onCell` G.moveMode 移動 | `if(!moveSrc){...} else {...}` | `if(!moveSrc){...; return;}` 後直接平鋪 else 區塊 |
+| `terminal_contract` 違約檢查 | `if(violated){ if(profit>start){...} }` | `const violated=...; if(violated && profit>start){...}` |
+| `_contractProfitZeroTurns` zero-profit | `if(turns>0){ if(profit>start){...} }` | `if(turns>0 && profit>start){...}` |
+| `showContractResolveDetail` def 檢查 | `if(def){ if(g){...} if(c){...} }` | `if(def && g){...}` ＋ `if(def && c){...}` 兩段 |
+| `_clearLogisticsCenters` overlay 過濾 | `if(filtered≠ovs){ if(typeof setOverlays...){} }` | `if(filtered≠ovs && typeof setOverlays==='function'){...}` |
+| `G.hand.forEach` 物流卡判斷 | `} else { if(BLDG[h.id].special...) h.count=0; }` | `} else if(BLDG[h.id].special...){ h.count=0; }` |
+
+### E. 評估後不動的高風險項目
+
+| 項目 | 不動原因（依 GameDoc 章節） |
+|---|---|
+| 集中化 `isDemonNegDisabled` guard | S32 行 3602–3609（擴散惡魔漏寫被發現）+ S11 行 1497（黑市/爆破工程師 isDemon 判定）：每個合夥人「該不該豁免」是個別設計決策，集中化會讓未來新增漏寫無法被發現 |
+| PARTNERS desc 從 pos+neg 自動拼 | S26 行 3237–3247（全域 desc 解讀規則：`本回合→cellMods` / `永久→bldgUpgrades` / `每回合→onTurnStart`）+ S38/S48（Excel 對齊 desc 同步）：desc 是實作的單一真實來源，自動生成會破壞對照規則 |
+| BLDG `fn:v=>v` 預設化 | desc 解讀規則要求 fn 精確對應 desc；S22/S26/S28/S30 死碼修復都是 fn 內邏輯位置錯誤造成的，看似佔位的 fn 實為資源行進路徑必須走過的鉤子 |
+| `partnerState` 統一 init helper | 各合夥人 state shape 差異大（envy.cellBonus per-cell / pride.bonus scalar / arbitrageur.x / omni.count / yongqing_house.bonus / envy.matchBonus）；S11 行 1511 才剛移除 `poverty_god.state`/`wrath.state` 死欄位；統一 helper 雖可寫但個別 shape 仍要顯式宣告，效益低 |
+| 耐用值 UI CSS 共用基類 | S42 + S48 才確立 5/7/9/11 上限與分段血條動畫；`.dur-low`（紅閃）/`.dur-zero`（灰）/`.dur-recover`（綻放）/`.dur-shake`/`.dur-bloom` 各自有獨立動畫 keyframe，合併基類有機會造成動畫互相覆蓋 |
+| 「備份舊值算變化」18 處 helper 化 | 看起來像同樣 pattern，實際追蹤的東西不同（forex/arb/contract hits/durability/...）；抽 helper 會模糊「這裡在追蹤什麼」的可讀性 |
+| stepWithMover G.buff 檢查鏈 | S22/S26/S28/S30 死碼根因都是 buff 順序錯誤；不可改變判斷順序 |
+
+### F. 量化結果
+
+| 指標 | Session 49 結束 | Session 50 結束 | 差 |
+|---|---|---|---|
+| 行數 | 15,482 | 15,474 | −8 |
+| 大小 | 761,415 bytes | 756,715 bytes | −4,700 bytes（−4.7KB / −0.6%） |
+
+行數淨減少不多（helper 定義 +10 行 ≈ 抵消其他扁平化），但**字元數**減少明顯：
+- `document.getElementById('btn-contract')` (40 char) → `_$('btn-contract')` (18 char)：每處省 22 char × 86 處 ≈ 1.9KB
+- `.style.display='none'` (21 char) → `_hide(el)` (9 char)：每處省 12 char × 49 處 ≈ 0.6KB
+- 其餘 CSS 變數化、巢狀 if 合併
+
+### 修改檔案
+
+`index.html`：
+- ~1751–1761：新增 DOM helper / display helper（_ELC / _$ / _show / _hide）
+- ~9–17：`:root` 加 `--pill-r:99px`
+- 其餘散布替換（86 處 DOM 快取 / 49 處 display helper / 20 處 CSS 變數 / 5 處巢狀 if）
+
+`venture-town.html`：與 index.html 完全同步
+
+`VentureTown_GameDoc.md`：
+- 索引表加入 Session 50
+- 新增 Session 50 詳細章節（本節）
 
