@@ -13955,7 +13955,8 @@ function serializeGame(){
     ts:new Date().toISOString(),
     g:JSON.parse(JSON.stringify(G,(_,v)=>v instanceof Set?{_s:[...v]}:v)),
     cs:_compoundSeq,
-    mega:JSON.parse(JSON.stringify(_megaFacilities||[])),
+    // mega 內 ruinCells 可能是 Set（simulate 後）：用 replacer 轉為 {_s:[...]} 序列化格式
+    mega:JSON.parse(JSON.stringify(_megaFacilities||[],(_,v)=>v instanceof Set?{_s:[...v]}:v)),
   };
 }
 function deserializeGame(save){
@@ -14113,6 +14114,9 @@ function deserializeGame(save){
   recomputeBoosterAura();
   // BGM：載入後依新存檔的輪數切歌（active 才生效）
   if(typeof BGM!=='undefined') BGM.syncToRound();
+  // 取消任何進行中的 stepWithMover 動畫鏈：載入存檔時 G.grid 已替換，
+  // 殘留的 setTimeout 用舊 _stepAnimGen 比對仍會通過、操作新 grid 造成異常
+  cancelStepAnim();
   return true;
 }
 function autoSave(){
@@ -14193,7 +14197,11 @@ function loadMegaFacilities(){
   }catch(e){ _megaFacilities=[]; }
 }
 function saveMegaFacilities(){
-  try{ localStorage.setItem(MEGA_KEY,JSON.stringify(_megaFacilities)); }
+  try{
+    // Set replacer：simulateMegaFacility 會把 ruinCells 由 {_s:[...]} 轉成 Set 物件，
+    // 直接 JSON.stringify Set 會變空 {} 導致廢墟資料遺失，這裡轉回 {_s:[...]} 序列化格式。
+    localStorage.setItem(MEGA_KEY,JSON.stringify(_megaFacilities,(_,v)=>v instanceof Set?{_s:[...v]}:v));
+  }
   catch(e){ console.warn('Mega save failed:',e); }
 }
 
