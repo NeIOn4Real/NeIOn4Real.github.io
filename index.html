@@ -10251,7 +10251,7 @@ function doPermShop(){
         G._permShopPartnerLock=pLock;
       }
       // 已持有（中途買到）→ 不再注入；同輪內不會再出別人
-      if(pLock.pid && !G.partners.includes(pLock.pid)){
+      if(pLock.pid && !(G.partners||[]).includes(pLock.pid)){
         const replaceIdx=Math.floor(Math.random()*shuffled.length);
         shuffled[replaceIdx]=pLock.pid;
       }
