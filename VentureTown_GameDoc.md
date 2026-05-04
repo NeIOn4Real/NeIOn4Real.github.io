@@ -94,6 +94,7 @@
 | 57 | 2026-05-04 | 商店合夥人改為「輪」級鎖（避免結束回合反覆刷新合夥人） |
 | 58 | 2026-05-04 | 訪客計數器（Cloudflare Worker 後端，作者專用暗門 + IP 排除） |
 | 59 | 2026-05-04 | 商店合夥人改 4th 額外位置 + 撤回 S57 輪鎖（per-turn roll） |
+| 60 | 2026-05-04 | 巨人村 / 大型電子供給站 / 世界奇觀 真正佔用 2×2（補 _part 占位 + cascade destroy） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -6960,4 +6961,191 @@ delete data._permShopPartnerLock;
 - 全 Session 完整索引加入 Session 59
 - 新增 Session 59 詳細章節（本節）
 
+
+
+
+## Session 60（2026-05-04）— 巨人村 / 大型電子供給站 / 世界奇觀 真正佔用 2×2
+
+### 動機
+
+玩家回報：「巨人村設置後，不會佔用2*2的格子」。對照 desc「這個設施佔用2*2的格子」，與實作矛盾。
+
+### 根因
+
+`tryPlaceAtCell` 在 `index.html:7117` 的非 dept/ancient 大型設施分支：
+
+```js
+} else {
+  // 非百貨公司/古代機械工廠的大型設施：目前實作為單格（居主格），其餘 3 格以 null 佔住 anchor 標記
+  // 依現行實作保持單格行為，僅消滅 2×2 區域釋出空間
+  G.grid[r][c]=bldgId;
+  ...
+}
+```
+
+註解寫「依現行實作保持單格行為」是設計遺留——`dept_store` / `ancient_factory` 早就用 `dept_store_part` / `ancient_factory_part` 占位實現真 2×2，但 `giant_village` / `mega_elec_supply` / `world_wonder` 三個大型設施沒對應 `_part`，被擱置成單格。
+
+### A. 新增 3 個 `_part` 占位定義
+
+仿 `ancient_factory_part` 模式，三個 part 都標 `isLarge:true` + `indestructible:true`：
+
+```js
+giant_village_part:    { name:'巨人村', emoji:'🏰', desc:'巨人村（2×2）的占位格，本身無獨立效果',
+                         req:null, out:null, fn:v=>v, special:'giant_village_part',
+                         isLarge:true, indestructible:true },
+mega_elec_supply_part: { name:'大型電子供給站', emoji:'🔋', desc:'...的占位格，本身無獨立效果',
+                         req:null, out:null, fn:v=>v, special:'mega_elec_supply_part',
+                         isLarge:true, indestructible:true },
+world_wonder_part:     { name:'世界奇觀', emoji:'🏟', desc:'...的占位格，本身無獨立效果',
+                         req:null, out:null, fn:v=>v, special:'world_wonder_part',
+                         isLarge:true, indestructible:true },
+```
+
+`isLarge:true` 讓既有過濾自動覆蓋（`COMPOUND_EXCLUDE._isCompoundExcluded` 的 `if(def.isLarge)`、許多 filter 的 `BLDG[b].isLarge` 配對檢查、`isDurabilityTracked` 的 `b.isLarge` 早返）。
+
+`indestructible:true` 讓 `destroyFacility` 在第 12566 行早返保護 part；container_house / production_line 的 `BLDG[cur].indestructible` 配對檢查也擋下。
+
+### B. TAGS 同步
+
+| Part | Tags |
+|---|---|
+| `giant_village_part` | `['large', 'hr']` |
+| `mega_elec_supply_part` | `['electronic', 'large']` |
+| `world_wonder_part` | `['large']` |
+
+對齊各自主格的 tags。
+
+### C. `isPoolableBldg` 升級
+
+原本：
+
+```js
+if(id==='envy_factory'||id==='ruin'||id==='dept_store_part'||id==='ancient_factory_part') return false;
+```
+
+改為加入 `if(b.isLarge) return false;`：
+
+```js
+if(id==='envy_factory'||id==='ruin'||id==='dept_store_part'||id==='ancient_factory_part') return false;
+if(b.isLarge) return false; // 大型設施 + 標 isLarge 的 *_part 占位格自動排除
+```
+
+`dept_store_part` / `ancient_factory_part` 不帶 `isLarge`（既有設計），保留前一條明確排除。新增的 3 個 part 帶 `isLarge`，自動被新一條排除。未來再加大型 part 只要設 `isLarge:true` 就會自動排除。
+
+### D. `placeLarge2x2` 通用 placement
+
+新 helper（仿 `placeAncientFactory`）：
+
+```js
+function placeLarge2x2(r,c,anchor,mainId,partId){
+  const [tr,tc]=anchor;
+  for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
+    const key=`${tr+dr},${tc+dc}`;
+    delete G.bldgUpgrades[key]; delete G.leyaPctMods[key];
+  }
+  G.grid[tr][tc]=mainId;
+  G.grid[tr][tc+1]=partId;
+  G.grid[tr+1][tc]=partId;
+  G.grid[tr+1][tc+1]=partId;
+  SFX.expand();
+  // ... transform-flash stagger
+}
+```
+
+`tryPlaceAtCell` 7117 行原本的單格 fallback 改為：
+
+```js
+} else {
+  const partId = bldgId + '_part';
+  addLog(`放置 ${BLDG[bldgId].emoji}${BLDG[bldgId].name} (${tr+1},${tc+1})~(${tr+2},${tc+2})${useBigCorp?' （大財團取代區域）':''}`,'g');
+  placeLarge2x2(r, c, anchor, bldgId, partId);
+}
+```
+
+### E. FACILITY_FX：3 個 part 的空 handler
+
+仿 `dept_store_part(fx)` / `ancient_factory_part(fx)` 的 `fx.next(200)` pass-through。資源經過 part 時不額外加成（效果歸主格處理）。
+
+### F. Cascade destroy（只有 `mega_elec_supply` 需要）
+
+| 主格 | indestructible? | 需要 cascade? |
+|---|---|---|
+| `giant_village` | ✓ | ✗（destroyFacility 第 12566 行早返）|
+| `world_wonder` | ✓ | ✗（同上）|
+| `ancient_factory` | ✓ | ✗（同上）|
+| `dept_store` | ✗ | ✓（既有實作於第 12588-12667 行）|
+| `mega_elec_supply` | ✗ | ✓（**S60 新增**）|
+
+`destroyFacility` 在 dept_store 分支後新增：
+
+```js
+if(bId==='mega_elec_supply'){
+  [[0,1],[1,0],[1,1]].forEach(([dr,dc])=>{
+    const cr=r+dr, cc=c+dc;
+    if(cr<GN()&&cc<GN()&&G.grid[cr]&&G.grid[cr][cc]==='mega_elec_supply_part'){
+      destroyEffect(cr,cc,{silent:true});
+      G.grid[cr][cc]='ruin';
+      if(!G.ruinCells) G.ruinCells=new Set();
+      G.ruinCells.add(`${cr},${cc}`);
+      clearKeyedData(`${cr},${cc}`);
+    }
+  });
+  addLog('🔋 大型電子供給站 2×2 區域變為廢墟','b');
+}
+```
+
+假設：anchor 在左上（`findEmpty2x2` 規定）→ part 在 `(r,c+1) (r+1,c) (r+1,c+1)`。當 `destroyFacility(r,c)` 被呼叫且 `bId==='mega_elec_supply'` 時，`r,c` 必為 anchor。
+
+不需 anchor 反查 map（不像 dept_store 的 `deptStoreParts`）— 因為這條只處理「主格被消滅」這一個方向；part 被消滅的方向走 `indestructible` 早返。
+
+### G. 既有過濾的覆蓋情況
+
+掃過 14 處檢查 `dept_store_part || ancient_factory_part`，分類：
+
+| 類型 | 處理 |
+|---|---|
+| 配 `BLDG[b].isLarge` 檢查（line 2983 / 7344 / 7359 / 8359） | 我的 part 有 `isLarge:true` → 自動覆蓋 ✓ |
+| 配 `BLDG[b].indestructible` 檢查（line 3579 / 5037 / 5765 / 6937 / 7707 / 7715） | 我的 part 有 `indestructible:true` → 自動覆蓋 ✓ |
+| 配 `BLDG[b].isLarge` 檢查（line 5190 `isDurabilityTracked`） | 同上 ✓ |
+| dept_store 專屬路徑（line 3364 / 7041 / 7661 / 7686 / 8665） | 不需動 |
+| `_isCompoundExcluded`（line 6384 `def.isLarge`） | 自動覆蓋 ✓ |
+
+零個剩餘的明確列表需要手動加入新 part — 設計乾淨。
+
+### H. 既有設施動到的程度
+
+只動 7117 行的單格 fallback（4 行）+ 12667 行附近加 cascade（13 行）。其他既有設施 / FX / partner 邏輯不動。
+
+巨人村效果「回合開始時若人材為 0，獲得 +8 人材」：原本用 `findCells((r,c,b)=>b==='giant_village')` 找主格。Part 不會被找到（id 不同）→ 邏輯不變。
+
+世界奇觀效果「最終收益時，每有一個人材，獲得 +8」：onSettle 階段用合夥人 / 設施計數，主格獨立計算 → 不變。
+
+大型電子供給站效果「回合開始時自動設置一個於自身」：用 special FX 在主格 anchor 觸發，part 不參與 → 不變。
+
+### 量化結果
+
+| 項目 | 變化 |
+|---|---|
+| index.html | +約 50 / −5（3 BLDG defs + 3 TAGS + isPoolableBldg + placeLarge2x2 + FX × 3 + cascade）|
+| GameDoc.md | +Session 60 章節 + 雙索引列 |
+| 真實 bug 修復 | 1（巨人村 / 大型電子供給站 / 世界奇觀 不佔 2×2）|
+| 程式碼乾淨度 | 自動覆蓋既有過濾，零手動加入名單 |
+
+### 修改檔案
+
+`index.html`：
+- ~2568：新增 `mega_elec_supply_part` 定義
+- ~2574：新增 `giant_village_part` 定義
+- ~2578：新增 `world_wonder_part` 定義
+- ~5462：TAGS 加 `giant_village_part` / `world_wonder_part`
+- ~5474：TAGS 加 `mega_elec_supply_part`
+- ~5088：`isPoolableBldg` 加 `if(b.isLarge) return false;`
+- ~6605：新增 `placeLarge2x2(r,c,anchor,mainId,partId)` helper function
+- ~7117：單格 fallback 改為 `placeLarge2x2(r, c, anchor, bldgId, bldgId + '_part')`
+- ~7973：FACILITY_FX 新增 `giant_village_part` / `mega_elec_supply_part` / `world_wonder_part` 三個空 handler
+- ~12668：destroyFacility 加 `bId==='mega_elec_supply'` cascade destroy 分支
+
+`VentureTown_GameDoc.md`：
+- 全 Session 完整索引加入 Session 60
+- 新增 Session 60 詳細章節（本節）
 

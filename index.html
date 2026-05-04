@@ -2565,15 +2565,18 @@ const BLDG = {
 
   // ── 電子系設施 ──
   mega_elec_supply:{ name:'大型電子供給站', emoji:'🔋', desc:'大型。電子。金錢→原料+4。商品→原料+4。回合開始時，如果這個設施此回合沒有被重疊過，這個設施將自動設置一個大型電子供給站於自身。', req:'any', out:'material', fn:v=>v+4, special:'mega_elec_supply', needs2x2:true, isLarge:true },
+  mega_elec_supply_part:{ name:'大型電子供給站', emoji:'🔋', desc:'大型電子供給站（2×2）的占位格，本身無獨立效果', req:null, out:null, fn:v=>v, special:'mega_elec_supply_part', isLarge:true, indestructible:true },
   elec_factory:   { name:'電子工廠', emoji:'⚡', desc:'電子。原料→金錢。場上每有一個電子設施，這個設施設置時永久獲得+2。', req:'material', out:'money', fn:v=>v, special:'elec_factory' },
   elec_conveyor:  { name:'電子輸送帶', emoji:'⚡', desc:'電子。原料投入時，下一個投入的設施若為電子，使其永久獲得+2。', req:'material', out:'material', fn:v=>v, special:'elec_conveyor' },
   elec_shop:      { name:'電子商店', emoji:'⚡', desc:'電子。金錢→原料。商品→原料。原料→金錢+2。', req:'any', out:null, fn:v=>v, special:'elec_shop' },
 
   // ── 大型設施（2×2）──
   giant_village:  { name:'巨人村', emoji:'🏰', desc:'大型。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。回合開始時，若你的人材為0，獲得+8人材；人材大於0時不發揮效果。', req:'any', out:null, fn:v=>v, special:'giant_village', needs2x2:true, isLarge:true, indestructible:true },
+  giant_village_part:{ name:'巨人村', emoji:'🏰', desc:'巨人村（2×2）的占位格，本身無獨立效果', req:null, out:null, fn:v=>v, special:'giant_village_part', isLarge:true, indestructible:true },
   ancient_factory:{ name:'古代的機械工廠', emoji:'🏛', desc:'大型。工廠。這個設施佔用2*2的格子，不會被消滅，小鎮中只能存在一個大型設施。只能蓋在 2×2 工廠上，此設施視為 4 工廠。所有的工廠被投入時，獲得+8。原料→商品。', req:'material', out:'goods', fn:v=>v, special:'ancient_factory', needs2x2:true, isLarge:true, indestructible:true },
   ancient_factory_part:{ name:'古代的機械工廠', emoji:'🏛', desc:'古代機械工廠（2×2）的占位格，本身無獨立效果；計入「視為 4 工廠」的工廠數量', req:null, out:null, fn:v=>v, special:'ancient_factory_part', indestructible:true },
   world_wonder:   { name:'世界奇觀', emoji:'🏟', desc:'大型。這個設施佔用2*2的格子，不會被消滅。小鎮中只能存在一個大型設施。最終收益時，你每有一個人材，獲得+8。', req:'any', out:null, fn:v=>v, special:'world_wonder', needs2x2:true, isLarge:true, indestructible:true },
+  world_wonder_part:{ name:'世界奇觀', emoji:'🏟', desc:'世界奇觀（2×2）的占位格，本身無獨立效果', req:null, out:null, fn:v=>v, special:'world_wonder_part', isLarge:true, indestructible:true },
 
   // ── 拆遷系新設施 ──
   mobile_city:    { name:'移動都市', emoji:'🏙', desc:'每回合開始時，你可以自由移動這個設施周圍8格的設施。回合結束時，若沒有投入過廢墟，最終收益變為0。', req:'any', out:null, fn:v=>v, special:'mobile_city' },
@@ -5088,6 +5091,7 @@ function isPoolableBldg(id){
   if(id==='envy_factory'||id==='ruin'||id==='dept_store_part'||id==='ancient_factory_part') return false;
   if(SHOP_ONLY_FACILITIES&&SHOP_ONLY_FACILITIES.has(id)) return false;
   const b=BLDG[id]; if(!b) return false;
+  if(b.isLarge) return false; // 大型設施 + 標 isLarge 的 *_part 占位格自動排除（dept_store_part/ancient_factory_part 走前一條）
   if(b.centerOnly||b.needs2x2||b.ruinOnly) return false;
   if(LOGISTICS_DIRS.includes(id)) return false;
   return true;
@@ -5469,10 +5473,10 @@ const TAGS={
   center_factory_bureau:['center','production'], center_shop_bureau:['center','shop'],
   center_mat_bureau:['center','production'], center_elec_net:['center','electronic'],
   // 電子系設施
-  mega_elec_supply:['electronic','large'], elec_factory:['electronic','production'],
+  mega_elec_supply:['electronic','large'], mega_elec_supply_part:['electronic','large'], elec_factory:['electronic','production'],
   elec_conveyor:['electronic'], elec_shop:['electronic','shop'],
   // 大型設施
-  giant_village:['large','hr'], ancient_factory:['large','production'], ancient_factory_part:['large','production'], world_wonder:['large'],
+  giant_village:['large','hr'], giant_village_part:['large','hr'], ancient_factory:['large','production'], ancient_factory_part:['large','production'], world_wonder:['large'], world_wonder_part:['large'],
   // 拆遷系新設施
   mobile_city:['demolish'], scrap_city:['demolish'], disaster_bureau:['demolish'],
   // 物流系新設施
@@ -6598,6 +6602,26 @@ function placeAncientFactory(r,c,anchor){
     });
   });
 }
+// Session 60：通用 2×2 大型設施放置（巨人村 / 大型電子供給站 / 世界奇觀）
+// anchor 占左上，其餘 3 格為 partId（皆 indestructible）
+function placeLarge2x2(r,c,anchor,mainId,partId){
+  const [tr,tc]=anchor;
+  for(let dr=0;dr<2;dr++) for(let dc=0;dc<2;dc++){
+    const key=`${tr+dr},${tc+dc}`;
+    delete G.bldgUpgrades[key];
+    delete G.leyaPctMods[key];
+  }
+  G.grid[tr][tc]=mainId;
+  G.grid[tr][tc+1]=partId;
+  G.grid[tr+1][tc]=partId;
+  G.grid[tr+1][tc+1]=partId;
+  SFX.expand();
+  requestAnimationFrame(()=>{
+    [[tr,tc],[tr,tc+1],[tr+1,tc],[tr+1,tc+1]].forEach(([rr,cc],i)=>{
+      setTimeout(()=>{ const el=cellQ(rr,cc); if(el){ el.classList.remove('transform-flash'); void el.offsetWidth; el.classList.add('transform-flash'); setTimeout(()=>el.classList.remove('transform-flash'),500); } },i*60);
+    });
+  });
+}
 
 function isCompoundHand(h){ return h&&h.compound===true; }
 function getCompoundSecondCell(r,c,h){ return [r+h.dr, c+h.dc]; }
@@ -7111,10 +7135,11 @@ function tryPlaceAtCell(r,c,bldgId){
       addLog(`🏛 古代機械工廠：取代 2×2 ${useBigCorp?'區域':'工廠'} (${tr+1},${tc+1})~(${tr+2},${tc+2})`,'g');
       placeAncientFactory(r,c,anchor);
     } else {
-      // 非百貨公司/古代機械工廠的大型設施：目前實作為單格（居主格），其餘 3 格以 null 佔住 anchor 標記
-      // 依現行實作保持單格行為，僅消滅 2×2 區域釋出空間
-      G.grid[r][c]=bldgId;
-      addLog(`放置 ${BLDG[bldgId].emoji}${BLDG[bldgId].name} (${r+1},${c+1})`,'g');
+      // 巨人村 / 大型電子供給站 / 世界奇觀：anchor 占左上，其餘 3 格為對應 _part（皆 indestructible）
+      // Session 60：實作 2×2 占用，與 desc「佔用2*2的格子」一致
+      const partId = bldgId + '_part';
+      addLog(`放置 ${BLDG[bldgId].emoji}${BLDG[bldgId].name} (${tr+1},${tc+1})~(${tr+2},${tc+2})${useBigCorp?' （大財團取代區域）':''}`,'g');
+      placeLarge2x2(r, c, anchor, bldgId, partId);
     }
     placeEffect(tr,tc); render();
     return true;
@@ -7965,6 +7990,15 @@ const FACILITY_FX={
     fx.hitWithPartner('dept_store');
   },
   dept_store_part(fx){
+    fx.next(200);
+  },
+  giant_village_part(fx){
+    fx.next(200);
+  },
+  mega_elec_supply_part(fx){
+    fx.next(200);
+  },
+  world_wonder_part(fx){
     fx.next(200);
   },
   tax_office(fx){
@@ -12630,6 +12664,21 @@ function destroyFacility(r, c){
     }
     if(hasPartner('ruin_scavenger')) addLog(`💀 廢墟掠奪者：百貨公司成為廢墟`,'g');
     renderFanHand(); render(); return;
+  }
+  // Session 60：大型電子供給站（唯一非 indestructible 的 2×2 大型主格）消滅 → 連帶清除 3 個 part
+  // 假設 anchor 在左上（findEmpty2x2 規定），其餘 part 在 (r,c+1) (r+1,c) (r+1,c+1)
+  if(bId==='mega_elec_supply'){
+    [[0,1],[1,0],[1,1]].forEach(([dr,dc])=>{
+      const cr=r+dr, cc=c+dc;
+      if(cr<GN()&&cc<GN()&&G.grid[cr]&&G.grid[cr][cc]==='mega_elec_supply_part'){
+        destroyEffect(cr,cc,{silent:true});
+        G.grid[cr][cc]='ruin';
+        if(!G.ruinCells) G.ruinCells=new Set();
+        G.ruinCells.add(`${cr},${cc}`);
+        clearKeyedData(`${cr},${cc}`);
+      }
+    });
+    addLog('🔋 大型電子供給站 2×2 區域變為廢墟','b');
   }
   // 疊加設施（cellOverlay）：每個疊加設施也視為一次消滅，觸發設施破壞者/廢鐵城/災害控管局/廢墟掠奪者
   const _ovList=getOverlays(r,c);
