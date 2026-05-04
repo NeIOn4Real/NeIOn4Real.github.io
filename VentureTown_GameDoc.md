@@ -37,6 +37,7 @@
 | 48 | 蕾雅耐用恢復回歸 + 合約結算 UI + 莫菲純預告 + 物流站化 + 教學擴充 | A: 蕾雅同類疊加恢復目標耐用上限一半（向上取整），含複合卡路徑；B: 合約結算側邊 log 可點擊開詳情 modal + 中央 ✓/✗ 印章動畫（queue 依序播放）；C: 莫菲從 `triggerEvent` 即時池排除（只走 `pickNextEvent` 預告流程），同時加入 `MARKET_EVENT_IDS` 讓惡魔巨人觸發；D: `logistics_hub` 放置改為轉成 `logistics_<dir>` 固定方向（與 `transfer_hub` 同），desc 同步；E: 教學從 9 步擴為 12 步，新增耐用值/人材/合約三個 step，互動期間強制只允許教學動作 |
 | 49 | 教學 bug 修復 + 排列取消還原手牌 + 高級設施直接覆蓋升級 + 莫菲非預告防禦 + 常駐按鈕 z-index | A: 教學中立繪自動退場（`body.tutorial-active` opacity:0 + pointer-events:none）避免遮 btn-next；B: step8 人材說明強調「恢復 +1 耐用值」（★ 重點 + 急救包比喻）；C: 拆遷隊重排後卡死修復 — `hookConfirmRearrange` 改設新狀態 `tut_post_rearrange_end_turn` + 清空 `G.card` + speak 提示「點⏩結束回合」+ `hookDoNext` 識別新狀態推進到 step12；D: `saveGridSnapshot`/`restoreGridSnapshot` 加 `_handSnapshot`，cancelRearrange 還原手牌（修「取消後手牌設施消失」bug，覆蓋拆遷隊與移動都市兩條路徑）；E: 高級原料廠/高級工廠/超商 直接蓋在對應基礎設施（mat_factory/factory/shop）上，視為升級替換（per-cell 加成 bldgUpgrades/cellMods/cellPctMods 自然繼承，耐用值依新稀有度上限重建，overlay 存在時拒絕避免破壞疊加狀態）+ onCellDragOver 預覽放行 + desc 同步；F: `_contractTriggerEventById` 加莫菲過濾（防禦 latent bug：避免任何合約即時路徑繞過 `pickNextEvent` 預告流程觸發莫菲）；G: 右側 panel 常駐按鈕（`#perm-btns` 商店/轉換、`#btn-next` 結束回合）加 `position:relative; z-index:55` 高於立繪（z-index:50），修復普通遊戲中立繪 img 的 `pointer-events:auto` 攔截轉換收益按鈕點擊 |
 | 51 | GameDoc 架構審查 + 全面 code 審查 + 2 真實 bug 修復 | A: GameDoc 11 項修復（表格欄位、Session 編號重複、索引、概覽、G 欄位、KEYED_DATA_FIELDS、分類、雙身份）；B: 5 Explore agent 審查 10+ 區塊產出 17 finding，親自 grep 駁回 15 個（多 by design / agent 看錯）；C: 修 MEGA ruinCells Set 序列化丟失（saveMegaFacilities + serializeGame 加 Set replacer）；D: 修 deserializeGame 動畫世代未取消（cancelStepAnim 補回） |
+| 52 | 5 項 bug 修復（投入預覽 / 教學立繪 / 姊妹合約 / 教學人材 / 廢墟手牌） | A: 投入預覽位置偏移（Session 50 `_$('grid')` 快取 detached `#grid` → `getBoundingClientRect=0`，改回 `document.getElementById`）；B: 教學立繪恢復可見（Session 49 `body.tutorial-active #char-tray opacity:0` 把蕾雅/譚雅藏掉，移除規則）；C: 姊妹合約改規則「重疊 3 次 → 重疊過」（compensationText + `ovs.length<3 → <1` + log）；D: 教學人材拖放雙 target 支援（拖資源卡/拖設施都可；新增 `tut_end_turn_after_talent` 狀態，不再直跳 step9，允許先投入再結束）；E: 廢品戰士廢墟手牌放置時同步加入 `G.ruinCells`（修回收阿罵 onTurnStart 看不到手放廢墟） |
 | 50 | 程式碼精簡（CSS 變數 + DOM 快取 + display helper + 巢狀 if 扁平化） | A: `--pill-r:99px` 變數取代 20 處硬編碼（CSS rule 8 + JS template inline 11）；B: 新增 `_$()` DOM 快取 helper + `_ELC` 物件，替換 86 處靜態頂層元素 `document.getElementById`（btn-next/btn-contract/wind-hint/contract-fx/modal/r-turn/r-profit/r-goal/ev-* 等），動態元素如 fancard-N/各 overlay/popup 刻意保留；C: 新增 `_show(el,mode)` / `_hide(el)` helper 替換 49 處 `.style.display='flex'/'none'/'block'`，2 處讀取（檢查 display 狀態）保留；D: 5 處巢狀 if 扁平化（poverty_god onTurnEnd / moveMode 移動分支 / terminal_contract 違約檢查 / `_contractProfitZeroTurns` zero-profit / showContractResolveDetail def 檢查 + `_clearLogisticsCenters` overlay / 手牌物流卡判斷）；總計 −4.7KB；不動 BLDG fn 預填 / PARTNERS desc 自動拼 / `isDemonNegDisabled` 中央化 / `partnerState` 統一 init / 耐用值 UI CSS 合併 / stepWithMover G.buff 順序（依 GameDoc S22/26/28/30/32 教訓判定為高風險） |
 
 ### 全 Session 完整索引（時序）
@@ -84,6 +85,7 @@
 | 49 | 2026-05-02 | 教學 bug 修復 + 排列取消還原手牌 + 高級設施直接覆蓋升級 |
 | 50 | 2026-05-02 | 程式碼精簡（CSS 變數/DOM 快取/display helper/巢狀 if 扁平化）★審查批次 |
 | 51 | 2026-05-03 | GameDoc 架構審查 + 全面 code 審查（5 agent / 17 finding）+ 2 真實 bug 修復 ★審查批次 |
+| 52 | 2026-05-04 | 5 項 bug 修復（投入預覽 / 教學立繪 / 姊妹合約 / 教學人材 / 廢墟手牌） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -5968,4 +5970,182 @@ return true;
 - 11 項文件層架構修復（表格、索引、概覽、G 欄位、KEYED_DATA_FIELDS、分類、雙身份、語法、廢棄條目）
 - 索引表加入 Session 51
 - 新增 Session 51 詳細章節（本節）
+
+---
+
+## Session 52（2026-05-04）— 5 項 bug 修復（投入預覽 / 教學立繪 / 姊妹合約 / 教學人材 / 廢墟手牌）
+
+### 動機
+
+使用者連續回報 5 項 bug，皆為近期 session 引入的 regression 或玩家可觀察到的功能缺漏：
+
+1. 投入預覽（拖元素卡到方向箭頭時的浮層）位置偏移到視窗左邊緣
+2. 新手教學中蕾雅/譚雅立繪不見了
+3. 姊妹合約「重疊 3 次」門檻過嚴，改為「重疊過」即可
+4. 新手教學人材步驟拖到資源卡會卡死（無法投入也無法結束回合）
+5. 廢品戰士贈卡的廢墟放到不同格子後，回收阿罵不會集中
+
+### A. 投入預覽位置偏移（🟠 中，S50 引入的 regression）
+
+**症狀**：玩家拖元素卡到投入箭頭時的「估算」浮層出現在視窗最左邊，與實際出口格距離很遠；尤其在多次 render（玩家動作後）或視窗大小調整後特別明顯。
+
+**根因**：Session 50 的 DOM 快取重構把 `document.getElementById('grid')` 改成 `_$('grid')`，但 `#grid` 元素由 `area.innerHTML=h`（`index.html:11023`）每次 render 整顆替換 — 也就是說，render 後 `_$` cache 持有的是 **detached node**。`getBoundingClientRect()` 在 detached 元素上回傳全 0，於是位置計算用了 `gr.left=0, gr.right=0, gr.top=0, gr.bottom=0`，與真正在 DOM 中的 `cellEl` rect 比對時邊距判斷錯誤，把浮層丟到視窗左邊。
+
+不是 resize 觸發；任何引發 render 的玩家動作（投入、放置、行動選擇）都會讓 cache stale。使用者誤以為與 resize 相關，是因為 resize 時視覺位置最容易發現偏離。
+
+**修法**：兩處 `_$('grid')` 改回 `document.getElementById('grid')`：
+```js
+// showInvestPreview（~7508）
+const grid=document.getElementById('grid');
+// TUT.highlightGrid（~13720）
+const grid = document.getElementById('grid');
+```
+
+`_$` cache 對 **靜態頂層** 元素（panel/modal/toolbar 等）依然合理，僅 `#grid` 因被 innerHTML 整顆替換需例外。註解標明原因，避免下次重構又被誤改。
+
+### B. 教學立繪恢復可見（S49 過度修復的 regression）
+
+**症狀**：新手教學流程中，蕾雅/譚雅的立繪完全不見，教學主述者只剩對話泡泡。
+
+**根因**：Session 49 為了「立繪退場避免遮住按鈕」加了 CSS 規則：
+```css
+body.tutorial-active #char-tray {
+  opacity: 0;
+  pointer-events: none;
+  ...
+}
+```
+但教學的主述者本來就是蕾雅與譚雅，把整個立繪藏起來反而讓教學失去 "誰在跟玩家說話" 的視覺錨點。實際遮按鈕的問題已在 S49.G 用 `z-index:55` 解決，CSS 隱藏立繪屬於過度修復。
+
+**修法**：移除 `#char-tray` 的 opacity:0 規則，只保留切換鈕（`#char-toggle`）在教學中隱藏（避免玩家在教學流程中誤點切換）：
+```css
+/* 教學進行中：立繪保留可見（蕾雅/譚雅是教學主述者）；切換鈕仍隱藏避免干擾 */
+body.tutorial-active #char-toggle {
+  display: none;
+}
+```
+
+### C. 姊妹合約規則放寬
+
+**修改**：「沒有被重疊三次的設施不參與投入」→「沒有被重疊過的設施不參與投入」
+
+**動機**：原規則需要疊加 3 次才能投入，搭配蕾雅疊加機制過嚴格，幾乎無法在合理回合數內滿足；放寬為「至少疊加 1 次」與蕾雅機制契合度更好。
+
+**修法**：3 處同步：
+```js
+// CONTRACTS.sisters_contract.compensationText
+'你的小鎮中沒有被重疊過的設施不參與投入。'
+// _contractCellSkipReason
+if(ovs.length < 1) return '（姊妹合約：未被重疊過）';
+```
+
+### D. 教學人材拖放：雙 target 支援 + 不直跳 step9（S48 教學擴充的雙 bug）
+
+**症狀**：
+1. 拖人材到資源卡 → 教學完全不前進，結束回合按鈕鎖住
+2. 拖人材到設施 → 教學直接跳 step9，玩家沒機會投入資源觀察人材效果
+3. step8 提示寫「也可以拖到資源卡上」但拖了反而卡死
+
+**根因**：
+- `onTalentDrop`（拖到資源卡）沒呼叫 `TUT.hookTalentDrop`，`waitingFor='tut_talent_drop'` 永不清除
+- `step8` 設 `btn-next.disabled=true`，依賴 `hookTalentDrop` 清狀態並啟用按鈕，但只有 `onTalentDropCell`（拖到設施）路徑會觸發
+- `hookTalentDrop` 觸發後直接 `TUT.next()` → step9，跳過了「投入資源體驗效果」的環節
+
+**修法**：分三段：
+
+1. **`onTalentDrop`** 加 hook call（區分目標為 'card'）：
+```js
+if(typeof TUT!=='undefined' && TUT.active && TUT.hookTalentDrop) TUT.hookTalentDrop(null, null, 'card');
+```
+
+2. **`onTalentDropCell`** 既有 hook call 加 'cell' 目標：
+```js
+TUT.hookTalentDrop(r, c, 'cell');
+```
+
+3. **`hookTalentDrop`** 改寫：不再 `TUT.next()`，改設新狀態 `tut_end_turn_after_talent`、解鎖 btn-next、依目標說明：
+```js
+hookTalentDrop(r, c, target){
+  if(!TUT.active || TUT.waitingFor!=='tut_talent_drop') return false;
+  TUT.waitingFor = 'tut_end_turn_after_talent';
+  const btn = _$('btn-next');
+  if(btn) btn.disabled = false;
+  setTimeout(()=>{
+    TUT.speak(target==='card' ? [
+      '人材投入資源卡：本回合可額外多投入 1 次！',
+      '可以投入資源試試效果，或直接結束回合進入下一階段。',
+    ] : [
+      '人材投入設施：本回合該設施 +1，並恢復 +1 耐用值！',
+      '可以投入資源試試效果，或直接結束回合進入下一階段。',
+    ]);
+  }, 200);
+  return false;
+}
+```
+
+4. **`hookDoNext`** 加新狀態識別 → 推進到 step9：
+```js
+if(TUT.waitingFor==='tut_end_turn_after_talent'){
+  TUT.waitingFor = null;
+  setTimeout(()=>TUT.next(), 200);
+  return true;
+}
+```
+
+`hookFinishPre/Post` 對新 waitingFor 不攔截（既有邏輯只 match `send_el` / `tut_send_for_profit` / `step===7`），自動讓投入結算正常跑、結算後 waitingFor 不變，玩家點結束回合即進 step9。
+
+### E. 廢品戰士廢墟手牌沒加入 ruinCells（回收阿罵失效根因）
+
+**症狀**：玩家持有廢品戰士（每回合贈廢墟卡）+ 回收阿罵（回合開始集中所有廢墟）。把廢墟卡放到不同格後，回收阿罵下回合沒有觸發集中效果，log 沒出現「👵 回收阿罵：...」。
+
+**根因**：`tryPlaceAtCell` 一般放置分支（`index.html:7211`）只更新 `G.grid[r][c]=bldgId`，當 `bldgId==='ruin'` 時沒同步寫入 `G.ruinCells`。回收阿罵 `onTurnStart` 用 `[...G.ruinCells]` 列舉，於是手牌放置的廢墟完全被忽略。
+
+對比 — 其他三條建立廢墟的路徑都正確同步：
+- `wanderer.onTurnStart`（流浪漢，`index.html:3214-3216`）：`G.ruinCells.add(...)` ✓
+- `destroyFacility` 「放置廢墟」分支（`index.html:12577-12579`）：`G.ruinCells.add(...)` ✓
+- 百貨公司 destroy（`index.html:12506-12508`）：`G.ruinCells.add(...)` ✓
+- `tryPlaceAtCell` 一般放置（`index.html:7211`）：**遺漏** ✗
+
+ruin 不會走 ruinOnly / centerOnly / 蕾雅疊加 / 物流之王疊加 / 高級升級 等早期分支（廢墟不能蓋在現有設施上、無 special 標記），所以「一般放置」這條就是廢墟手牌唯一路徑。
+
+**修法**：放置後同步加入 ruinCells：
+```js
+G.grid[r][c]=bldgId;
+// 廢墟手牌（廢品戰士贈卡）：放置後同步加入 ruinCells，否則回收阿罵 onTurnStart 找不到
+if(bldgId==='ruin'){
+  if(!G.ruinCells) G.ruinCells=new Set();
+  G.ruinCells.add(`${r},${c}`);
+}
+```
+
+延伸效應：除了回收阿罵，依賴 `G.ruinCells` 的所有設施/合夥人也順帶修復——
+- `countAllRuins`（`index.html:6369`）：流浪漢 `+2 收益每廢墟`、廢墟紀念碑 `+4 每廢墟`、廢墟掠奪者疊加計數
+- `臨時工棚` 回合結束隨機賣廢墟（`10049-10059`）
+- `廢墟紀念碑` 提示文字列出可放廢墟位置（`7124`）
+- 各路徑用 `G.ruinCells.delete` 在格子變動時清除（不影響）
+
+### 量化結果
+
+| 項目 | 變化 |
+|---|---|
+| index.html | +13 / -10（修 5 個 regression / 雙 hook + 1 新 waitingFor）|
+| GameDoc.md | +Session 52 詳細章節 + 雙索引表新增列 |
+| 真實 bug 修復 | 5 |
+| 駁回 finding | 0（皆使用者直接觀察回報，無誤報） |
+
+### 修改檔案
+
+`index.html`（5 區塊）：
+- ~1374：移除 `body.tutorial-active #char-tray` opacity 規則
+- ~4137 / ~4403：姊妹合約 compensationText + `_contractCellSkipReason`
+- ~7214：`tryPlaceAtCell` 一般放置加 ruinCells 同步
+- ~7508：`showInvestPreview` `_$('grid')` → `getElementById`
+- ~12277 / ~12390：`onTalentDrop` 加 hook + `onTalentDropCell` hook 加 target
+- ~13720：`TUT.highlightGrid` `_$('grid')` → `getElementById`
+- ~13865 / ~13877：`hookDoNext` 加新狀態 + `hookTalentDrop` 重寫
+
+`VentureTown_GameDoc.md`：
+- 索引表加入 Session 52
+- 全 Session 完整索引加入 Session 52
+- 新增 Session 52 詳細章節（本節）
 

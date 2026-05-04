@@ -1371,12 +1371,7 @@ body.char-hidden #char-bubble {
 body.char-hidden #char-toggle {
   right: 0;
 }
-/* 教學進行中：立繪退場避免遮住按鈕（泡泡 z-index:99 仍可見） */
-body.tutorial-active #char-tray {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .3s ease;
-}
+/* 教學進行中：立繪保留可見（蕾雅/譚雅是教學主述者）；切換鈕仍隱藏避免干擾 */
 body.tutorial-active #char-toggle {
   display: none;
 }
@@ -4139,7 +4134,7 @@ const CONTRACTS = {
     id:'sisters_contract', name:'姊妹', emoji:'👯', pool:'r6', permanent:true,
     immediateText:'如果你沒有合夥人「譚雅」與「蕾雅」，則立即獲得它們。',
     guaranteeText:'',
-    compensationText:'你的小鎮中沒有被重疊三次的設施不參與投入。',
+    compensationText:'你的小鎮中沒有被重疊過的設施不參與投入。',
     onAccept(G, ac){
       _contractRecruitIfMissing('tanya','姊妹');
       _contractRecruitIfMissing('leya','姊妹');
@@ -4405,7 +4400,7 @@ function _contractCellSkipReason(r, c, bId){
   }
   if(hasActiveContract('sisters_contract')){
     const ovs = (typeof getOverlays === 'function') ? getOverlays(r, c) : [];
-    if(ovs.length < 3) return '（姊妹合約：未疊 3 次）';
+    if(ovs.length < 1) return '（姊妹合約：未被重疊過）';
   }
   if(hasActiveContract('union_pact_contract')){
     const tcInv = (G.cellTalentInvested && G.cellTalentInvested[`${r},${c}`]) || 0;
@@ -7214,6 +7209,11 @@ function tryPlaceAtCell(r,c,bldgId){
   if(!handItem||handItem.count<=0) return false;
   handItem.count--;
   G.grid[r][c]=bldgId;
+  // 廢墟手牌（廢品戰士贈卡）：放置後同步加入 ruinCells，否則回收阿罵 onTurnStart 找不到
+  if(bldgId==='ruin'){
+    if(!G.ruinCells) G.ruinCells=new Set();
+    G.ruinCells.add(`${r},${c}`);
+  }
   // 期貨交易所：放置時決定本回合加成值（0/2/4/8）
   if(bldgId==='futures_market'){
     if(!G.futuresValue) G.futuresValue={};
@@ -7505,7 +7505,8 @@ function showInvestPreview(dir,idx){
   if(!preview) return;
   const [er,ec]=sim.exitCell;
   const cellEl=cellQ(er,ec);
-  const grid=_$('grid');
+  // #grid 由 grid-area.innerHTML 每次 render 整顆替換，不可用 _$ 快取（會持有 detached node 導致 getBoundingClientRect=0）
+  const grid=document.getElementById('grid');
   if(!cellEl||!grid){ _hide(preview); return; }
   const emojis={money:'💵',material:'🪨',goods:'📦',diamond:'💎'};
   const labels={money:'金錢',material:'原料',goods:'商品',diamond:'鑽石'};
@@ -12274,6 +12275,7 @@ function onTalentDrop(e) {
       }
     }
   }
+  if(typeof TUT!=='undefined' && TUT.active && TUT.hookTalentDrop) TUT.hookTalentDrop(null, null, 'card');
 }
 
 // 人材拖到設施格子上：本回合暫時 +1
@@ -12387,7 +12389,7 @@ function onTalentDropCell(e, r, c) {
   }
   renderFanHand();
   render();
-  if(typeof TUT!=='undefined' && TUT.active && TUT.hookTalentDrop) TUT.hookTalentDrop(r, c);
+  if(typeof TUT!=='undefined' && TUT.active && TUT.hookTalentDrop) TUT.hookTalentDrop(r, c, 'cell');
 }
 
 function onTalentDragOverCell(e, r, c) {
@@ -13717,7 +13719,8 @@ const TUT = {
 
   // ── 輔助：高亮格子 ──
   highlightGrid(on){
-    const grid = _$('grid');
+    // #grid 每次 render 被 innerHTML 整顆替換，不可快取
+    const grid = document.getElementById('grid');
     if(grid) grid.style.outline = on ? '3px solid var(--acc)' : '';
   },
 
@@ -13859,15 +13862,33 @@ const TUT = {
       TUT.waitingFor = null; TUT.step = 7; TUT.next();
       return true;
     }
+    // step8 人材教學完成（拖到設施或資源卡皆可）→ step9（合約）
+    if(TUT.waitingFor==='tut_end_turn_after_talent'){
+      TUT.waitingFor = null;
+      setTimeout(()=>TUT.next(), 200);
+      return true;
+    }
     // 教學模式下無匹配的 waitingFor → 不執行正常回合推進
     return true;
   },
 
-  // 人材拖到設施格子上：教學 step8 推進
-  hookTalentDrop(r, c){
+  // 人材拖到設施格子上 / 資源卡上：教學 step8 推進
+  // target: 'cell' = 拖到設施；'card' = 拖到資源卡
+  hookTalentDrop(r, c, target){
     if(!TUT.active || TUT.waitingFor!=='tut_talent_drop') return false;
-    TUT.waitingFor = null;
-    setTimeout(()=>TUT.next(), 600);
+    TUT.waitingFor = 'tut_end_turn_after_talent';
+    // 解鎖結束回合（讓玩家可選擇先投入資源再結束、或直接結束）
+    const btn = _$('btn-next');
+    if(btn) btn.disabled = false;
+    setTimeout(()=>{
+      TUT.speak(target==='card' ? [
+        '人材投入資源卡：本回合可額外多投入 1 次！',
+        '可以投入資源試試效果，或直接結束回合進入下一階段。',
+      ] : [
+        '人材投入設施：本回合該設施 +1，並恢復 +1 耐用值！',
+        '可以投入資源試試效果，或直接結束回合進入下一階段。',
+      ]);
+    }, 200);
     return false;
   },
 
