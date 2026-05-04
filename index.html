@@ -778,6 +778,31 @@ body.card-dragging .dbtn:hover:not(.wind-blocked),
 .sel-card.free-card .sel-card-name,.sel-card.free-card .sel-card-desc,.sel-card.free-card .sel-card-pos{
   color:#5a3500 !important;
 }
+/* 商店合夥人卡：紫色配色 + 「招募」絲帶 */
+.sel-card.shop-partner-card{
+  position:relative !important;
+  border:2px solid #8a4dff !important;
+  background:linear-gradient(135deg,#f3e8ff 0%,#e0c4ff 55%,#c89aff 100%) !important;
+}
+.sel-card.shop-partner-card::before{
+  content:'🤝 招募';
+  position:absolute;
+  top:-12px; left:50%; transform:translateX(-50%);
+  background:linear-gradient(90deg,#8a4dff,#c89aff);
+  color:#fff;
+  padding:3px 12px; border-radius:12px;
+  font-size:11px; font-weight:900; letter-spacing:.5px;
+  box-shadow:0 3px 10px rgba(138,77,255,.6);
+  white-space:nowrap;
+  z-index:6;
+  pointer-events:none;
+}
+.sel-card.shop-partner-card .sel-card-name,
+.sel-card.shop-partner-card .sel-card-desc,
+.sel-card.shop-partner-card .sel-card-pos,
+.sel-card.shop-partner-card .sel-card-emoji{
+  color:#3a1a5a !important;
+}
 /* 暗叫合約：卡背樣式（手牌設施卡 + chooser 設施卡） */
 .fan-card.card-back-fac, .sel-card.card-back-fac{
   background:linear-gradient(135deg,#2d1f3d 0%,#1a1228 50%,#3a2854 100%) !important;
@@ -10157,12 +10182,36 @@ function doNext(){
 }
 
 // ── 常駐行動：購買設施（商店） ──
-function getPermShopCost(){
+// 第 2 輪起，商店有機率把其中一張替換為合夥人（更貴；惡魔系與已持有者排除；
+// tagWeightFor 自動套用「同詞條權重加成」設計）
+const PARTNER_SHOP_PROB=0.4;       // 觸發機率
+const PARTNER_SHOP_MIN_ROUND=2;    // 最早出現輪數
+const PARTNER_SHOP_COST_MULT=2.5;  // 對應設施基礎費用的倍率
+function getPermShopCost(id){
   let cost = scaledCost(8); // 基礎 8，隨輪數遞增
   if(typeof hasActiveContract === 'function' && hasActiveContract('expand_contract')){
     cost *= 3; // 擴展合約：商店費用 ×3
   }
+  // 合夥人在商店出現時更貴（×PARTNER_SHOP_COST_MULT）
+  if(id && PARTNER_RARITY[id]){
+    cost = Math.ceil(cost * PARTNER_SHOP_COST_MULT);
+  }
   return cost;
+}
+function _shopPickPartner(tagCounts){
+  const owned=new Set(G.partners||[]);
+  // 排除：已持有 / 惡魔系（獨立招募路徑） / PARTNERS 表缺定義
+  const pool=Object.keys(PARTNER_RARITY).filter(pid=>
+    !owned.has(pid) && PARTNERS[pid] && !PARTNERS[pid].isDemon
+  );
+  if(pool.length===0) return null;
+  return weightedPickN(pool,1,tagCounts)[0]||null;
+}
+// 從現有 offer.ids 找一個非合夥人的隨機 index 作為免費格（合夥人不會被免費）
+function _pickFreeFacIdx(ids){
+  const facIdx=ids.map((id,i)=>PARTNER_RARITY[id]?-1:i).filter(i=>i>=0);
+  if(facIdx.length===0) return -1;
+  return facIdx[Math.floor(Math.random()*facIdx.length)];
 }
 function isPermShopFree(){
   const handFacs=G.hand.filter(h=>h.count>0).length;
@@ -10190,23 +10239,51 @@ function doPermShop(){
     const barrenBoost = !!G._contractBarrenNextShopFiveFree;
     const numCards = barrenBoost ? 5 : 3;
     const shuffled=weightedPickN([...new Set(pool)],numCards,_shopTc);
+    // 第 2 輪起（非荒蕪批次），有機率把其中一張替換為合夥人
+    if(!barrenBoost && G.round>=PARTNER_SHOP_MIN_ROUND && Math.random()<PARTNER_SHOP_PROB){
+      const pid=_shopPickPartner(_shopTc);
+      if(pid){
+        const replaceIdx=Math.floor(Math.random()*shuffled.length);
+        shuffled[replaceIdx]=pid;
+      }
+    }
     const hasFree = barrenBoost || isPermShopFree();
-    const freeIdx=(hasFree && !barrenBoost) ? Math.floor(Math.random()*shuffled.length) : -1;
+    // 免費格只給設施（合夥人永不免費）
+    const freeIdx=(hasFree && !barrenBoost) ? _pickFreeFacIdx(shuffled) : -1;
     if(barrenBoost){
       G._contractBarrenNextShopFiveFree = false; // 一次性消耗（生成時）
       addLog('📜 荒蕪：商店出現 5 張免費設施','g');
     }
-    offer = { ids:shuffled, freeIdx, hasFree, barrenBoost, turn:G.turn, round:G.round };
+    offer = { ids:shuffled, freeIdx, hasFree:(hasFree&&(barrenBoost||freeIdx>=0)), barrenBoost, turn:G.turn, round:G.round };
     G._permShopOffer = offer;
+  } else if(!offer.barrenBoost && !offer.hasFree && isPermShopFree()){
+    // cache 命中時：玩家在前後兩次開啟之間達成免費條件（如把手牌都放完），
+    // 補上一個免費格而不重 roll 內容
+    const fIdx=_pickFreeFacIdx(offer.ids);
+    if(fIdx>=0){
+      offer.freeIdx=fIdx;
+      offer.hasFree=true;
+      G._permShopOffer=offer;
+    }
   }
-  const cost=getPermShopCost();
   const prevPhase=G.phase;
   showCardChooser(
     `🏗 商店${offer.barrenBoost?' （荒蕪：5 張免費）':(offer.hasFree?' （含免費）':'')}`,
     offer.ids.map((bid,i)=>{
-      const isFree = offer.barrenBoost || (i===offer.freeIdx);
-      const c=isFree?0:cost;
+      const isPartner = !!PARTNER_RARITY[bid];
+      const isFree = !isPartner && (offer.barrenBoost || (i===offer.freeIdx));
+      const c=isFree?0:getPermShopCost(bid);
       const afford=G.profit>=c;
+      if(isPartner){
+        const p=PARTNERS[bid];
+        return {
+          emoji:p.emoji, name:p.name,
+          desc:(p.pos||'')+(p.neg?'\n⚠ '+p.neg:'')+(afford?'':'\n⚠ 收益不足'),
+          pos:'-'+c+' 收益', neg:'',
+          extraClass:'shop-partner-card',
+          onclick:afford?`cardChooserPick(()=>{G.profit-=${c};G._permShopUsed=true;G._permShopOffer=null;addLog('🏗 商店招募合夥人 -${c} 收益','g');recruitPartner('${bid}');G.phase='${prevPhase}';render();})`:'',
+        };
+      }
       return {
         emoji:BLDG[bid].emoji, name:BLDG[bid].name,
         desc:BLDG[bid].desc+(isFree?'':(afford?'':'\n⚠ 收益不足')),
