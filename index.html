@@ -10239,12 +10239,21 @@ function doPermShop(){
     const barrenBoost = !!G._contractBarrenNextShopFiveFree;
     const numCards = barrenBoost ? 5 : 3;
     const shuffled=weightedPickN([...new Set(pool)],numCards,_shopTc);
-    // 第 2 輪起（非荒蕪批次），有機率把其中一張替換為合夥人
-    if(!barrenBoost && G.round>=PARTNER_SHOP_MIN_ROUND && Math.random()<PARTNER_SHOP_PROB){
-      const pid=_shopPickPartner(_shopTc);
-      if(pid){
+    // 第 2 輪起（非荒蕪批次），合夥人 roll 鎖到「輪」級別 —— 同輪內不論幾回合
+    // 開店都顯示同一位（或 null），避免玩家結束回合反覆刷新合夥人。
+    // 設施部分仍每回合重 roll；位置可隨設施重排洗牌。
+    if(!barrenBoost && G.round>=PARTNER_SHOP_MIN_ROUND){
+      let pLock=G._permShopPartnerLock;
+      if(!pLock || pLock.round!==G.round){
+        // 進入新一輪：roll 一次決定本輪是否出現合夥人、是哪一位
+        const rolled=(Math.random()<PARTNER_SHOP_PROB) ? _shopPickPartner(_shopTc) : null;
+        pLock={ round:G.round, pid:rolled||null };
+        G._permShopPartnerLock=pLock;
+      }
+      // 已持有（中途買到）→ 不再注入；同輪內不會再出別人
+      if(pLock.pid && !G.partners.includes(pLock.pid)){
         const replaceIdx=Math.floor(Math.random()*shuffled.length);
-        shuffled[replaceIdx]=pid;
+        shuffled[replaceIdx]=pLock.pid;
       }
     }
     const hasFree = barrenBoost || isPermShopFree();

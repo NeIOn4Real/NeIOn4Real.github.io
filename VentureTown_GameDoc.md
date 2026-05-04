@@ -91,6 +91,7 @@
 | 54 | 2026-05-04 | 教學 BGM 不啟動 regression 修復（SM.goto 跳過 tutorial mode 的 setScene('gameplay')） |
 | 55 | 2026-05-04 | 標題 🎵 toggle 首次點擊無效 + BGM race 根因修復（bgmAutoStart capture → bubble phase） |
 | 56 | 2026-05-04 | 商店第 2 輪起出現合夥人（更貴、tagWeight 加成）+ 免費格 cache 失效修復 |
+| 57 | 2026-05-04 | 商店合夥人改為「輪」級鎖（避免結束回合反覆刷新合夥人） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -6623,6 +6624,83 @@ if(isPartner){
 `VentureTown_GameDoc.md`：
 - 全 Session 完整索引加入 Session 56
 - 新增 Session 56 詳細章節（本節）
+
+## Session 57（2026-05-04）— 商店合夥人改為「輪」級鎖
+
+### 動機
+
+Session 56 的合夥人 roll 寫在 `doPermShop` cache-miss 分支內，**每回合 cache 失效時都會重 roll**。雖然「同一回合」內反覆開關仍是同一份 offer（被 `(turn,round)` cache 鎖住），但玩家可以：
+
+1. 第 R 輪、回合 N 開店 → 看到合夥人 X、不滿意 → 取消
+2. 結束回合 → 回合 N+1（cache 因 turn 改變失效）→ 重開店 → roll 出合夥人 Y
+3. 重複 step 2 直到看到想要的合夥人
+
+每結束一回合會吃掉「目標收益」的時間預算，**理論上有成本**，但若玩家手上時間預算寬鬆，這仍是一個可行的「以回合換合夥人」cheese path——違反「合夥人是稀缺、戰術性決策」的設計意圖。
+
+### 修法：把 partner roll 抽出 cache-miss 分支，鎖到「輪」級別
+
+新欄位 `G._permShopPartnerLock = { round, pid }`（pid 可為 string | null）：
+
+```js
+if(!barrenBoost && G.round>=PARTNER_SHOP_MIN_ROUND){
+  let pLock=G._permShopPartnerLock;
+  if(!pLock || pLock.round!==G.round){
+    // 進入新一輪：roll 一次決定本輪是否出現合夥人、是哪一位
+    const rolled=(Math.random()<PARTNER_SHOP_PROB) ? _shopPickPartner(_shopTc) : null;
+    pLock={ round:G.round, pid:rolled||null };
+    G._permShopPartnerLock=pLock;
+  }
+  if(pLock.pid && !G.partners.includes(pLock.pid)){
+    const replaceIdx=Math.floor(Math.random()*shuffled.length);
+    shuffled[replaceIdx]=pLock.pid;
+  }
+}
+```
+
+### 行為對照
+
+| 情境 | Session 56（修前） | Session 57（修後） |
+|---|---|---|
+| 同回合多次開關商店 | 同 offer（cache 命中） | 同 offer ✓ |
+| 跨回合（同輪內）重開 | **新 partner roll**（可換人） | 同一 pid（或同樣 null） |
+| 同輪內買下合夥人 | 下回合 cache 重 roll，可能再出一個 | pLock.pid 已被持有，跳過注入；同輪不再出別人 |
+| 進入新一輪 | 重 roll | pLock.round 不符 → 重 roll（pid 可能不同或 null） |
+| 第 1 輪 | 不出合夥人 | 不出合夥人 ✓ |
+| 荒蕪合約批次 | 跳過合夥人 | 跳過合夥人 ✓ |
+
+**設施仍每回合重 roll**：facility 那段不動，玩家還是可以「結束回合刷設施」（與既有設計一致）。但合夥人作為長期戰略資源，鎖到輪級別。
+
+### 邊界處理
+
+- **同輪內買到 pLock.pid**：`G.partners.includes(pLock.pid)` 為 true → 跳過注入；同輪不再出別人。下一輪重 roll。
+- **pLock.pid===null（rolled fail）**：同輪固定不出合夥人，玩家必須等下一輪。這是設計意圖：roll 為 0 = 本輪沒命。
+- **save/load**：`G._permShopPartnerLock` 是普通物件，沿用預設 G 序列化。`deserializeGame` 沒有 `delete data._permShopPartnerLock`，所以**會被保留**——這是正確行為（玩家存檔當下看到合夥人 X，讀檔回來還應該是 X）。
+- **`_shopPickPartner` 在新一輪 roll 時用當下 `_shopTc`**：玩家本輪累積的詞條會影響當輪 roll；同輪內後續詞條變化（買新合夥人/設施）不會改 pid（已鎖）。
+
+### 為什麼不也鎖位置
+
+`replaceIdx=Math.floor(Math.random()*shuffled.length)` 仍在 cache-miss 內，每回合 partner 在 chooser 中的位置會變。沒鎖的理由：
+
+- 設施每回合重 roll，shuffled 內容不同，固定位置反而會跟某張新設施撞
+- 玩家視覺辨識合夥人靠「🤝 招募」絲帶 + 紫色卡，不靠位置
+- 鎖位置會讓 cache 結構複雜化，收益不大
+
+### 量化結果
+
+| 項目 | 變化 |
+|---|---|
+| index.html | +約 8 行（partner roll 抽到輪鎖 + 註解） |
+| GameDoc.md | +Session 57 章節 + 雙索引列 |
+| 設計修補 | 1（堵 Session 56 跨回合刷新 cheese path） |
+
+### 修改檔案
+
+`index.html`：
+- ~10242-10258：partner replacement 改為 `G._permShopPartnerLock` 輪級 cache，cache-miss 才 roll；`!G.partners.includes(pLock.pid)` 防同輪重出已買合夥人
+
+`VentureTown_GameDoc.md`：
+- 全 Session 完整索引加入 Session 57
+- 新增 Session 57 詳細章節（本節）
 
 
 
