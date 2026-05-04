@@ -92,6 +92,7 @@
 | 55 | 2026-05-04 | 標題 🎵 toggle 首次點擊無效 + BGM race 根因修復（bgmAutoStart capture → bubble phase） |
 | 56 | 2026-05-04 | 商店第 2 輪起出現合夥人（更貴、tagWeight 加成）+ 免費格 cache 失效修復 |
 | 57 | 2026-05-04 | 商店合夥人改為「輪」級鎖（避免結束回合反覆刷新合夥人） |
+| 58 | 2026-05-04 | 訪客計數器（Cloudflare Worker 後端，作者專用暗門 + IP 排除） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -6701,6 +6702,156 @@ if(!barrenBoost && G.round>=PARTNER_SHOP_MIN_ROUND){
 `VentureTown_GameDoc.md`：
 - 全 Session 完整索引加入 Session 57
 - 新增 Session 57 詳細章節（本節）
+
+## Session 58（2026-05-04）— 訪客計數器（作者專用 + IP 排除）
+
+### 動機
+
+GitHub Pages 上線版需要追蹤遊玩人數，但要把作者自己測試的訪問排除在外。靜態頁面沒後端，需外部服務支援；同時計數器只給作者看，不曝露給玩家。
+
+### 架構
+
+```
+┌──────────────────────┐         ┌──────────────────────────┐
+│ index.html (靜態頁)   │  ──→   │ Cloudflare Worker        │
+│ - VC 模組（暗門偵測） │  fetch │ - /visit  (+1 if !excl)  │
+│ - 立繪/標題 click 鉤  │         │ - /get    (read only)    │
+│ - 載入時 VC.visit()   │         │ - /exclude (mark IP)     │
+└──────────────────────┘         │ + KV namespace VT_KV     │
+                                 │   - count: number        │
+                                 │   - excluded:<ip>: '1'   │
+                                 └──────────────────────────┘
+```
+
+### A. Cloudflare Worker（`counter-worker.js`）
+
+獨立檔案，部署到 Cloudflare Workers（免費 100k req/日）。三個端點：
+
+- **GET `/visit`** — 若 IP 不在 `excluded:` key prefix 下，`count` +1；回傳 `{ count, excluded, ip }`
+- **GET `/get`** — 只讀，回傳 `{ count, excluded, ip }`
+- **POST `/exclude`** — 把當前 IP 加入排除列表；首次排除時把 `count` -1 抵消同 session 的 visit；回傳 `{ ok, ip, count, excluded:true }`
+
+CORS 全開（`Access-Control-Allow-Origin: *`），讓 GitHub Pages 跨域能 fetch。
+
+KV binding `VT_KV`（變數名）由部署者在 Worker Settings → Variables 手動建立。
+
+部署步驟：見 `counter-worker.js` 開頭註解（10 步、約 10 分鐘）。
+
+### B. 前端 `VC` 模組
+
+仿 `DEV` 的 pattern detector，但獨立 seq + 不同模式：
+
+```js
+const VC_API='https://YOUR_WORKER_URL.workers.dev'; // 部署後填入
+const VC={
+  seq:[],
+  pattern:['C','C','C','L','L','C','C','C'], // 立繪×3 + 標題×2 + 立繪×3
+  enabled(){ return VC_API && !VC_API.includes('YOUR_WORKER_URL'); },
+  push(code){ /* timer reset 5s + tail match → open() */ },
+  visit(){ /* sessionStorage 防 F5 重複 + fetch /visit */ },
+  open(){ /* fetch /get + 渲染 overlay + K 按鈕綁 /exclude */ },
+};
+```
+
+`enabled()` 守門：未填 Worker URL 時所有方法 no-op，不會發 fetch、不會崩。讓開發者本地測試/未部署狀態安全。
+
+`visit()` 用 `sessionStorage.vc_counted` 旗標避免 F5 / 路由切換重複計數；新分頁 / 新瀏覽器 session 才會再算 1 次。
+
+### C. 暗門觸發
+
+複用既有 `DEV.push('C')` / `DEV.push('L')` 的鉤點，補上 `VC.push`：
+
+- `charClick()` 內 `DEV.push('C')` 之後加 `VC.push('C')`
+- `_$('logo').addEventListener('click', ...)` 改成同時 `DEV.push('L')` + `VC.push('L')`
+
+兩個系統共用點擊事件、各自獨立的 seq + pattern，互不干擾。
+
+序列：**立繪 ×3 → 標題 ×2 → 立繪 ×3**（共 8 次點擊，須在 5 秒內完成；timer 任一點擊 reset）。和 DEV 的 `['L','L','C','L','L']` 不重疊，無誤觸風險。
+
+### D. Overlay UI（`#vc-overlay`）
+
+點擊暗門序列觸發 → `VC.open()` 動態建立 modal：
+
+- 標題「🎮 遊玩人數」
+- 大字 count
+- 小字「（已排除 IP 不再計入）」
+- 當前 IP（mono 字體 + 是否已排除標記）
+- 按鈕「K — 排除此 IP」（已排除則 disabled）+「關閉」
+
+點擊 overlay 背景或關閉鈕 → 移除。K 按鈕 fetch `/exclude` → 更新 IP 文字 + 顯示新 count（已 -1）。
+
+CSS：`position:fixed; inset:0; z-index:200`，置中黑底半透 mask + 白底卡片。
+
+### E. 為什麼選 Cloudflare Worker
+
+| 方案 | 優點 | 缺點 |
+|---|---|---|
+| **Cloudflare Worker + KV** ✓ | 免費 100k/日；CF-Connecting-IP 直接給 caller IP；KV 簡單；冷啟動 <50ms | 需要一次性 setup（10 分鐘） |
+| 第三方計數器 API（abacus、counterapi） | 0 setup | 沒有 IP 排除機制；服務存活不穩 |
+| GitHub Gist 當儲存 | 免設定 | 需暴露 token；GitHub API rate limit |
+| Firebase / Vercel functions | 功能多 | 設定相對重；冷啟動較慢 |
+| 自架 VPS | 完全自主 | 要付月費 + 維運 |
+
+Worker + KV 是 IP 排除這個需求下唯一同時滿足 (a) 免費 (b) 取得 client IP (c) 有狀態儲存的選項。
+
+### F. 安全與限制
+
+- **誰都能按 K**：暗門序列只是 obscurity，理論上玩家若得知序列也能排除自己 IP（僅影響自己不被計數，無大害）
+- **無 auth**：`/visit` 和 `/exclude` 都不需 token；`/exclude` 之所以安全是因為它只能影響「呼叫者自己的 IP」
+- **無 anti-spam**：不同瀏覽器 session 都會 +1（但同 IP 一旦排除後就不再 +1）
+- **IP 變動**：作者換網路（家裡 → 4G → 公司）每個都要按一次 K
+- **CGNAT / 共享 IP**：若作者 IP 在 NAT 後面被多人共用，排除該 IP 會把同 NAT 下的玩家也排除掉（罕見邊界）
+
+對小型同人作品的「我自己測試別污染數字」需求，這些限制可接受。
+
+### G. 部署狀態旗標
+
+`VC_API` 字串內含 `'YOUR_WORKER_URL'` 時，`VC.enabled()` 回傳 false：
+
+- `VC.visit()`：不發 fetch
+- `VC.push()`：seq 不累積（直接 return）
+- `VC.open()`：no-op
+
+→ 沒部署 Worker 時功能完全隱形，不會跳錯、也不會洩露暗門。設定後（替換 URL）才啟用。
+
+### 量化結果
+
+| 項目 | 變化 |
+|---|---|
+| index.html | +約 75 行（CSS overlay 27 + VC 模組 47 + 鉤點 2 + boot 1） |
+| counter-worker.js | 新檔 64 行（含註解與部署步驟） |
+| GameDoc.md | +Session 58 章節 + 雙索引列 |
+| 新功能 | 1（訪客計數 + IP 排除） |
+| 後端依賴 | 1（Cloudflare Worker，免費） |
+
+### 設定 checklist（部署用）
+
+1. 註冊 cloudflare.com（免費）
+2. Workers & Pages → Create Worker → 貼 `counter-worker.js` 內容 → Deploy
+3. Settings → Variables → KV Namespace Bindings → Add：variable `VT_KV` + 新建 KV namespace
+4. Triggers → 複製 `*.workers.dev` URL
+5. 編輯 `index.html`：把 `const VC_API='https://YOUR_WORKER_URL.workers.dev'` 改成實際 URL
+6. push 到 GitHub Pages
+7. 開瀏覽器測試：載入頁面 → 點立繪×3 → 點標題×2 → 點立繪×3 → 應彈出 overlay → 點 K → 應顯示「✓ 已排除」+ count -1
+
+### 修改檔案
+
+`index.html`：
+- ~985 CSS：新增 `#vc-overlay` / `#vc-box` / `#vc-title` / `#vc-count` / `#vc-sub` / `#vc-ip` / `#vc-btns` 樣式
+- ~15620（DEV 模組之前）：新增 `VC_API` 常數 + `VC` 模組
+- ~13033 `charClick`：補 `VC.push('C')`
+- ~15970 `_$('logo')` listener：補 `VC.push('L')`
+- ~16080（boot 結尾，bgmAutoStart IIFE 後）：補 `VC.visit()`
+
+`counter-worker.js`（新檔）：
+- ES module export default fetch handler
+- /visit /get /exclude 三端點
+- KV `count` + `excluded:<ip>` schema
+- CORS headers + 部署步驟註解
+
+`VentureTown_GameDoc.md`：
+- 全 Session 完整索引加入 Session 58
+- 新增 Session 58 詳細章節（本節）
 
 
 
