@@ -38,6 +38,7 @@
 | 49 | 教學 bug 修復 + 排列取消還原手牌 + 高級設施直接覆蓋升級 + 莫菲非預告防禦 + 常駐按鈕 z-index | A: 教學中立繪自動退場（`body.tutorial-active` opacity:0 + pointer-events:none）避免遮 btn-next；B: step8 人材說明強調「恢復 +1 耐用值」（★ 重點 + 急救包比喻）；C: 拆遷隊重排後卡死修復 — `hookConfirmRearrange` 改設新狀態 `tut_post_rearrange_end_turn` + 清空 `G.card` + speak 提示「點⏩結束回合」+ `hookDoNext` 識別新狀態推進到 step12；D: `saveGridSnapshot`/`restoreGridSnapshot` 加 `_handSnapshot`，cancelRearrange 還原手牌（修「取消後手牌設施消失」bug，覆蓋拆遷隊與移動都市兩條路徑）；E: 高級原料廠/高級工廠/超商 直接蓋在對應基礎設施（mat_factory/factory/shop）上，視為升級替換（per-cell 加成 bldgUpgrades/cellMods/cellPctMods 自然繼承，耐用值依新稀有度上限重建，overlay 存在時拒絕避免破壞疊加狀態）+ onCellDragOver 預覽放行 + desc 同步；F: `_contractTriggerEventById` 加莫菲過濾（防禦 latent bug：避免任何合約即時路徑繞過 `pickNextEvent` 預告流程觸發莫菲）；G: 右側 panel 常駐按鈕（`#perm-btns` 商店/轉換、`#btn-next` 結束回合）加 `position:relative; z-index:55` 高於立繪（z-index:50），修復普通遊戲中立繪 img 的 `pointer-events:auto` 攔截轉換收益按鈕點擊 |
 | 51 | GameDoc 架構審查 + 全面 code 審查 + 2 真實 bug 修復 | A: GameDoc 11 項修復（表格欄位、Session 編號重複、索引、概覽、G 欄位、KEYED_DATA_FIELDS、分類、雙身份）；B: 5 Explore agent 審查 10+ 區塊產出 17 finding，親自 grep 駁回 15 個（多 by design / agent 看錯）；C: 修 MEGA ruinCells Set 序列化丟失（saveMegaFacilities + serializeGame 加 Set replacer）；D: 修 deserializeGame 動畫世代未取消（cancelStepAnim 補回） |
 | 52 | 5 項 bug 修復（投入預覽 / 教學立繪 / 姊妹合約 / 教學人材 / 廢墟手牌） | A: 投入預覽位置偏移（Session 50 `_$('grid')` 快取 detached `#grid` → `getBoundingClientRect=0`，改回 `document.getElementById`）；B: 教學立繪恢復可見（Session 49 `body.tutorial-active #char-tray opacity:0` 把蕾雅/譚雅藏掉，移除規則）；C: 姊妹合約改規則「重疊 3 次 → 重疊過」（compensationText + `ovs.length<3 → <1` + log）；D: 教學人材拖放雙 target 支援（拖資源卡/拖設施都可；新增 `tut_end_turn_after_talent` 狀態，不再直跳 step9，允許先投入再結束）；E: 廢品戰士廢墟手牌放置時同步加入 `G.ruinCells`（修回收阿罵 onTurnStart 看不到手放廢墟） |
+| 53 | 教學 BGM + 投入後人材重新解鎖拖曳 + 對話修正 | A: BGM 新增 `'tutorial'` scene → bgm_4（沿用標題音樂 intro 感）；TUT.start setScene('tutorial')、TUT.finish setScene('gameplay')；B: `onTalentDrop` 修 latent bug — 投入後 `_turnInvested=true` 鎖住 canDrag，再用人材時設 `_extraUsePhase=true` + `phase='place'` 解鎖（非教學專屬，一般遊戲「投入後拿到人材」也修）；C: `hookTalentDrop` 對話修正 — 拖設施只引導結束回合（沒 extraUses 不能再 drag），拖資源卡才提示可投入 |
 | 50 | 程式碼精簡（CSS 變數 + DOM 快取 + display helper + 巢狀 if 扁平化） | A: `--pill-r:99px` 變數取代 20 處硬編碼（CSS rule 8 + JS template inline 11）；B: 新增 `_$()` DOM 快取 helper + `_ELC` 物件，替換 86 處靜態頂層元素 `document.getElementById`（btn-next/btn-contract/wind-hint/contract-fx/modal/r-turn/r-profit/r-goal/ev-* 等），動態元素如 fancard-N/各 overlay/popup 刻意保留；C: 新增 `_show(el,mode)` / `_hide(el)` helper 替換 49 處 `.style.display='flex'/'none'/'block'`，2 處讀取（檢查 display 狀態）保留；D: 5 處巢狀 if 扁平化（poverty_god onTurnEnd / moveMode 移動分支 / terminal_contract 違約檢查 / `_contractProfitZeroTurns` zero-profit / showContractResolveDetail def 檢查 + `_clearLogisticsCenters` overlay / 手牌物流卡判斷）；總計 −4.7KB；不動 BLDG fn 預填 / PARTNERS desc 自動拼 / `isDemonNegDisabled` 中央化 / `partnerState` 統一 init / 耐用值 UI CSS 合併 / stepWithMover G.buff 順序（依 GameDoc S22/26/28/30/32 教訓判定為高風險） |
 
 ### 全 Session 完整索引（時序）
@@ -86,6 +87,7 @@
 | 50 | 2026-05-02 | 程式碼精簡（CSS 變數/DOM 快取/display helper/巢狀 if 扁平化）★審查批次 |
 | 51 | 2026-05-03 | GameDoc 架構審查 + 全面 code 審查（5 agent / 17 finding）+ 2 真實 bug 修復 ★審查批次 |
 | 52 | 2026-05-04 | 5 項 bug 修復（投入預覽 / 教學立繪 / 姊妹合約 / 教學人材 / 廢墟手牌） |
+| 53 | 2026-05-04 | 教學 BGM + 投入後人材解鎖拖曳 + 對話修正 |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -6148,4 +6150,122 @@ if(bldgId==='ruin'){
 - 索引表加入 Session 52
 - 全 Session 完整索引加入 Session 52
 - 新增 Session 52 詳細章節（本節）
+
+---
+
+## Session 53（2026-05-04）— 教學 BGM + 投入後人材解鎖拖曳 + 對話修正
+
+### 動機
+
+Session 52 修完教學人材步驟後，使用者實測發現：
+
+1. 教學流程沒有配樂（與正式遊戲對比）
+2. step8 拖人材到金錢卡後，金錢卡仍然無法拖動投入
+3. step8 拖人材到設施後的對話誤導玩家「可以投入資源試試效果」（實際上不行）
+
+### A. 教學專屬 BGM（沿用 bgm_4 標題音樂）
+
+**設計**：教學的 intro/學習感受與標題畫面類似，沿用 `bgm_4` 即可，無需新增音檔。
+
+**實作**：
+1. `BGM` 模組 `_scene` 型別擴展為 `'title' | 'tutorial' | 'gameplay'`
+2. `pickIdx()` 新增 `if(_scene==='tutorial') return 4;` 分支
+3. `TUT.start` 結尾呼叫 `BGM.setScene('tutorial')` —— 在 `SM.goto('gameplay')` 之後執行，覆蓋 SM 設的 `'gameplay'` scene
+4. `TUT.finish` 開頭呼叫 `BGM.setScene('gameplay')` —— 切回依輪數選曲
+
+**時序**：
+```
+玩家點「新手教學」
+  ↓ click
+onFirstGesture (capture)：BGM.start() → bgm_4 (scene='title')
+  ↓ bubble
+SM.goto('gameplay'): BGM.setScene('gameplay') → bgm_1
+  ↓
+SM.gameplay.enter: TUT.start() → BGM.setScene('tutorial') → bgm_4
+  ↓
+教學流程進行中：bgm_4 持續循環
+  ↓
+TUT.finish: BGM.setScene('gameplay') → 依 G.round 切到 bgm_1/2/3
+```
+
+中間有兩次切歌（bgm_4 → bgm_1 → bgm_4）但都在啟動前一兩百 ms 內完成，玩家通常聽不到差異；最終穩定在 bgm_4。
+
+### B. `_turnInvested` 鎖死 canDrag（latent bug，非教學專屬）
+
+**症狀**：教學 step8 中，玩家先投入金錢（step7）→ 進入 step8 拿到人材 → 拖人材到金錢卡（建立 `elementExtraUses=1`）→ 但金錢卡無法拖動投入。
+
+**根因**：
+```js
+// renderFanHand line ~11731
+const canDrag = G.phase === 'place' && (!G._turnInvested || G._extraUsePhase);
+```
+
+step7 投入完成後 `finish()` 設 `_turnInvested=true`、`phase='done'`、`_extraUsePhase=false`。step8 把 `phase` 改回 `'place'`，但 `_turnInvested` 與 `_extraUsePhase` 不變。
+
+`onTalentDrop`（資源卡）只增 `elementExtraUses` 計數，沒切換 `_extraUsePhase`，於是 `canDrag = place && (false || false) = false`。
+
+`finish()` 內部 `if(elementExtraUses>0)` 的分支會在投入時 decrement 並設 `_extraUsePhase=true`，但這要求 **投入前** 就有 extraUses。投入後再用人材的情境沒有任何路徑會打開 `_extraUsePhase`。
+
+正常遊戲也命中：partner 效果（如分身大師、派遣總部）可能在投入後給人材，玩家此時用人材對資源卡 → 一樣鎖死。
+
+**修法**：`onTalentDrop` 增加 `elementExtraUses` 後，若 `_turnInvested` 已 true，立即進入 extra use phase：
+
+```js
+G.elementExtraUses = (G.elementExtraUses||0) + 1;
+// 已投入後再用人材：進入額外投入階段以解鎖 canDrag（_turnInvested 鎖死的情境）
+if(G._turnInvested){
+  G._extraUsePhase = true;
+  G.phase = 'place';
+}
+```
+
+完整流程驗證（修後）：
+1. step7 投入 → `_turnInvested=true, _extraUsePhase=false, phase='done'`
+2. step8 setUp → `phase='place'`
+3. 拖人材到金錢卡 → `elementExtraUses=1` + 偵測 `_turnInvested=true` → 設 `_extraUsePhase=true, phase='place'`
+4. `canDrag = place && (!true || true) = true` ✓
+5. 玩家拖金錢卡到箭頭 → `finish()` 進入 `if(elementExtraUses>0)` 分支：decrement 為 0、`_extraUsePhase=true`、return
+6. 玩家點結束回合 → `hookDoNext` 識別 `tut_end_turn_after_talent` → step9
+
+### C. `hookTalentDrop` 對話修正
+
+**問題**：Session 52 的對話對拖到設施 / 資源卡兩種情境都說「可以投入資源試試效果」，但拖設施不增 `elementExtraUses`，`_turnInvested` 仍鎖 canDrag → 對話誤導。
+
+**修法**：依拖放目標分流：
+
+```js
+target==='card' ? [
+  '人材投入資源卡：本回合可額外多投入 1 次！',
+  '可以再拖資源到箭頭試試效果，或直接結束回合進入下一階段。',
+] : [
+  '人材投入設施：本回合該設施 +1，並恢復 +1 耐用值！',
+  '直接結束回合進入下一階段吧。',
+]
+```
+
+只有資源卡情境提投入；設施情境引導結束回合。
+
+### 量化結果
+
+| 項目 | 變化 |
+|---|---|
+| index.html | +14 / -4 |
+| GameDoc.md | +Session 53 詳細章節 + 雙索引表新增列 |
+| 真實 bug 修復 | 1（B：投入後人材鎖死，partner 效果情境也修） |
+| 功能新增 | 1（A：教學 BGM） |
+| 對話修正 | 1（C） |
+
+### 修改檔案
+
+`index.html`：
+- ~2341 / ~2347 / ~2358：BGM 註解、`_scene` 型別、`pickIdx` 加 tutorial 分支
+- ~13366：`TUT.start` setScene('tutorial')
+- ~13668：`TUT.finish` setScene('gameplay')
+- ~12249：`onTalentDrop` 投入後解鎖 canDrag（`_extraUsePhase=true; phase='place'`）
+- ~13895：`hookTalentDrop` 對話依 target 分流
+
+`VentureTown_GameDoc.md`：
+- 索引表加入 Session 53
+- 全 Session 完整索引加入 Session 53
+- 新增 Session 53 詳細章節（本節）
 

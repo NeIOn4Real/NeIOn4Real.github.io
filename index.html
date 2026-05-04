@@ -2338,13 +2338,13 @@ const SFX=(()=>{
 
 // ══════════════════════════════════════
 // 背景音樂（外部 mp3，依場景與輪數切換）
-// title → bgm_4 / 1-4 輪 → bgm_1 / 5-8 輪 → bgm_2 / 9+ 輪 → bgm_3
+// title → bgm_4 / tutorial → bgm_4 / 1-4 輪 → bgm_1 / 5-8 輪 → bgm_2 / 9+ 輪 → bgm_3
 // ══════════════════════════════════════
 const BGM=(()=>{
   let active=false;
   let audio=null;
   let currentIdx=0;
-  let _scene='title'; // 'title' | 'gameplay'，由 SM.goto 同步
+  let _scene='title'; // 'title' | 'tutorial' | 'gameplay'，由 SM.goto / TUT 同步
   const VOLUME=0.18;
 
   function pickIdxForRound(round){
@@ -2355,6 +2355,7 @@ const BGM=(()=>{
   }
   function pickIdx(){
     if(_scene==='title') return 4;
+    if(_scene==='tutorial') return 4;
     return pickIdxForRound(typeof G!=='undefined'&&G?G.round:1);
   }
   function ensureAudio(idx){
@@ -12245,6 +12246,11 @@ function onTalentDrop(e) {
     G._talentUsedOnElement = true;
     G._hrTalentUsedCount=(G._hrTalentUsedCount||0)+1;
     G.elementExtraUses = (G.elementExtraUses||0) + 1;
+    // 已投入後再用人材：進入額外投入階段以解鎖 canDrag（_turnInvested 鎖死的情境）
+    if(G._turnInvested){
+      G._extraUsePhase = true;
+      G.phase = 'place';
+    }
     // 工會主席：持有8+人材時，額外投入+2人材（以投入前的人材數判定）
     if(hasPartner('union_chief')&&talentBefore>=8){
       G.elementExtraUses+=2;
@@ -13362,6 +13368,8 @@ const TUT = {
     _hide(_$('btn-export')); _hide(_$('btn-import'));
     // 隱藏所有 UI，只留標題和格子
     TUT.setUIVisibility(false);
+    // BGM 切到教學專屬 scene（沿用 bgm_4 標題音樂的 intro/輕快感）
+    if(typeof BGM!=='undefined'&&BGM.setScene) BGM.setScene('tutorial');
     render();
     setTimeout(()=>TUT.next(), 200);
   },
@@ -13661,6 +13669,8 @@ const TUT = {
     TUT.waitingFor = null;
     // 還原立繪
     document.body.classList.remove('tutorial-active');
+    // BGM 切回正常遊戲（依輪數選曲）
+    if(typeof BGM!=='undefined'&&BGM.setScene) BGM.setScene('gameplay');
     // 還原存讀檔按鈕
     _show(_$('btn-export'),''); _show(_$('btn-import'),'');
     // 補全所有 UI
@@ -13883,10 +13893,10 @@ const TUT = {
     setTimeout(()=>{
       TUT.speak(target==='card' ? [
         '人材投入資源卡：本回合可額外多投入 1 次！',
-        '可以投入資源試試效果，或直接結束回合進入下一階段。',
+        '可以再拖資源到箭頭試試效果，或直接結束回合進入下一階段。',
       ] : [
         '人材投入設施：本回合該設施 +1，並恢復 +1 耐用值！',
-        '可以投入資源試試效果，或直接結束回合進入下一階段。',
+        '直接結束回合進入下一階段吧。',
       ]);
     }, 200);
     return false;
