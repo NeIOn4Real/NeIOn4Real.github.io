@@ -2510,7 +2510,7 @@ const BLDG = {
   env_sensor:     { name:'環境感應站',   emoji:'📊', desc:'資源投入時，周圍 4 格每有1個設施，這個設施時獲得+2。', req:'any', out:null, fn:v=>v, special:'env_sensor' },
 
   // ── 貿易流設施 ──
-  trade_port:     { name:'外貿港口',     emoji:'⚓', desc:'這個設施無法被重疊。商品→金錢+2。投入商品時，每有一個商品，這個設施額外獲得+2收益，最高為當前收益目標的一半。', req:'goods', out:'money', fn:v=>v+2, special:'trade_port', noOverlay:true },
+  trade_port:     { name:'外貿港口',     emoji:'⚓', desc:'這個設施無法被重疊。商品→金錢+2。投入商品時，這個設施額外獲得 +2 收益 N 次（N 起始 1，本輪每經過 3 回合 +1，每輪重置）。', req:'goods', out:'money', fn:v=>v+2, special:'trade_port', noOverlay:true },
   exchange_board: { name:'匯率波動板',   emoji:'📈', desc:'這個設施無法被重疊。資源投入時，這個設施隨機獲得+2或-2，重複小鎮上已有設施的數量。', req:'any', out:null, fn:v=>v, special:'exchange_board', noOverlay:true },
   futures_market: { name:'期貨交易所',   emoji:'🏛', desc:'這個設施無法被重疊。回合開始時，這個設施獲得+0、+2、+4或+8，每次投入商品時，都會使這個效果重複一次。', req:'goods', out:'goods', fn:v=>v, special:'futures_market', noOverlay:true },
   trade_zone:     { name:'貿易特區',     emoji:'🌏', desc:'商店。商品→金錢。周圍8格每有一個商店被設置，這個設施永久獲得+2。這個設施無法被重疊。', req:'goods', out:'money', fn:v=>v, special:'trade_zone', isShop:true, noOverlay:true },
@@ -8267,23 +8267,17 @@ const FACILITY_FX={
     fx.hit();
   },
   trade_port(fx){
-    // 商品→金錢+2；每單位商品額外+2收益，單次最高為當前目標一半
+    // 商品→金錢+2；額外 +2×N 收益（N 起始 1，本輪每 3 回合 +1，每輪重置）
     if(fx.el.type!=='goods') return;
     const prevVal=fx.el.value;
     let nv=prevVal+2;
     nv=applyUpgradeBonus(fx.r,fx.c,nv,'外貿港口');
     fx.el={value:nv,type:'money'};
-    const cap=Math.max(0,Math.floor((G.goal||0)/2));
-    const rawBonus=prevVal*2;
-    const bonus=Math.min(rawBonus,cap);
-    if(bonus>0){
-      G.profit+=bonus;
-      const capMsg=rawBonus>cap?`（截至上限 ${cap}）`:'';
-      addLog(`  ⚓ 外貿港口: 📦${prevVal}→💰${nv}（+2），${prevVal}×2=+${bonus}收益${capMsg}`,'g');
-      profitFlyFromCell(fx.r,fx.c,bonus);
-    } else {
-      addLog(`  ⚓ 外貿港口: 📦${prevVal}→💰${nv}（+2）`,'g');
-    }
+    const N=Math.floor((G.turn||1)/3)+1;
+    const bonus=N*2;
+    G.profit+=bonus;
+    addLog(`  ⚓ 外貿港口: 📦${prevVal}→💰${nv}（+2），第${G.turn}回合 N=${N} → +${bonus}收益`,'g');
+    profitFlyFromCell(fx.r,fx.c,bonus);
     fx.hit();
   },
   exchange_board(fx){
@@ -10277,10 +10271,11 @@ function isPermShopFree(){
   if(handFacs>0) return false;
   return findFacilityCells().length < GN()*GN()/2;
 }
-function doPermShop(){
+function doPermShop(silent){
   if(G.phase!=='place'&&G.phase!=='done') return;
   if(G._permShopUsed) return;
-  // 本回合 offer 快取：每回合首次開啟生成，之後（取消重開）沿用，避免反覆 roll 刷內容
+  // 本回合 offer 快取：每回合首次開啟生成，之後（取消重開或購買後重開）沿用同一批，
+  // 避免反覆 roll 刷內容；可在同一回合內買多張，只要錢夠
   let offer = G._permShopOffer;
   if(!offer || offer.turn !== G.turn || offer.round !== G.round){
     const _shopTc=getPlayerTagCounts();
@@ -10315,55 +10310,74 @@ function doPermShop(){
       G._contractBarrenNextShopFiveFree = false; // 一次性消耗（生成時）
       addLog('📜 荒蕪：商店出現 5 張免費設施','g');
     }
-    offer = { ids:shuffled, freeIdx, hasFree:(hasFree&&(barrenBoost||freeIdx>=0)), barrenBoost, turn:G.turn, round:G.round };
+    offer = { ids:shuffled, freeIdx, hasFree:(hasFree&&(barrenBoost||freeIdx>=0)), barrenBoost, turn:G.turn, round:G.round, bought:new Set() };
     G._permShopOffer = offer;
   } else if(!offer.barrenBoost && !offer.hasFree && isPermShopFree()){
     // cache 命中時：玩家在前後兩次開啟之間達成免費條件（如把手牌都放完），
     // 補上一個免費格而不重 roll 內容
     const fIdx=_pickFreeFacIdx(offer.ids);
-    if(fIdx>=0){
+    if(fIdx>=0 && !(offer.bought&&offer.bought.has(fIdx))){
       offer.freeIdx=fIdx;
       offer.hasFree=true;
       G._permShopOffer=offer;
     }
   }
+  if(!offer.bought) offer.bought = new Set(); // 兼容舊存檔
+  // 全部已購買 → 自動結束本回合商店
+  if(offer.bought.size >= offer.ids.length){
+    G._permShopUsed = true;
+    G._permShopOffer = null;
+    render();
+    return;
+  }
   const prevPhase=G.phase;
+  const cards = [];
+  offer.ids.forEach((bid,i)=>{
+    if(offer.bought.has(i)) return; // 已購買的卡片不再出現
+    const isPartner = !!PARTNER_RARITY[bid];
+    const isFree = !isPartner && (offer.barrenBoost || (i===offer.freeIdx));
+    const c=isFree?0:getPermShopCost(bid);
+    const afford=G.profit>=c;
+    if(isPartner){
+      const p=PARTNERS[bid];
+      cards.push({
+        emoji:p.emoji, name:p.name,
+        desc:(p.pos||'')+(p.neg?'\n⚠ '+p.neg:'')+(afford?'':'\n⚠ 收益不足'),
+        pos:'-'+c+' 收益', neg:'',
+        extraClass:'shop-partner-card',
+        onclick:afford?`cardChooserPick(()=>{G.profit-=${c};_permShopMarkBought(${i});addLog('🏗 商店招募合夥人 -${c} 收益','g');recruitPartner('${bid}');G.phase='${prevPhase}';doPermShop(true);})`:'',
+      });
+      return;
+    }
+    cards.push({
+      emoji:BLDG[bid].emoji, name:BLDG[bid].name,
+      desc:BLDG[bid].desc+(isFree?'':(afford?'':'\n⚠ 收益不足')),
+      pos:isFree?'免費':'-'+c+' 收益', neg:'',
+      extraClass:isFree?'free-card':'',
+      onclick:afford?`cardChooserPick(()=>{G.profit-=${c};_permShopMarkBought(${i});addHandMaybeCompound('${bid}');addLog('🏗 購買了 ${BLDG[bid].emoji}${BLDG[bid].name}${isFree?" （免費）":""}','g');flyCardToHand('${bid}');G.phase='${prevPhase}';doPermShop(true);})`:'',
+    });
+  });
   showCardChooser(
     `🏗 商店${offer.barrenBoost?' （荒蕪：5 張免費）':(offer.hasFree?' （含免費）':'')}`,
-    offer.ids.map((bid,i)=>{
-      const isPartner = !!PARTNER_RARITY[bid];
-      const isFree = !isPartner && (offer.barrenBoost || (i===offer.freeIdx));
-      const c=isFree?0:getPermShopCost(bid);
-      const afford=G.profit>=c;
-      if(isPartner){
-        const p=PARTNERS[bid];
-        return {
-          emoji:p.emoji, name:p.name,
-          desc:(p.pos||'')+(p.neg?'\n⚠ '+p.neg:'')+(afford?'':'\n⚠ 收益不足'),
-          pos:'-'+c+' 收益', neg:'',
-          extraClass:'shop-partner-card',
-          onclick:afford?`cardChooserPick(()=>{G.profit-=${c};G._permShopUsed=true;G._permShopOffer=null;addLog('🏗 商店招募合夥人 -${c} 收益','g');recruitPartner('${bid}');G.phase='${prevPhase}';render();})`:'',
-        };
-      }
-      return {
-        emoji:BLDG[bid].emoji, name:BLDG[bid].name,
-        desc:BLDG[bid].desc+(isFree?'':(afford?'':'\n⚠ 收益不足')),
-        pos:isFree?'免費':'-'+c+' 收益', neg:'',
-        extraClass:isFree?'free-card':'',
-        onclick:afford?`cardChooserPick(()=>{G.profit-=${c};G._permShopUsed=true;G._permShopOffer=null;addHandMaybeCompound('${bid}');addLog('🏗 購買了 ${BLDG[bid].emoji}${BLDG[bid].name}${isFree?" （免費）":""}','g');G.phase='${prevPhase}';render();flyCardToHand('${bid}');})`:'',
-      };
-    }),
-    ()=>{ G.phase=prevPhase; render(); } // 取消（不清除 offer，下次開仍是同一批）
+    cards,
+    ()=>{ G.phase=prevPhase; render(); }, // 取消（不清除 offer，下次開仍是同一批剩餘）
+    silent?{silent:true}:undefined
   );
   G.phase='event'; render();
-  // 含免費設施時，額外播一段 SSR 級提示音 + 金粉
-  if(offer.hasFree){
+  // 含免費設施時，額外播一段 SSR 級提示音 + 金粉（只在初次開啟）
+  if(offer.hasFree && !silent){
     setTimeout(()=>{
       SFX.rareDrop();
       const cardsRow=_$('card-chooser-cards');
       if(cardsRow) showSsrSparkle(cardsRow.querySelector('.sel-card.free-card')||cardsRow,{silent:true});
     },180);
   }
+}
+// 標記某 index 已購買（供 cardChooserPick onclick 內呼叫）
+function _permShopMarkBought(i){
+  if(!G._permShopOffer) return;
+  if(!G._permShopOffer.bought) G._permShopOffer.bought = new Set();
+  G._permShopOffer.bought.add(i);
 }
 // ── 常駐行動：資源轉換器 ──
 function doPermConvert(){
@@ -14496,12 +14510,12 @@ const MEGA_SIM_FX={
     if(sim.type==='goods'){ sim.type='money'; }
   },
   trade_port(sim,mega,ctx){
-    // 商品→金錢+2；每單位商品額外+2收益（mega 模擬無 G.goal 上下文，省略上限）
+    // 商品→金錢+2；額外 +2×N 收益（N 起始 1，本輪每 3 回合 +1，每輪重置）
     if(sim.type!=='goods') return;
-    const prevVal=sim.value;
-    sim.value=prevVal+2;
+    sim.value=sim.value+2;
     sim.type='money';
-    ctx.bonusProfit+=prevVal*2;
+    const N=Math.floor((G.turn||1)/3)+1;
+    ctx.bonusProfit+=N*2;
   },
   clearance(sim,mega,ctx){
     // 失一半；每 4 個 +8（簡化：mega 模擬不累積成長，一律每組 +8）
