@@ -10264,21 +10264,14 @@ function doPermShop(){
     const barrenBoost = !!G._contractBarrenNextShopFiveFree;
     const numCards = barrenBoost ? 5 : 3;
     const shuffled=weightedPickN([...new Set(pool)],numCards,_shopTc);
-    // 第 2 輪起（非荒蕪批次），合夥人 roll 鎖到「輪」級別 —— 同輪內不論幾回合
-    // 開店都顯示同一位（或 null），避免玩家結束回合反覆刷新合夥人。
-    // 設施部分仍每回合重 roll；位置可隨設施重排洗牌。
-    if(!barrenBoost && G.round>=PARTNER_SHOP_MIN_ROUND){
-      let pLock=G._permShopPartnerLock;
-      if(!pLock || pLock.round!==G.round){
-        // 進入新一輪：roll 一次決定本輪是否出現合夥人、是哪一位
-        const rolled=(Math.random()<PARTNER_SHOP_PROB) ? _shopPickPartner(_shopTc) : null;
-        pLock={ round:G.round, pid:rolled||null };
-        G._permShopPartnerLock=pLock;
-      }
-      // 已持有（中途買到）→ 不再注入；同輪內不會再出別人
-      if(pLock.pid && !(G.partners||[]).includes(pLock.pid)){
-        const replaceIdx=Math.floor(Math.random()*shuffled.length);
-        shuffled[replaceIdx]=pLock.pid;
+    // 第 2 輪起（非荒蕪批次），合夥人作為 4th 額外位置：每回合 PARTNER_SHOP_PROB
+    // 機率 roll，未持有才注入到 shuffled 末尾（不擠 3 設施位置）。
+    // S57 的「輪鎖」已撤回（Session 59）—— 鎖整輪導致 60% 機率玩家整輪看不到合夥人，
+    // 體感差；現改回每回合獨立 roll，與設施 cache 同步失效節奏一致。
+    if(!barrenBoost && G.round>=PARTNER_SHOP_MIN_ROUND && Math.random()<PARTNER_SHOP_PROB){
+      const pid=_shopPickPartner(_shopTc);
+      if(pid && !(G.partners||[]).includes(pid)){
+        shuffled.push(pid);
       }
     }
     const hasFree = barrenBoost || isPermShopFree();
@@ -14241,6 +14234,7 @@ function deserializeGame(save){
   delete data._talentUsedOnElement; delete data._hrUsedThisTurn;
   delete data._tanyaSwapPending; delete data._tanyaSwapPool;
   delete data._permShopUsed;
+  delete data._permShopPartnerLock; // S57 已撤回（S59），舊存檔殘留欄位清掉
   delete data._industrializing;
   // _extraUsePhase：僅在 phase='place' 且確實處於額外投入階段時保留，其他狀態下清除
   if(!(data.phase==='place'&&data._extraUsePhase)) delete data._extraUsePhase;

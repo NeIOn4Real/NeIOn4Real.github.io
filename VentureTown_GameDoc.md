@@ -93,6 +93,7 @@
 | 56 | 2026-05-04 | 商店第 2 輪起出現合夥人（更貴、tagWeight 加成）+ 免費格 cache 失效修復 |
 | 57 | 2026-05-04 | 商店合夥人改為「輪」級鎖（避免結束回合反覆刷新合夥人） |
 | 58 | 2026-05-04 | 訪客計數器（Cloudflare Worker 後端，作者專用暗門 + IP 排除） |
+| 59 | 2026-05-04 | 商店合夥人改 4th 額外位置 + 撤回 S57 輪鎖（per-turn roll） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -6855,5 +6856,108 @@ Worker + KV 是 IP 排除這個需求下唯一同時滿足 (a) 免費 (b) 取得
 - 全 Session 完整索引加入 Session 58
 - 新增 Session 58 詳細章節（本節）
 
+
+
+
+
+## Session 59（2026-05-04）— 商店合夥人改 4th 額外位置 + 撤回 S57 輪鎖
+
+### 動機
+
+兩個累積的回報合併處理：
+
+1. （S56 設計問題）合夥人出現時 **替換** 3 設施其中 1 張 → 設施選擇從 3 張變 2 張，選擇成本太高
+2. （S57 副作用）每輪一次 roll、鎖整輪：60% 機率玩家整輪看不到合夥人；玩家實測連 4 輪都沒看到（發生機率 ~22%，落在不舒服區間）
+
+### A. 撤回 S57 輪鎖（per-turn roll）
+
+**修前**（line 10267-10282）：
+
+```js
+let pLock=G._permShopPartnerLock;
+if(!pLock || pLock.round!==G.round){
+  const rolled=(Math.random()<PARTNER_SHOP_PROB) ? _shopPickPartner(_shopTc) : null;
+  pLock={ round:G.round, pid:rolled||null };
+  G._permShopPartnerLock=pLock;
+}
+if(pLock.pid && !(G.partners||[]).includes(pLock.pid)){
+  const replaceIdx=Math.floor(Math.random()*shuffled.length);
+  shuffled[replaceIdx]=pLock.pid;
+}
+```
+
+**修後**：
+
+```js
+if(!barrenBoost && G.round>=PARTNER_SHOP_MIN_ROUND && Math.random()<PARTNER_SHOP_PROB){
+  const pid=_shopPickPartner(_shopTc);
+  if(pid && !(G.partners||[]).includes(pid)){
+    shuffled.push(pid);  // ← 4th 位置；不擠 3 設施
+  }
+}
+```
+
+行為變化：
+
+| 情境 | S57 修前 | S59 修後 |
+|---|---|---|
+| 同回合反覆開店 | 同 offer（cache 命中）| 同 offer ✓（cache 機制不變） |
+| 跨回合（同輪） | 同 partner / null（鎖整輪） | 重新 roll，可能不同 partner / 出現 / 消失 |
+| 整輪都不出 | 60% 機率（單次 roll）| 0.6^10 = 0.6%（10 回合各 roll）|
+| 連 4 輪都不出 | 0.6^3 = 21.6% | 0.6^30 ≈ 0.00002% |
+| cheese path | 結束回合刷 partner 無效（鎖死） | 可結束回合刷不同 partner |
+
+### B. 4th 額外位置
+
+`shuffled.push(pid)` 取代 `shuffled[replaceIdx]=pid`。chooser 從 3 張變 4 張（合夥人出現時），3 張設施完整保留。
+
+`#card-chooser-cards` `max-width:680px; flex-wrap:nowrap`：4×140 + 3×14 = 602px ✓ 內塞得下。荒蕪批次 5 張早就突破 680（既有行為依賴 flex 收縮）。
+
+### C. cheese path 重新評估
+
+S57 當初鎖整輪是為了堵「結束回合刷合夥人」cheese——玩家用「過早結束回合」的時間預算換 partner roll。S59 撤回後該 cheese 復活，但成本與收益重新平衡：
+
+- **設施仍每回合重 roll**（從 S40 起的設計）：玩家本來就有結束回合刷設施的動機
+- **合夥人變 4th 額外**：見到合夥人不需犧牲設施選擇 → roll 期望值上升
+- **net effect**：純粹「以回合換 partner」的 cheese 成本不變（每回合一定要花掉時間預算），但「順便看 partner」的價值提高 → 玩家行為從「鎖死戰術」變「持續關注」
+
+設計意圖從「合夥人 = 稀缺戰術決策」轉向「合夥人 = 商店常規驚喜」，與設施 roll 節奏對齊。
+
+### D. deserialize 清理
+
+`_permShopPartnerLock` 已不使用，但舊存檔可能殘留。`deserializeGame` 加：
+
+```js
+delete data._permShopPartnerLock;
+```
+
+避免讀檔時把無用欄位帶入新 G。
+
+### E. 沒動的部分
+
+- `PARTNER_SHOP_PROB=0.4` / `PARTNER_SHOP_MIN_ROUND=2` / `PARTNER_SHOP_COST_MULT=2.5`：不變
+- `_shopPickPartner`：不變（`filterByOwnedTags` + `tagWeightFor` + 排除 demon/已持有）
+- `_pickFreeFacIdx`：不變（已會跳過合夥人 index，4th slot 也是合夥人，自然不被選為免費）
+- chooser map（line ~10302）：不變（既有 partner 分支自然處理 4th 個 id）
+- `getPermShopCost`：不變（合夥人 ×2.5 倍率仍套用）
+
+### 量化結果
+
+| 項目 | 變化 |
+|---|---|
+| index.html | +約 5 / −9（shop 邏輯簡化）+ 1（deserialize 清理）|
+| GameDoc.md | +Session 59 章節 + 雙索引列 |
+| 設計修補 | 1（合夥人從「整輪鎖」→「per-turn roll」+ 從「替換」→「額外」）|
+| 邊界修補 | 1（舊存檔 `_permShopPartnerLock` 清理）|
+
+### 修改檔案
+
+`index.html`：
+- ~10267-10283：S57 輪鎖整段移除，改為 per-turn roll + push 到 shuffled 末尾
+- ~14243：deserialize 加 `delete data._permShopPartnerLock`
+
+`VentureTown_GameDoc.md`：
+- 全 Session 完整索引加入 Session 59
+- 新增 Session 59 詳細章節（本節）
 
 
