@@ -95,6 +95,7 @@
 | 58 | 2026-05-04 | 訪客計數器（Cloudflare Worker 後端，作者專用暗門 + IP 排除） |
 | 59 | 2026-05-04 | 商店合夥人改 4th 額外位置 + 撤回 S57 輪鎖（per-turn roll） |
 | 60 | 2026-05-04 | 巨人村 / 大型電子供給站 / 世界奇觀 真正佔用 2×2（補 _part 占位 + cascade destroy） |
+| 61 | 2026-05-04 | 商店改可同回合多次購買 + 外貿港口削弱（脫離商品數量，N×2 階梯） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -7148,4 +7149,154 @@ if(bId==='mega_elec_supply'){
 `VentureTown_GameDoc.md`：
 - 全 Session 完整索引加入 Session 60
 - 新增 Session 60 詳細章節（本節）
+
+## Session 61（2026-05-04）— 商店改可同回合多次購買 + 外貿港口削弱
+
+### 動機
+
+兩件玩家回報：
+
+1. 「商店不應該是一次只能買一個東西，讓玩家能夠自由挑選要買的物品」（如果買得起的話）。
+2. 「外貿港口太強了，想辦法調整一下數值」。
+
+### A. 商店：同回合多次購買
+
+#### 舊行為
+
+`doPermShop()` 每回合 1 次抽 offer（3 張，荒蕪合約 5 張）+ 玩家點 1 張就清掉 offer、設 `_permShopUsed=true`，當回合不能再開。取消按鈕保留 offer，可重開但不能 reroll。
+
+#### 新行為
+
+每回合仍只抽一次 offer（鎖定不能 reroll），但可在同回合內買任意張。已買的卡自動從 chooser 中移除；全部買光自動關閉並結束本回合商店；按「✕ 取消」也可隨時離開。
+
+#### 實作
+
+`doPermShop(silent)` 新增 silent 參數（重開時跳過 SFX、SSR 金粉提示），offer 物件加 `bought:Set<number>`：
+
+```js
+offer = { ids:shuffled, freeIdx, hasFree:..., barrenBoost, turn:G.turn, round:G.round, bought:new Set() };
+```
+
+主要邏輯改動：
+
+```js
+// 全部已購買 → 自動結束本回合商店
+if(offer.bought.size >= offer.ids.length){
+  G._permShopUsed = true;
+  G._permShopOffer = null;
+  render();
+  return;
+}
+const cards = [];
+offer.ids.forEach((bid,i)=>{
+  if(offer.bought.has(i)) return; // 已購買的卡片不再出現
+  // ... build card with original index i ...
+});
+```
+
+買的 onclick 改為（不再清除 offer / 設 used）：
+
+```js
+cardChooserPick(()=>{
+  G.profit-=${c};
+  _permShopMarkBought(${i});
+  addHandMaybeCompound('${bid}');
+  addLog(...);
+  flyCardToHand('${bid}');
+  G.phase='${prevPhase}';
+  doPermShop(true);  // ← 重新打開（silent，跳過 SFX）
+})
+```
+
+新 helper：
+
+```js
+function _permShopMarkBought(i){
+  if(!G._permShopOffer) return;
+  if(!G._permShopOffer.bought) G._permShopOffer.bought = new Set();
+  G._permShopOffer.bought.add(i);
+}
+```
+
+#### 設計細節
+
+- **免費卡**：免費僅該張免費，買了就消失，其他正常付費。沒買的話 freeIdx 持續成立。
+- **荒蕪合約 5 張全免費**：5 張可全部買，免費 5 連發。
+- **合夥人 4th 位置**：買了之後若還有設施剩，可以繼續買；recruit 動畫照常跑（`recruitPartner` 內部不開新 modal，重開 chooser 安全）。
+- **取消行為不變**：cancel 不清 offer / 不設 used，下次開仍是同一批剩餘（與既有「取消保留 offer」一致）。
+- **`G._permShopUsed`**：只在「全買光」這一條路徑被設為 true。表示本回合商店已用盡。
+
+### B. 外貿港口：脫離商品數量的階梯式 bonus
+
+#### 舊行為
+
+`商品→金錢+2` + 「每有一個商品，這個設施額外獲得 +2 收益，最高為當前收益目標的一半」。實際公式：`bonus = min(prevVal*2, goal/2)`。
+
+問題：bonus 隨投入商品線性放大，後期投 30+ 商品就 +60 收益；上限 goal/2 後期破百。單一設施貢獻整輪目標的一大半。
+
+#### 新行為
+
+`商品→金錢+2`（基礎不變）+ 「投入商品時，額外獲得 +2 收益 N 次（N 起始 1，本輪每經過 3 回合 +1，每輪重置）」。
+
+公式：`N = floor(G.turn / 3) + 1`，`bonus = N * 2`。
+
+| 回合 | T1-2 | T3-5 | T6-8 | T9-10 |
+|---|---|---|---|---|
+| N | 1 | 2 | 3 | 4 |
+| bonus | +2 | +4 | +6 | +8 |
+
+#### 跟舊版比較
+
+| 投入 10 商品 | 投入 30 商品 |
+|---|---|
+| 舊：+20 | 舊：+60 |
+| 新：T1-2 +2 / T9-10 +8 | 新：T1-2 +2 / T9-10 +8（不再隨商品數縮放）|
+
+完全脫離商品數量；變成節奏型工具卡（後段回合更值得投入）。
+
+#### 實作
+
+三處同步（`index.html`）：
+
+| 位置 | 內容 |
+|---|---|
+| 2513 | desc 改為「投入商品時，這個設施額外獲得 +2 收益 N 次（N 起始 1，本輪每經過 3 回合 +1，每輪重置）」 |
+| 8276 | 主邏輯：`const N = Math.floor((G.turn||1)/3) + 1; const bonus = N*2;` 並移除 cap 邏輯 |
+| 14525 | mega 設施 simulation 同步使用 `Math.floor((G.turn||1)/3)+1` |
+
+主邏輯關鍵改動：
+
+```js
+trade_port(fx){
+  if(fx.el.type!=='goods') return;
+  const prevVal=fx.el.value;
+  let nv=prevVal+2;
+  nv=applyUpgradeBonus(fx.r,fx.c,nv,'外貿港口');
+  fx.el={value:nv,type:'money'};
+  const N=Math.floor((G.turn||1)/3)+1;
+  const bonus=N*2;
+  G.profit+=bonus;
+  addLog(`  ⚓ 外貿港口: 📦${prevVal}→💰${nv}（+2），第${G.turn}回合 N=${N} → +${bonus}收益`,'g');
+  profitFlyFromCell(fx.r,fx.c,bonus);
+  fx.hit();
+},
+```
+
+#### 後期可調點
+
+- 改 `+2` 那個常數（例如 `+3` → N=4 時 +12）
+- 改 `/3` 為 `/2`（每 2 回合 +1，T9-10 N=5）
+- 改回累計跨輪（用 `(G.round-1)*10 + G.turn` 或新增 `G.gameTurn` 計數器）
+
+### 修改檔案
+
+`index.html`：
+- 2513：trade_port BLDG desc
+- 8269-8287：trade_port 主邏輯（移除 cap，改 N×2）
+- 10280-10387：doPermShop 重寫（offer.bought Set + silent reopen + _permShopMarkBought helper）
+- 14518-14525：mega trade_port simulation
+
+`VentureTown_GameDoc.md`：
+- 全 Session 完整索引加入 Session 61
+- 新增 Session 61 詳細章節（本節）
 
