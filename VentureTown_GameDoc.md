@@ -88,6 +88,7 @@
 | 51 | 2026-05-03 | GameDoc 架構審查 + 全面 code 審查（5 agent / 17 finding）+ 2 真實 bug 修復 ★審查批次 |
 | 52 | 2026-05-04 | 5 項 bug 修復（投入預覽 / 教學立繪 / 姊妹合約 / 教學人材 / 廢墟手牌） |
 | 53 | 2026-05-04 | 教學 BGM + 投入後人材解鎖拖曳 + 對話修正 |
+| 54 | 2026-05-04 | 教學 BGM 不啟動 regression 修復（SM.goto 跳過 tutorial mode 的 setScene('gameplay')） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -6188,7 +6189,7 @@ SM.gameplay.enter: TUT.start() → BGM.setScene('tutorial') → bgm_4
 TUT.finish: BGM.setScene('gameplay') → 依 G.round 切到 bgm_1/2/3
 ```
 
-中間有兩次切歌（bgm_4 → bgm_1 → bgm_4）但都在啟動前一兩百 ms 內完成，玩家通常聽不到差異；最終穩定在 bgm_4。
+中間有兩次切歌（bgm_4 → bgm_1 → bgm_4），原以為最終穩定在 bgm_4，**但實測 BGM 完全不發聲**——玩家必須額外點 🎵 toggle 才能播放（Session 54 修復；同一 click 事件內的三段 `pause/new Audio/play` 會互相 abort 前一個 play() promise，user gesture 額度耗盡後最終 play() 失敗）。
 
 ### B. `_turnInvested` 鎖死 canDrag（latent bug，非教學專屬）
 
@@ -6268,4 +6269,94 @@ target==='card' ? [
 - 索引表加入 Session 53
 - 全 Session 完整索引加入 Session 53
 - 新增 Session 53 詳細章節（本節）
+
+## Session 54（2026-05-04）— 教學 BGM 不啟動 regression 修復
+
+### 動機
+
+Session 53 新增「教學專屬 BGM」後，使用者實測：**進入新手教學 BGM 完全不播**，必須額外點右上角 🎵 toggle 才會發聲。Session 53 的時序註解原寫「玩家通常聽不到差異」，實際上整段音訊被瀏覽器靜音。
+
+### 根因：同一 click 事件內三段 `pause/new Audio/play` 互相 abort
+
+點「新手教學」card 後，**同一個 click event** 內依序發生：
+
+```
+1. capture-phase listener (bgmAutoStart.onFirstGesture)
+   → BGM.start()  [_scene='title' → idx=4]
+   → new Audio(bgm_4) → play() ── Promise A pending
+
+2. bubble-phase card.onclick
+   → SM.goto('gameplay', {mode:'tutorial'})
+   → BGM.setScene('gameplay')  [_scene='gameplay' → idx=1]
+   → ensureAudio(1): pause(bgm_4) → Promise A REJECT (AbortError)
+                     new Audio(bgm_1) → play() ── Promise B pending
+   → SM.gameplay.enter({mode:'tutorial'})
+   → TUT.start()
+   → BGM.setScene('tutorial')  [_scene='tutorial' → idx=4]
+   → ensureAudio(4): pause(bgm_1) → Promise B REJECT
+                     new Audio(bgm_4_v2) → play() ── Promise C
+```
+
+關鍵：
+
+- `BGM._switchToCurrentIdx` 的 `.catch(()=>{})` **只吞錯**，不 reset `active`，所以 state 顯示仍在播放
+- `BGM.start` 的 `.catch` 會 set `active=false`，但 Promise A reject 是 **async** 觸發，到達時 SM 已同步跑完三段切歌
+- 瀏覽器 audio user-gesture 配額在連續 abort 後耗盡，**Promise C 雖在原始 click stack 內呼叫但仍可能被靜音**（Chrome / Firefox 對 rapidly orphaned media element 的保守策略）
+- 玩家點 🎵 toggle 時觸發新 user gesture，`BGM.start` 重新 play 同一個 audio object 即成功——這就是「需要點開關才能播」的觀察
+
+### 修法：跳過 tutorial entry 的中間 setScene('gameplay')
+
+`'title'` 與 `'tutorial'` 的 `pickIdx` 都返回 `4`（共用 bgm_4）。直接從 title 切 tutorial 時，`_switchToCurrentIdx` 的早退條件 `idx===currentIdx&&audio` 命中，**完全不重建 Audio**——沒有 pause、沒有 play、沒有 race。
+
+修改 `SM.goto`（`index.html` ~15411）：
+
+```js
+// 修前
+if(typeof BGM!=='undefined'&&BGM.setScene) BGM.setScene(name);
+
+// 修後
+const _isTutEntry = name==='gameplay' && opts && opts.mode==='tutorial';
+if(typeof BGM!=='undefined'&&BGM.setScene&&!_isTutEntry) BGM.setScene(name);
+```
+
+修後時序：
+
+```
+1. capture-phase: BGM.start() → new Audio(bgm_4) → play() (active=true)
+2. bubble-phase: SM.goto skip setScene
+                 TUT.start → BGM.setScene('tutorial')
+                 _scene 'title'→'tutorial' (changed)
+                 _switchToCurrentIdx: idx 4 === currentIdx 4 && audio → return
+                 ── audio 持續循環，無中斷
+```
+
+### 不影響其他路徑
+
+- 「開始遊戲」(`mode:'new'`)、「繼續遊戲」(`mode:'resume'`)、「讀取存檔」(`mode:'import'`) 仍走 `setScene('gameplay')`，single switch 沒有 race
+- `TUT.finish` 的 `setScene('gameplay')` 在使用者已多次互動後執行，user gesture 額度充足
+- title 場景互切不命中此分支
+
+### 量化結果
+
+| 項目 | 變化 |
+|---|---|
+| index.html | +4 / -1（SM.goto 加 4 行條件 + 註解） |
+| GameDoc.md | +Session 54 章節 + 雙索引修正 + Session 53 註解更正 |
+| 真實 bug 修復 | 1（Session 53 引入的 regression） |
+
+### 經驗教訓
+
+- **`audio.play()` 回 Promise 失敗時 `.catch(()=>{})` 容易吞掉診斷訊號**——若 `BGM._switchToCurrentIdx` 在失敗時也呼叫 `active=false`，至少 toggle 按鈕能正確顯示
+- **同一 user gesture 內連續切換 media element 是反 pattern**——browsers 把 `pause/new Audio/play` 視為新獨立操作，不繼承前一個 element 的 gesture 額度
+- **scene state 與 audio idx 不同步是隱憂**——`'title'`/`'tutorial'` 共用 idx=4，scene 變更但 idx 不變的早退路徑就是這次的救命稻草；未來若加 `'menu'`/`'pause'` 等 scene 都應 map 到既有 idx 而非新增 mp3
+
+### 修改檔案
+
+`index.html`：
+- ~15411-15415：`SM.goto` 加 `_isTutEntry` 條件，跳過 tutorial 入場的 setScene('gameplay')
+
+`VentureTown_GameDoc.md`：
+- 全 Session 完整索引加入 Session 54
+- Session 53 時序註解更正（"玩家通常聽不到差異" → 實測完全不發聲）
+- 新增 Session 54 詳細章節（本節）
 

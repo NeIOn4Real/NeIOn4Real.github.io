@@ -15409,7 +15409,10 @@ const SM={
     _lastCardValue=null;
     _lastCardType=null;
     // BGM 場景切換（title → bgm_4 / gameplay → 依輪數）
-    if(typeof BGM!=='undefined'&&BGM.setScene) BGM.setScene(name);
+    // 教學模式下交由 TUT.start 設為 'tutorial'，避免 title→gameplay→tutorial 連續切歌
+    // 在同一 user gesture 內造成 play() 競爭被瀏覽器靜音
+    const _isTutEntry = name==='gameplay' && opts && opts.mode==='tutorial';
+    if(typeof BGM!=='undefined'&&BGM.setScene&&!_isTutEntry) BGM.setScene(name);
     if(this.defs[name]&&this.defs[name].enter) this.defs[name].enter(opts||{});
   }
 };
