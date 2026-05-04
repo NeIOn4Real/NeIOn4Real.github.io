@@ -15873,6 +15873,9 @@ _$('logo').addEventListener('click',()=>DEV.push('L'));
 G=newGame();
 SM.goto('title');
 // BGM 偏好恢復：瀏覽器 autoplay policy 要求 user gesture，等首次點擊再啟動
+// 使用 bubble phase（第三參數 false）— 讓目標的 onclick / SM.goto 先跑完
+// 場景設定，BGM.start 才依最終 _scene 啟動。capture phase 會先於 toggleBgm
+// 啟動 BGM，被 toggle 的 stop 立刻關掉，造成首次點 🎵 看似無效。
 (function bgmAutoStart(){
   const btn=_$('btn-bgm');
   if(!BGM.preferOn()){
@@ -15883,13 +15886,13 @@ SM.goto('title');
   if(btn){ btn.textContent='🎵'; btn.title='關閉背景音樂'; }
   const onFirstGesture=()=>{
     if(!BGM.isActive()) BGM.start();
-    document.removeEventListener('click',onFirstGesture,true);
-    document.removeEventListener('keydown',onFirstGesture,true);
-    document.removeEventListener('touchstart',onFirstGesture,true);
+    document.removeEventListener('click',onFirstGesture,false);
+    document.removeEventListener('keydown',onFirstGesture,false);
+    document.removeEventListener('touchstart',onFirstGesture,false);
   };
-  document.addEventListener('click',onFirstGesture,true);
-  document.addEventListener('keydown',onFirstGesture,true);
-  document.addEventListener('touchstart',onFirstGesture,true);
+  document.addEventListener('click',onFirstGesture,false);
+  document.addEventListener('keydown',onFirstGesture,false);
+  document.addEventListener('touchstart',onFirstGesture,false);
 })();
 </script>
 

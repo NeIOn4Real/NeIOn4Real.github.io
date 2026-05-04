@@ -89,6 +89,7 @@
 | 52 | 2026-05-04 | 5 項 bug 修復（投入預覽 / 教學立繪 / 姊妹合約 / 教學人材 / 廢墟手牌） |
 | 53 | 2026-05-04 | 教學 BGM + 投入後人材解鎖拖曳 + 對話修正 |
 | 54 | 2026-05-04 | 教學 BGM 不啟動 regression 修復（SM.goto 跳過 tutorial mode 的 setScene('gameplay')） |
+| 55 | 2026-05-04 | 標題 🎵 toggle 首次點擊無效 + BGM race 根因修復（bgmAutoStart capture → bubble phase） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -6359,4 +6360,106 @@ if(typeof BGM!=='undefined'&&BGM.setScene&&!_isTutEntry) BGM.setScene(name);
 - 全 Session 完整索引加入 Session 54
 - Session 53 時序註解更正（"玩家通常聽不到差異" → 實測完全不發聲）
 - 新增 Session 54 詳細章節（本節）
+
+## Session 55（2026-05-04）— 標題 🎵 toggle 首次點擊無效 + BGM race 根因修復
+
+### 動機
+
+Session 54 修完教學 BGM 後，使用者繼續回報：**標題畫面點 🎵 toggle 也不會啟動 BGM**。同時也注意到「開始遊戲」/「繼續遊戲」這類進入 gameplay 的卡片，BGM 也常常打不開——必須額外點 🎵 toggle 才能播放（且 toggle 自身也壞）。Session 54 的 SM.goto 修法只解了 tutorial path，沒解到根因。
+
+### 根因：bgmAutoStart capture-phase 提前啟動 → 與目標 handler 競爭
+
+`bgmAutoStart` 用 capture phase 註冊 listener（第三參數 `true`），事件流序為：
+
+```
+[capture] document.onFirstGesture → BGM.start() → audio.play()
+[target ] btn-bgm.onclick → toggleBgm() → BGM.toggle()
+```
+
+對 🎵 toggle：
+
+1. capture：BGM.start。`active=false → true`，bgm_4 開始播
+2. target：toggleBgm → BGM.toggle，看到 `active=true` → 呼叫 `stop()`，audio.pause()，`active=false`，localStorage 寫入 `'0'`
+3. 結果：按鈕變 🔇、無聲、偏好被存成「關閉」。**使用者看到的就是「點了沒反應」**，而且因為 localStorage 已寫 `'0'`，下次刷新還是默認關閉
+
+對「開始遊戲」card：
+
+1. capture：BGM.start → play(bgm_4) → Promise A pending
+2. target：SM.goto('gameplay', {mode:'new'}) → setScene('gameplay') → ensureAudio(1)：`pause(bgm_4) → Promise A reject async` + new Audio(bgm_1) + play() → Promise B
+3. Promise A reject 回到 BGM.start 的 `.catch(()=>{ active=false })` → `active=false`
+4. 此後雖然 bgm_1 仍在播（loop），但內部 state `active=false`，下次 syncToRound 會直接 return
+
+教學 path 多一段 setScene('tutorial')，三個 audio 物件鏈式 abort，user gesture 額度耗盡，最終 play 也被瀏覽器靜音——這就是 Session 53/54 觀察到的「教學完全不發聲」。
+
+### 修法：listener 改為 bubble phase
+
+把三組 `addEventListener(..., true)` 改成 `false`。事件流變為：
+
+```
+[target ] btn-bgm.onclick → toggleBgm() → BGM.toggle()
+[bubble ] document.onFirstGesture → if(!isActive()) BGM.start()
+```
+
+對 🎵 toggle：
+
+1. target：toggleBgm → BGM.toggle 看到 `active=false` → start()，audio 開播，`active=true`，localStorage `'1'`
+2. bubble：onFirstGesture → `BGM.isActive() === true` → no-op，listeners 撤除
+3. ✓ 正常
+
+對「開始遊戲」card：
+
+1. target：SM.goto('gameplay', {mode:'new'}) → setScene('gameplay') → ensureAudio(1) **不 play**（active 仍 false），`_scene='gameplay'`, `currentIdx=1`
+2. bubble：onFirstGesture → BGM.start → pickIdx=1 → ensureAudio(1) 早退（同 idx 同 audio）→ play(bgm_1) **單次** → `active=true`
+3. ✓ 沒有任何 audio 被 abort，無 race
+
+對「新手教學」card（在 Session 54 修正之上）：
+
+1. target：SM.goto skip setScene → TUT.start → setScene('tutorial') → ensureAudio(4) **不 play**
+2. bubble：BGM.start → pickIdx=4 → ensureAudio(4) 早退 → play(bgm_4) **單次**
+3. ✓
+
+對標題 logo 點擊（DEV.push，無場景變化）：
+
+1. target：DEV.push('L')
+2. bubble：BGM.start → pickIdx=4（_scene 仍 'title'）→ ensureAudio(4) 建立 → play(bgm_4)
+3. ✓ 標題畫面也能播 bgm_4
+
+### 為什麼不擔心 stopPropagation
+
+全域 grep `stopPropagation` 只有一處（line ~10768，移動方向選擇 panel），且發生在 gameplay 中後期，那時 BGM 早已啟動、listener 已 self-remove。標題/教學/初始 gameplay 進入路徑無 stopPropagation，bubble listener 必定觸發。
+
+退一步即使首次點擊命中 stopPropagation，listener 不被 remove，下一次正常點擊就會啟動——延遲一拍而非永久失敗。
+
+### Session 54 SM.goto 修法的後續定位
+
+Session 54 在 `SM.goto` 加 `_isTutEntry` 條件跳過 `setScene('gameplay')`。在 bubble phase 修法之後，這個條件變成「**避免建立瞬間用不到的 bgm_1 Audio 物件**」的優化（節省一次 `new Audio()` + 網路請求），不再是必要修。**保留**作為防禦性程式：教學入場明確不需要切到 gameplay 池。
+
+### BGM 模組的 latent state 不一致問題（觀察，未修）
+
+`BGM.start` 的 `.catch(()=>{ active=false })` 會在 play 被 abort 時 async 把 `active` 設 false，但 audio 物件可能此時已被 `_switchToCurrentIdx` 換成新的且仍在播。修復後不會再觸發此 race，但若未來新增 BGM 切換路徑要小心：
+
+- `_switchToCurrentIdx` 的 `.catch(()=>{})` 完全吞錯，不同步 active 狀態
+- 兩個 catch 處理的是不同 audio 物件，但共用同一個 `active` 變數
+
+若要徹底乾淨，可考慮：(a) 把 `.catch` 改 `if(audio===this) active=false;` 鎖定當前實例，(b) 或統一使用單一 Audio 物件改 `src` 而非 `new Audio`。本次先不動，等實際遇到再修。
+
+### 量化結果
+
+| 項目 | 變化 |
+|---|---|
+| index.html | +5 / -3（3 處 `true` → `false` + 4 行註解） |
+| GameDoc.md | +Session 55 章節 + 雙索引修正 |
+| 真實 bug 修復 | 2（標題 🎵 toggle 首次無效；非教學 card 進入 BGM 不穩定） |
+| 設計改進 | 1（從根因解 race，Session 54 SM.goto 修法降為優化） |
+
+### 修改檔案
+
+`index.html`：
+- ~15875-15894：`bgmAutoStart` 三組 `addEventListener` 第三參數 `true` → `false`，註解說明 capture vs bubble 對 toggle 與 SM.goto 的競爭
+
+`VentureTown_GameDoc.md`：
+- 全 Session 完整索引加入 Session 55
+- 新增 Session 55 詳細章節（本節）
+
+
 
