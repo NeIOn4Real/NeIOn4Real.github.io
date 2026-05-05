@@ -8184,6 +8184,8 @@ const FACILITY_FX={
     G.inv.facHit=(G.inv.facHit||0)+1;
     consumeDurability(fx.r,fx.c,G.grid[fx.r][fx.c]);
     SFX.hit(G.inv.facHit-1, getOverlays(fx.r,fx.c).length);
+    if(G.inv.facPath) G.inv.facPath.push('terminal');
+    if(G.inv.facCellPath) G.inv.facCellPath.push([fx.r,fx.c]);
     let termVal=fx.el.value+bonus;
     termVal=applyUpgradeBonus(fx.r,fx.c,termVal,'終點站');
     const t_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
@@ -9455,6 +9457,9 @@ function showGoalReachedFx(){
 // ══════════════════════════════════════
 function performWinSettlement(turnsUsed){
   G._winPending=false;
+  // 中途達標（finish / doPermConvert）會繞過 doNext，補跑當回合的 turn-end passives
+  // 確保勞工兄弟屋、合夥人/合約 onTurnEnd hook、違約倒數等效果不會被跳過
+  runTurnEndPassives();
   const startRound=G.round;
   const passedGoals=[];
   // 連續結算：只要 profit 仍 >= 當前 goal 就繼續過關（上限 20 輪防護）
@@ -9884,6 +9889,7 @@ function startTurn(){
   G.phase='place';
   G._turnPitchOffset = 0; // 每回合音階位移歸零
   G._talentUsedOnElement = false;
+  G._turnEndPassivesFired = false; // 新回合：清除 turn-end passives 冪等旗標
   G._demoExpertMode = false;
   G._demoExpertUsedThisTurn = false; // 爆破工程師每回合限 1 次
   G._ruinScavengerUsedThisTurn = false; // 廢墟掠奪者每回合限 1 次
@@ -10096,28 +10102,12 @@ function startTurn(){
 function scaledCost(base){
   return Math.ceil(base*Math.max(1,(1+(G.round-1)*0.35)));
 }
-function doNext(){
-  if(TUT.hookDoNext()) return;
-  // 額外投入階段：允許跳過
-  if(G.phase==='place'&&G._extraUsePhase){
-    G.elementExtraUses=0;
-    G._extraUsePhase=false;
-    G.phase='done';
-    addLog('⏩ 跳過剩餘人材投入','w');
-    render();
-  }
-  // 容錯：本回合已投入且無 UI 阻塞時，強制進入 done
-  // phase==='event' 但無模態顯示視為殘留狀態（事件/商店/動作彈窗未正確 reset phase）
-  if(G.phase!=='done'&&G._turnInvested&&!G.freeRearrange&&!G.moveMode&&!G._yongqingSellMode&&!G._demoExpertMode&&!G._omniDragging&&G.phase!=='animating'){
-    if(G.phase!=='event' || !isAnyEventModalOpen()){
-      G.phase='done';
-    }
-  }
-  if(G.phase!=='done')return;
-
-  // 儲存本回合 log 到歷史
-  commitTurnLog();
-
+// 回合結束 passive：建築自動清除、合夥人/合約 onTurnEnd hook、違約倒數
+// 由 doNext() 與 performWinSettlement() 共用；flag 確保同一回合內冪等
+// （doNext 觸發 win → performWinSettlement 也會呼叫此函式，flag 防止 partner/contract hook 重複觸發）
+function runTurnEndPassives(){
+  if(G._turnEndPassivesFired) return;
+  G._turnEndPassivesFired=true;
   // 臨時工棚：回合結束時自動賣出自己 +2，且若場上有廢墟則隨機賣出一個 +2
   findCells((r,c,b)=>b==='temp_shed').forEach(([r,c])=>{
     G.grid[r][c]=null;
@@ -10161,28 +10151,45 @@ function doNext(){
     G._contractProfitZeroTurns--;
     if(G._contractProfitZeroTurns === 0) addLog('📜 合約違約懲罰結束（收益歸零回合用完）','w');
   }
+}
+function doNext(){
+  if(TUT.hookDoNext()) return;
+  // 額外投入階段：允許跳過
+  if(G.phase==='place'&&G._extraUsePhase){
+    G.elementExtraUses=0;
+    G._extraUsePhase=false;
+    G.phase='done';
+    addLog('⏩ 跳過剩餘人材投入','w');
+    render();
+  }
+  // 容錯：本回合已投入且無 UI 阻塞時，強制進入 done
+  // phase==='event' 但無模態顯示視為殘留狀態（事件/商店/動作彈窗未正確 reset phase）
+  if(G.phase!=='done'&&G._turnInvested&&!G.freeRearrange&&!G.moveMode&&!G._yongqingSellMode&&!G._demoExpertMode&&!G._omniDragging&&G.phase!=='animating'){
+    if(G.phase!=='event' || !isAnyEventModalOpen()){
+      G.phase='done';
+    }
+  }
+  if(G.phase!=='done')return;
+
+  // 儲存本回合 log 到歷史
+  commitTurnLog();
+
+  // 回合結束 passive（含臨時工棚、勞工兄弟屋、partner/contract onTurnEnd hook、違約倒數）
+  // 中途達標路徑（finish/doPermConvert→performWinSettlement）也會呼叫此函式，避免效果被繞過
+  runTurnEndPassives();
 
   // 每回合結束清除格子修正（只持續一回合）
   G.cellMods={}; G.cellPctMods={};
   G.buff={};G.sel=null;G.moveMode=false;G.moveSrc=null;
   G._tanyaSwappedThisTurn=false;
 
-  // 達標判定（轉換收益等非投入方式也能觸發過關）
+  // 達標判定：統一走 performWinSettlement（支援多輪連跳，避免與 finish/doPermConvert 路徑 race 與 double-count）
   if(G.profit>=G.goal){
     if(!G._goalReachedTurn) G._goalReachedTurn=G.turn;
-    const oldRound=G.round; const oldGoal=G.goal;
-    const turnsUsed=G._goalReachedTurn||G.turn;
-    G.roundHistory.push({round:oldRound, turnsUsed, goal:oldGoal, profit:G.profit});
-    adjustDifficulty();
-    G.round++;
-    const scaledMult=1.4*G.difficultyMult;
-    G.goal=Math.round(oldGoal*scaledMult+8);
-    G._goalReachedTurn=0;
-    G.turn=1; G.buff={}; G.sel=null; G.cellMods={}; G.cellPctMods={};
-    const diffPct=Math.round((G.difficultyMult-1)*100);
-    const diffLabel=diffPct>0?` 📈難度+${diffPct}%`:diffPct<0?` 📉難度${diffPct}%`:'';
-    autoSave();
-    showModal('win',`第 ${oldRound} 輪過關！（${turnsUsed}回合達標）\n達成目標 ${oldGoal}\n\n第 ${G.round} 輪新目標：${G.goal}${diffLabel}`);
+    if(!G._winPending){
+      G._winPending=true;
+      performWinSettlement(G._goalReachedTurn||G.turn);
+    }
     return;
   }
 
