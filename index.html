@@ -4050,7 +4050,7 @@ const CONTRACTS = {
     id:'expand_contract', name:'擴展', emoji:'🗺️', pool:'r4', permanent:true,
     immediateText:'你的小鎮永久擴大一級。',
     guaranteeText:'',
-    compensationText:'你的商店所有設施不再免費，費用變成原本的 3 倍。\n你的小鎮沒有被填滿時，每缺少一個當前收益減少 5%。',
+    compensationText:'你的商店所有設施不再免費，費用變成原本的 3 倍。\n你的小鎮沒有被填滿時，每缺少一個當前收益減少 1%。',
     onAccept(G, ac){
       G.gridSize = (G.gridSize || 4) + 1;
       G.grid = (typeof expandGrid === 'function') ? expandGrid(G.grid, G.gridSize) : G.grid;
@@ -9362,19 +9362,19 @@ function finish(el,startVal){
       addLog(`📜 終點合約：投入未以終點站起終，本次收益歸零（−${lost}）`,'b');
     }
   }
-  // 擴展合約：小鎮未填滿時，每空一格 −5% 當前收益（線性疊加，最多扣到 profitAtStart）
+  // 擴展合約：小鎮未填滿時，每空一格 −1% 當前收益（線性疊加，最多扣到 profitAtStart）
   if(hasActiveContract('expand_contract')){
     let empties = 0;
     for(let r=0;r<GN();r++) for(let c=0;c<GN();c++){
       if(!isFacility(G.grid[r][c])) empties++;
     }
     if(empties > 0){
-      const pctLoss = Math.min(1, empties * 0.05);
+      const pctLoss = Math.min(1, empties * 0.01);
       const before = G.profit;
       const target = Math.floor(G.profit * (1 - pctLoss));
       G.profit = Math.max(profitAtStart, target);
       const actualLoss = before - G.profit;
-      if(actualLoss > 0) addLog(`📜 擴展：小鎮空 ${empties} 格（−${empties*5}%）→ 本次收益 −${actualLoss}`,'b');
+      if(actualLoss > 0) addLog(`📜 擴展：小鎮空 ${empties} 格（−${empties}%）→ 本次收益 −${actualLoss}`,'b');
     }
   }
   // 地產 / 產線 違約：剩餘 N 回合本次收益歸零
