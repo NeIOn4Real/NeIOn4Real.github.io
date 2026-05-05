@@ -96,7 +96,7 @@
 | 59 | 2026-05-04 | 商店合夥人改 4th 額外位置 + 撤回 S57 輪鎖（per-turn roll） |
 | 60 | 2026-05-04 | 巨人村 / 大型電子供給站 / 世界奇觀 真正佔用 2×2（補 _part 占位 + cascade destroy） |
 | 61 | 2026-05-04 | 商店改可同回合多次購買 + 外貿港口削弱（脫離商品數量，N×2 階梯） |
-| 62 | 2026-05-05 | 終點合約 facPath 漏記 + 中途達標繞過 turn-end passives + 過關路徑統一（消除 race / double-count） |
+| 62 | 2026-05-05 | 終點合約 facPath 漏記 + 中途達標繞過 turn-end passives + 過關路徑統一（消除 race / double-count） + 同類 FACILITY_FX bypass 修補（tax_office/demolish_bureau/terminal 完整 _hit bookkeeping） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -7434,15 +7434,124 @@ function runTurnEndPassives(){
 
 唯一例外：`doNext` 走過關時是**同步呼叫** `performWinSettlement`（不用 setTimeout），因為玩家剛點完「結束回合」、不需要 600ms 視覺延遲。
 
+### D. 同類 FACILITY_FX bypass：tax_office / demolish_bureau / terminal 完整 `_hit` bookkeeping
+
+#### 動機
+
+修完 A 後系統性審查了所有 FACILITY_FX handler，發現另外 2 個 handler 有跟 terminal 一模一樣的 bypass pattern（手動 `facHit++` + `consumeDurability` + `fx.next()`）：
+
+- **tax_office** (line 8004-8007)
+- **demolish_bureau** (line 8174-8181)
+- **terminal** (line 8182) — A 段只補了 `facPath.push` / `facCellPath.push`，仍漏 4 個 `_hit` 副作用
+
+3 者共同漏掉的 `_hit` 副作用：
+1. `_trackContractHits(r,c,bId)` — 合約進度計數（影響「通過 N 個設施」型合約）
+2. `G._firstFacInvestedThisTurn = true` — 嫉妒工廠 partner 用此判定「本回合第一個投入」
+3. `G.inv.facProfitMap[bId]` — 大熱波等 partner 收益歸因
+4. `applyOverlayPipeline()` — 疊加在這格上的設施完全失效
+5. `_runPartnerOnBuildingHit(bId)` + `runContractHook('onBuildingHit', bId)` — partner / contract 的 onBuildingHit hook 不觸發
+
+#### 真實玩家可感知影響
+
+- **嫉妒工廠誤判**：玩家先投入 tax_office / demolish_bureau / terminal，再投入嫉妒工廠，嫉妒會錯誤拿到「本回合第一個投入」永久 +4 加成（因為前者沒設旗標）
+- **終點合約誤通過**：例如 `tax_office → terminal`，因為 tax_office 不在 facPath，合約看到「first === 'terminal'」誤通過（spec 應視為違約）
+- **疊加在這 3 格的設施失效**：玩家把員工食堂等 booster 放上去，視覺上有疊加，實際不生效
+
+#### 實作
+
+3 者統一改用 `fx.hitWithPartner('<id>')` 取代手動 facHit++/consumeDurability/SFX.hit/fx.next。`hitWithPartner` 內部呼叫 `fx.hit()`（走 `_hit` 完整 bookkeeping）+ `_runPartnerOnBuildingHit(bId)`（partner + contract onBuildingHit）。
+
+```js
+// terminal — 把 bonus/label 計算改用 preFacHit 變數捕獲
+terminal(fx){
+  const preFacHit=G.inv.facHit||0;
+  const bonus=preFacHit*4;
+  let termVal=fx.el.value+bonus;
+  termVal=applyUpgradeBonus(fx.r,fx.c,termVal,'終點站');
+  const t_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
+  const t_parts=[`通過${preFacHit}設施×4=+${bonus}`]; if(t_upg>0) t_parts.push(`升級+${t_upg}`);
+  addLog(`  🏁 終點站: ...`,'g');
+  fx.el={...fx.el,value:termVal};
+  fx.hitWithPartner('terminal');
+},
+
+// demolish_bureau
+demolish_bureau(fx){
+  const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value,'拆遷補償局');
+  fx.el={...fx.el,value:nv2};
+  addLog(`  🏢 拆遷補償局: 通過...`);
+  fx.hitWithPartner('demolish_bureau');
+},
+
+// tax_office（保留 300ms delay）
+tax_office(fx){
+  addLog(`  🏛 稅務局：通過...`);
+  fx.hitWithPartner('tax_office', 300);
+},
+```
+
+副作用驗證：partner onBuildingHit 只認 shop/factory/mat_factory 三類 ID（`ore_merchant` / `shop_owner` / `factory_owner`），對這 3 個非分類設施全部 no-op，無收益變化；只有 contract `onBuildingHit` 會新增 `'terminal'` / `'tax_office'` / `'demolish_bureau'` 計數，正確化既有合約追蹤。
+
+### E. `commitTurnLog` 在中途達標路徑被跳過
+
+#### 症狀
+
+`finish()` / `doPermConvert()` 走的中途達標路徑直接排程 `performWinSettlement`，從不呼叫 `commitTurnLog()`，導致觸發 win 的那回合的詳細 log **永遠進不了 `G.turnLogHistory`**（玩家在 log 面板回看時看不到該回合）。
+
+#### 實作
+
+`performWinSettlement` 開頭 `runTurnEndPassives()` 之後補 `commitTurnLog()`：
+
+```js
+function performWinSettlement(turnsUsed){
+  G._winPending=false;
+  runTurnEndPassives();
+  commitTurnLog();   // ← 新增
+  ...
+}
+```
+
+順帶把 `doNext()` 內 commitTurnLog 與 runTurnEndPassives 的順序對調（passives 先跑、commit 在後），讓 doNext-win path 與 finish/doPermConvert-win path **產出格式一致的單筆 history entry**（原本 doNext-win 會被切成 2 筆：pre-passive + post-passive）。`commitTurnLog` 本身對 empty turnLog 是 no-op（line 6358 `if(G.turnLog&&G.turnLog.length>0)`），所以後續 `performWinSettlement` 的 commit 在 doNext-win path 是安全 no-op。
+
+### F. 600ms `_winPending` 視窗 UX 修正
+
+#### 症狀
+
+`finish()` / `doPermConvert()` 達標後設 `_winPending=true` 並 `setTimeout(performWinSettlement, 600)`。在這 600ms 視窗內「結束回合」按鈕仍 enabled，玩家點下去：Session 62 C 段的 `_winPending` 守衛會讓 doNext 直接 return，**結果是「click 沒反應、400ms 後 modal 才彈」**，UX 不佳。
+
+#### 實作
+
+兩處改動：
+
+1. `render()` line 10560，btn-next disable 條件補上 `G._winPending`：
+   ```js
+   _btnNext.disabled=!_canEnd || !!G._winPending;
+   ```
+
+2. `finish()` line 9434、`doPermConvert()` line 10408、暗叫合約 hidden_call chooser callback line 3625（共 3 處），設 `_winPending=true` 之後立即呼叫 `render()`，讓 btn-next 在 600ms 視窗開始前就 disable：
+   ```js
+   G._winPending=true;
+   const turnsUsed=G._goalReachedTurn||G.turn;
+   render(); // 重新 render 讓 btn-next 在 600ms 視窗內 disable
+   setTimeout(()=>performWinSettlement(turnsUsed),600);
+   ```
+
 ### 修改檔案
 
 `index.html`：
-- 8187-8188：`FACILITY_FX.terminal` 補 `facPath.push('terminal')` + `facCellPath.push`
-- 9462：`performWinSettlement()` 開頭呼叫 `runTurnEndPassives()`
-- 9892：`startTurn()` 重置 `G._turnEndPassivesFired = false`
-- 10106-10157：新增 `runTurnEndPassives()` 函式（含 idempotency flag 檢查）
-- 10175：`doNext()` 改為呼叫 `runTurnEndPassives()`（取代原 43 行內聯邏輯）
-- 10183-10191：`doNext()` 達標判定改為路由到 `performWinSettlement`（取代原 17 行 inline win path）
+- **A**：8186-8188：`terminal` handler 補 `facPath.push('terminal')` + `facCellPath.push`（A 段 + D 段重構後此兩行併入新版邏輯）
+- **B+C**：9466-9469：`performWinSettlement()` 開頭呼叫 `runTurnEndPassives()` + `commitTurnLog()`
+- **C**：9897：`startTurn()` 重置 `G._turnEndPassivesFired = false`
+- **B**：10111-10162：新增 `runTurnEndPassives()` 函式（含 idempotency flag 檢查）
+- **B+E**：10175-10180：`doNext()` 改為「passives 先 → commit log 後」，取代原 43 行內聯邏輯
+- **C**：10188-10196：`doNext()` 達標判定改為路由到 `performWinSettlement`（取代原 17 行 inline win path）
+- **D**：8004-8009：`tax_office` 改用 `fx.hitWithPartner('tax_office', 300)`
+- **D**：8174-8180：`demolish_bureau` 改用 `fx.hitWithPartner('demolish_bureau')`
+- **D**：8182-8193：`terminal` 完整重構為 `fx.hitWithPartner('terminal')`
+- **F**：3625：暗叫合約 chooser callback 設 `_winPending=true` 後補 `render()`
+- **F**：9434-9436：`finish()` 設 `_winPending=true` 後補 `render()`
+- **F**：10405-10410：`doPermConvert()` 設 `_winPending=true` 後補 `render()`
+- **F**：10560：`render()` btn-next disable 條件加 `G._winPending`
 
 `VentureTown_GameDoc.md`：
 - 全 Session 完整索引加入 Session 62
