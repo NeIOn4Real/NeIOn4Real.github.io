@@ -96,7 +96,7 @@
 | 59 | 2026-05-04 | 商店合夥人改 4th 額外位置 + 撤回 S57 輪鎖（per-turn roll） |
 | 60 | 2026-05-04 | 巨人村 / 大型電子供給站 / 世界奇觀 真正佔用 2×2（補 _part 占位 + cascade destroy） |
 | 61 | 2026-05-04 | 商店改可同回合多次購買 + 外貿港口削弱（脫離商品數量，N×2 階梯） |
-| 62 | 2026-05-05 | 終點合約 facPath 漏記 + 中途達標繞過 turn-end passives + 過關路徑統一（消除 race / double-count） + 同類 FACILITY_FX bypass 修補（tax_office/demolish_bureau/terminal 完整 _hit bookkeeping） |
+| 62 | 2026-05-05 | 終點合約 facPath 漏記 + 中途達標繞過 turn-end passives + 過關路徑統一（消除 race / double-count） + 同類 FACILITY_FX bypass 修補（tax_office/demolish_bureau/terminal 完整 _hit bookkeeping） + 擴展合約懲罰削弱（5%→1%） + 全面審查確認 |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -7536,6 +7536,73 @@ function performWinSettlement(turnsUsed){
    setTimeout(()=>performWinSettlement(turnsUsed),600);
    ```
 
+### G. 擴展合約懲罰削弱：5% → 1% per 空格
+
+#### 動機
+
+玩家回報擴展合約（`expand_contract`）懲罰過大。原規格「小鎮沒被填滿時，每缺少一格 −5% 當前收益」搭配 `Math.min(1, empties*0.05)` 上限：
+
+- 5 格空 → −25%
+- 10 格空 → −50%
+- 20 格空 → −100%（上限）
+
+對於 5×5（max 25 空格）/ 6×6（max 36 空格）棋盤而言，常態 5-10 格空的盤面就會被砍 1/4 到 1/2 收益，實戰上極難維持價值。
+
+#### 新數值
+
+每空一格 −1% 當前收益，cap 仍 100%（但實質失效，因 5×5 max 25%、6×6 max 36%）。
+
+| 空格數 | 5 | 10 | 20 | 36 (6×6 max) |
+|---|---|---|---|---|
+| 舊（×5%）| −25% | −50% | −100% (cap) | −100% (cap) |
+| 新（×1%）| −5% | −10% | −20% | −36% |
+
+懲罰量降為原本 1/5，仍對「不填滿」有壓力，但不再是 game-breaker。
+
+#### 實作
+
+3 處同步（`index.html`）：
+
+| 行 | 原 | 新 |
+|---|---|---|
+| 4053 | `compensationText` 文案 `減少 5%` | `減少 1%` |
+| 9365 | 註解 `−5% 當前收益` | `−1% 當前收益` |
+| 9372 | `empties * 0.05` | `empties * 0.01` |
+| 9377 | log `−${empties*5}%` | `−${empties}%` |
+
+### H. 全面審查確認（無新 bug）
+
+#### 範圍
+
+對 Session 62 A-G 全套（含 expand_contract nerf）做完整檢查，目標識別 race condition / state corruption / exploit / double-fire / 副作用洩漏。
+
+#### 已驗證的關鍵安全點
+
+| 檢查項 | 結論 |
+|---|---|
+| `runContractHook('onBuildingHit')` 新增觸發來源（D） | 翻過所有合約 hooks，**沒有任何合約訂閱 onBuildingHit** → no-op，零影響 |
+| partner `onBuildingHit` 對 terminal/tax_office/demolish_bureau 反應 | 只有 `ore_merchant`/`shop_owner`/`factory_owner` 訂閱，全部以 bId 字串比對 shop/factory/mat_factory，這 3 個非分類設施全 no-op |
+| `_turnEndPassivesFired` 旗標冪等性 | 跨 doNext-win 與 finish-win 路徑都驗證單回合最多觸發 1 次；`startTurn` 必 reset；不入存檔也安全（load 後 `startTurn` 必跑） |
+| `_winPending` save/load | `loadGame` line 14282 強制 reset 為 false；不殘留 |
+| `commitTurnLog` 雙呼叫風險（E） | line 6358 `if(G.turnLog&&G.turnLog.length>0)` 守衛，empty turnLog 是 no-op |
+| performWinSettlement 內 `autoSave` 時機 | 在 while loop 之後、modal 之前，狀態一致 |
+| 多 render() 連發風險（F） | render 純讀 G + 寫 DOM，無副作用，不會觸發 finish/doNext 重入 |
+
+#### 順帶修正的 pre-existing bug（非主修目標但 C 段路由統一順便修了）
+
+`doNext` 舊內聯 win path **完全沒呼叫 `checkContractDeadlines`**，導致玩家手動「結束回合」過關時，截止輪剛好到的合約直接跳過結算（等於免費過合約）。Session 62 C 段把 doNext-win 路由到 `performWinSettlement` 後，現在會正確檢查截止合約。
+
+**對玩家的影響**：原本鑽這個漏洞通關的玩家會感覺「合約變嚴格」。從遊戲設計角度是修正。
+
+#### 已知 pre-existing 隱憂（未修，與 Session 62 無關）
+
+如果玩家在 600ms `_winPending` 視窗內離開頁面（瀏覽器關閉/重整）：
+- autoSave 不會在 600ms 內主動觸發
+- 但若上次自動存檔剛好 capture 到 `_winPending=true` 的狀態，load 時 `loadGame` 強制 reset 為 false
+- **後果**：玩家進入存檔時 `G.profit ≥ G.goal`，但 setTimeout 已遺失 → 不會自動觸發 `performWinSettlement` → 必須手動投入或結束回合才會重新觸發
+
+這個行為 Session 62 沒動，可在後續 session 補一行 load-time 偵測 `if(G.profit>=G.goal && !G._winPending) { ... }` 重新排程。
+
 ### 修改檔案
 
 `index.html`：
@@ -7552,8 +7619,12 @@ function performWinSettlement(turnsUsed){
 - **F**：9434-9436：`finish()` 設 `_winPending=true` 後補 `render()`
 - **F**：10405-10410：`doPermConvert()` 設 `_winPending=true` 後補 `render()`
 - **F**：10560：`render()` btn-next disable 條件加 `G._winPending`
+- **G**：4053：`expand_contract.compensationText` 5% → 1%
+- **G**：9365：註解 5% → 1%
+- **G**：9372：`empties * 0.05` → `empties * 0.01`
+- **G**：9377：log `${empties*5}%` → `${empties}%`
 
 `VentureTown_GameDoc.md`：
-- 全 Session 完整索引加入 Session 62
+- 全 Session 完整索引加入 Session 62（含 G/H）
 - 新增 Session 62 詳細章節（本節）
 
