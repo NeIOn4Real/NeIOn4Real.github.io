@@ -96,6 +96,7 @@
 | 59 | 2026-05-04 | 商店合夥人改 4th 額外位置 + 撤回 S57 輪鎖（per-turn roll） |
 | 60 | 2026-05-04 | 巨人村 / 大型電子供給站 / 世界奇觀 真正佔用 2×2（補 _part 占位 + cascade destroy） |
 | 61 | 2026-05-04 | 商店改可同回合多次購買 + 外貿港口削弱（脫離商品數量，N×2 階梯） |
+| 62 | 2026-05-05 | 終點合約 facPath 漏記 + 中途達標繞過 turn-end passives + 過關路徑統一（消除 race / double-count） |
 
 ### 歷史追蹤的「flag-based 跨格 buff」死碼 pattern
 統一根因：`G.inv.someFlag` 消費點寫在 stepWithMover 通用 fn 處理器，但 special FX 設施早 return 永遠不會走到。**修法**：消費點移到 `if(bId)` 起始後、special FX dispatch 之前。
@@ -7299,4 +7300,151 @@ trade_port(fx){
 `VentureTown_GameDoc.md`：
 - 全 Session 完整索引加入 Session 61
 - 新增 Session 61 詳細章節（本節）
+
+## Session 62（2026-05-05）— 終點合約 facPath 漏記 + 中途達標 turn-end passives 繞過 + 過關路徑統一
+
+### 動機
+
+玩家連續回報兩個 bug，順藤摸瓜挖出第三個 race condition：
+
+1. 「玩家收益大幅增加，導致回合跳過的話，有可能會導致勞工兄弟屋的效果被跳過」
+2. 「終點合約：玩家將金錢投入終點站，輸出也是終點站，但被懲罰導致收益歸零」
+3. 修第二個的過程中發現 `doNext` 與 `performWinSettlement` 的過關路徑長期 race，兩者都會 `roundHistory.push` + `adjustDifficulty()` → 一旦使用者在 600ms 視窗內手動點「結束回合」就 double-count
+
+### A. 終點合約 facPath 漏記（Bug #2）
+
+#### 症狀
+
+終點合約 `compensationText`：「投入時，你投入的第一個設施與最後一個輸出的設施不是「終點站」時，那次收益變為 0」。
+
+實測：金錢→終點站→終點站，明明 first/last 都是終點站，仍然觸發違約收益歸零。
+
+#### 根因
+
+`FACILITY_FX.terminal` handler 自己手動跑 `facHit++` / `consumeDurability` / `SFX.hit` 三件事後直接呼叫 `fx.next()`，**完全跳過 `_hit` closure 內的 `G.inv.facPath.push(bId)`**。結果終點站永遠不在 `facPath` 裡 → 合約檢查 `first !== 'terminal' || last !== 'terminal'` 100% 違約 → 合約等於死合約。
+
+#### 實作
+
+`index.html:8187-8188`，在 `SFX.hit` 之後、`bonus` 計算之前補上：
+
+```js
+if(G.inv.facPath) G.inv.facPath.push('terminal');
+if(G.inv.facCellPath) G.inv.facCellPath.push([fx.r,fx.c]);
+```
+
+不動其他副作用（避免影響既有 bonus 計算順序）。
+
+#### 副作用驗證
+
+`countFactoryHits` / `countShopHits` / `countMatFactoryHits` 都用 `pathSum + weightFn`，weight 函式只認工廠/商店/原料廠 ID，`'terminal'` 權重 0 → 不影響其他 facPath 消費點。
+
+### B. 中途達標繞過 turn-end passives（Bug #1）
+
+#### 症狀
+
+勞工兄弟屋規格「回合結束時清除自身，獲得人材 +2」。實測：玩家某回合中途投入大爆收益達標時，勞工兄弟屋沒清掉、人材 +2 沒給；要等到下一輪 turn 1 結束才會結算。
+
+#### 根因
+
+過關有兩條 trigger 路徑：
+- `finish()`：投入後達標，line 9437 `setTimeout(performWinSettlement, 600)` ← **不走 doNext**
+- `doPermConvert()`：常駐轉換器達標，line 10408 同上 ← **不走 doNext**
+- `doNext()`：玩家手動「結束回合」結算，line 10183 走 inline win 路徑
+
+`runTurnEndPassives` 邏輯（含臨時工棚、勞工兄弟屋、`runPartnerHook('onTurnEnd')`、`runContractHook('onTurnEnd')`、`G._contractProfitZeroTurns--`）原本只內聯在 `doNext` 裡。中途達標走的是 `performWinSettlement`，**整段 turn-end 邏輯被跳過**，影響的不只勞工兄弟屋，還包括所有 partner / contract 的 onTurnEnd hook 與違約倒數。
+
+#### 實作
+
+抽出 `runTurnEndPassives()` 共用函式（`index.html:10106`），在兩個位置呼叫：
+
+1. `doNext()` 原內聯位置 → 改為 `runTurnEndPassives();`
+2. `performWinSettlement()` 開頭，`G._winPending=false` 之後、`while` 迴圈之前
+
+```js
+function performWinSettlement(turnsUsed){
+  G._winPending=false;
+  // 中途達標（finish / doPermConvert）會繞過 doNext，補跑當回合的 turn-end passives
+  runTurnEndPassives();
+  ...
+}
+```
+
+被 while 迴圈跳過的「中間輪」無法精準補償（玩家從未操作那些回合），但**至少觸發 win 的當回合一定有結算**。
+
+### C. 過關路徑統一（pre-existing race + 我的新 race 一起治本）
+
+#### 觀察到的兩個 race
+
+`finish()` 設 `_winPending=true` 並 setTimeout 600ms 排程 `performWinSettlement`。在這 600ms 視窗內，「結束回合」按鈕仍然 enabled（render 沒檢查 `_winPending`），玩家手快點下去：
+
+**Race 1（pre-existing）**：
+- `t=200ms` `doNext` 跑 inline win path → `roundHistory.push` + `adjustDifficulty` + `G.round++` + `showModal('win')`
+- `t=600ms` `performWinSettlement` 跑 → 又一次 `roundHistory.push` + `adjustDifficulty` + while 迴圈再 round++
+- 結果：roundHistory 多一筆、難度調整跑兩次、輪數可能多跳一輪
+
+**Race 2（B 改完後的新 race）**：
+- `t=200ms` `doNext` 跑 `runTurnEndPassives` → flag 為 false → 跑 → partner/contract onTurnEnd hook 觸發、違約倒數 −1
+- `t=600ms` `performWinSettlement` 跑 `runTurnEndPassives` → **再跑一次** → hook 觸發兩次、違約倒數多 −1
+
+#### 實作（治本）
+
+把 `doNext` 的 inline win path（原 17 行）改成路由到 `performWinSettlement`，所有過關集中一條路徑：
+
+```js
+// 達標判定：統一走 performWinSettlement（支援多輪連跳，避免與 finish/doPermConvert 路徑 race 與 double-count）
+if(G.profit>=G.goal){
+  if(!G._goalReachedTurn) G._goalReachedTurn=G.turn;
+  if(!G._winPending){
+    G._winPending=true;
+    performWinSettlement(G._goalReachedTurn||G.turn);
+  }
+  return;
+}
+```
+
+`_winPending` flag 自然成為唯一的入口守衛：finish/doPermConvert 已搶到 → doNext 直接 return；doNext 先到 → 後續 setTimeout 再進 performWinSettlement 時 `_winPending` 已被 performWinSettlement 內部 reset 為 false，但因為 doNext 直接同步呼叫 performWinSettlement 已結算完畢、modal 已開、`G._goalReachedTurn=0`，第二次進來 G.profit 仍 ≥ G.goal 時的判定會走「玩家從新輪續玩」的脈絡，需要 `runTurnEndPassives` 的 idempotency 保護。
+
+#### 配套：`runTurnEndPassives` 加 per-turn 冪等旗標
+
+```js
+function runTurnEndPassives(){
+  if(G._turnEndPassivesFired) return;
+  G._turnEndPassivesFired=true;
+  // ... 原本的邏輯
+}
+```
+
+`startTurn()` 開頭重置：`G._turnEndPassivesFired = false;`
+
+確保同一回合內任何路徑組合（doNext → performWinSettlement、finish → 視窗內 doNext → performWinSettlement、純 finish → performWinSettlement）的 partner/contract hook 與違約倒數 **最多觸發一次**。
+
+#### 統一後的過關流程
+
+```
+[finish / doPermConvert] ──┐
+                           ├─→ _winPending=true → setTimeout(performWinSettlement, 600)
+[doNext + profit≥goal] ────┘                              │
+                                                          ↓
+                                            runTurnEndPassives() (flag-guarded)
+                                                          ↓
+                                            while(profit≥goal) → round++
+                                                          ↓
+                                            adjustDifficulty + showModal('win')
+```
+
+唯一例外：`doNext` 走過關時是**同步呼叫** `performWinSettlement`（不用 setTimeout），因為玩家剛點完「結束回合」、不需要 600ms 視覺延遲。
+
+### 修改檔案
+
+`index.html`：
+- 8187-8188：`FACILITY_FX.terminal` 補 `facPath.push('terminal')` + `facCellPath.push`
+- 9462：`performWinSettlement()` 開頭呼叫 `runTurnEndPassives()`
+- 9892：`startTurn()` 重置 `G._turnEndPassivesFired = false`
+- 10106-10157：新增 `runTurnEndPassives()` 函式（含 idempotency flag 檢查）
+- 10175：`doNext()` 改為呼叫 `runTurnEndPassives()`（取代原 43 行內聯邏輯）
+- 10183-10191：`doNext()` 達標判定改為路由到 `performWinSettlement`（取代原 17 行 inline win path）
+
+`VentureTown_GameDoc.md`：
+- 全 Session 完整索引加入 Session 62
+- 新增 Session 62 詳細章節（本節）
 
