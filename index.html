@@ -3622,6 +3622,7 @@ function _handleHiddenCallPair(r, c){
     if(!G._winPending){
       G._winPending=true;
       const turnsUsed=G._goalReachedTurn||G.turn;
+      render(); // 重新 render 讓 btn-next 在 600ms 視窗內 disable
       setTimeout(()=>performWinSettlement(turnsUsed),600);
     }
   }
@@ -8003,7 +8004,8 @@ const FACILITY_FX={
   },
   tax_office(fx){
     addLog(`  🏛 稅務局：通過（最終收益-10%）`);
-    G.inv.facHit=(G.inv.facHit||0)+1; consumeDurability(fx.r,fx.c,G.grid[fx.r][fx.c]); fx.next(300);
+    // 用 fx.hitWithPartner 走 _hit bookkeeping + onBuildingHit hook（取代手動 facHit++/consumeDurability + fx.next）
+    fx.hitWithPartner('tax_office', 300);
   },
   temp_shed(fx){
     // 通過無加成；效果在回合結束時（doNext）自動賣出 +2 + 隨機賣廢墟 +2
@@ -8172,27 +8174,24 @@ const FACILITY_FX={
     fx.hit();
   },
   demolish_bureau(fx){
-    G.inv.facHit=(G.inv.facHit||0)+1;
-    consumeDurability(fx.r,fx.c,G.grid[fx.r][fx.c]);
     const nv2=applyUpgradeBonus(fx.r,fx.c,fx.el.value,'拆遷補償局');
     fx.el={...fx.el,value:nv2};
     addLog(`  🏢 拆遷補償局: 通過（移動/消滅設施時+4收益）`);
-    fx.pulse(); fx.updateCard(); fx.next();
+    // 用 fx.hitWithPartner 走 _hit bookkeeping + onBuildingHit hook（取代手動 facHit++/consumeDurability）
+    fx.hitWithPartner('demolish_bureau');
   },
   terminal(fx){
-    const bonus=(G.inv.facHit||0)*4;
-    G.inv.facHit=(G.inv.facHit||0)+1;
-    consumeDurability(fx.r,fx.c,G.grid[fx.r][fx.c]);
-    SFX.hit(G.inv.facHit-1, getOverlays(fx.r,fx.c).length);
-    if(G.inv.facPath) G.inv.facPath.push('terminal');
-    if(G.inv.facCellPath) G.inv.facCellPath.push([fx.r,fx.c]);
+    const preFacHit=G.inv.facHit||0;
+    const bonus=preFacHit*4;
     let termVal=fx.el.value+bonus;
     termVal=applyUpgradeBonus(fx.r,fx.c,termVal,'終點站');
     const t_upg=G.bldgUpgrades?.[`${fx.r},${fx.c}`]||0;
-    const t_parts=[`通過${G.inv.facHit-1}設施×4=+${bonus}`]; if(t_upg>0) t_parts.push(`升級+${t_upg}`);
+    const t_parts=[`通過${preFacHit}設施×4=+${bonus}`]; if(t_upg>0) t_parts.push(`升級+${t_upg}`);
     addLog(`  🏁 終點站: ${TLABEL[fx.el.type]}${fx.el.value}→${termVal}（${t_parts.join('，')}）`,'g');
     fx.el={...fx.el,value:termVal};
-    fx.pulse(); fx.updateCard(); fx.next();
+    // 用 fx.hitWithPartner 走 _hit bookkeeping（facPath/facCellPath/_trackContractHits/_firstFacInvestedThisTurn/facProfitMap/applyOverlayPipeline）
+    // 並同時觸發 partner/contract 的 onBuildingHit hook
+    fx.hitWithPartner('terminal');
   },
   spiral_hub(fx){
     // 商品→商品（不變）；之前每通過 1 個設施 → G.profit += 2
@@ -9433,6 +9432,7 @@ function finish(el,startVal){
   if(G.profit>=G.goal&&!G._winPending){
     G._winPending=true;
     const turnsUsed=G._goalReachedTurn||G.turn;
+    render(); // 重新 render 讓 btn-next 在 600ms 視窗內 disable
     setTimeout(()=>performWinSettlement(turnsUsed),600);
   }
 }
@@ -9460,6 +9460,8 @@ function performWinSettlement(turnsUsed){
   // 中途達標（finish / doPermConvert）會繞過 doNext，補跑當回合的 turn-end passives
   // 確保勞工兄弟屋、合夥人/合約 onTurnEnd hook、違約倒數等效果不會被跳過
   runTurnEndPassives();
+  // 中途達標路徑也補 commitTurnLog，避免觸發 win 的那回合的 log 永遠進不了 turnLogHistory
+  commitTurnLog();
   const startRound=G.round;
   const passedGoals=[];
   // 連續結算：只要 profit 仍 >= 當前 goal 就繼續過關（上限 20 輪防護）
@@ -10171,12 +10173,12 @@ function doNext(){
   }
   if(G.phase!=='done')return;
 
-  // 儲存本回合 log 到歷史
-  commitTurnLog();
-
   // 回合結束 passive（含臨時工棚、勞工兄弟屋、partner/contract onTurnEnd hook、違約倒數）
   // 中途達標路徑（finish/doPermConvert→performWinSettlement）也會呼叫此函式，避免效果被繞過
   runTurnEndPassives();
+  // 儲存本回合 log 到歷史（passives 之後 commit，包含 passive 的 log 條目；
+  // 與 performWinSettlement 路徑保持一致：每回合恰好一筆 history entry）
+  commitTurnLog();
 
   // 每回合結束清除格子修正（只持續一回合）
   G.cellMods={}; G.cellPctMods={};
@@ -10404,6 +10406,7 @@ function doPermConvert(){
     if(!G._winPending){
       G._winPending=true;
       const turnsUsed=G._goalReachedTurn||G.turn;
+      render(); // 重新 render 讓 btn-next 在 600ms 視窗內 disable
       setTimeout(()=>performWinSettlement(turnsUsed),600);
     }
   }
@@ -10556,7 +10559,8 @@ function render(){
   const _eventBlocking=G.phase==='event'&&isAnyEventModalOpen();
   const _inOtherMode=G.freeRearrange||G.moveMode||G._yongqingSellMode||G._demoExpertMode||G._omniDragging||G.phase==='animating'||_eventBlocking;
   const _canEnd=G.phase==='done' || (G.phase==='place'&&G._extraUsePhase) || (G._turnInvested&&!_inOtherMode);
-  _btnNext.disabled=!_canEnd;
+  // _winPending 期間（finish/doPermConvert 達標後 600ms 視窗）禁用結束回合，避免玩家點下去 click 沒反應
+  _btnNext.disabled=!_canEnd || !!G._winPending;
   _btnNext.textContent=G._extraUsePhase?'⏩ 跳過額外投入':'⏩ 結束回合';
   updatePermBtns();
 
